@@ -19,8 +19,15 @@ test("the plugin manifest holds the minimum, in a stable order: name, version, d
   assert.deepEqual(Object.keys(readJson(PLUGIN)), ["name", "version", "description"]);
 });
 
-test("the plugin manifest keeps the plugin id", () => {
-  assert.equal(readJson(PLUGIN)["name"], "matt-with-paseo");
+test("the plugin manifest names the plugin apart from the skills repository's plugin, `matt-with-paseo`", () => {
+  const name = readJson(PLUGIN)["name"];
+  assert.equal(name, "matt-with-paseo-plugin");
+  assert.notEqual(name, "matt-with-paseo");
+});
+
+test("the Paseo id stays `matt-with-paseo`, as the Claude Code name is not the id", () => {
+  assert.equal(readJson("paseo-plugin.json")["id"], "matt-with-paseo");
+  assert.equal(readJson("package.json")["name"], "matt-with-paseo");
 });
 
 test("the plugin manifest names no hooks: hooks/hooks.json is found at its default place", () => {
@@ -44,6 +51,7 @@ test("the marketplace entry is the plugin at this repository's root", () => {
   const entry: unknown = plugins[0];
   assert.ok(typeof entry === "object" && entry !== null);
   assert.deepEqual(Object.keys(entry), ["name", "source", "version"]);
+  assert.equal(Reflect.get(entry, "name"), "matt-with-paseo-plugin");
   assert.equal(Reflect.get(entry, "source"), "./");
 });
 

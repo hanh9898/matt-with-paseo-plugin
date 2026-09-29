@@ -7,7 +7,7 @@
   "description": "The matt-with-paseo plugin: lifecycle hooks, delegated checkpoint answers and agent wiring for the matt-with-paseo skills.",
   "plugins": [
     {
-      "name": "matt-with-paseo",
+      "name": "matt-with-paseo-plugin",
       "source": "./",
       "version": "0.0.0"
     }

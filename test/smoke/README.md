@@ -87,9 +87,9 @@ Written, not run. Targets Paseo `0.10.1`; the steps need Claude Code, not the da
 
 1. `claude plugin validate <plugin>` ends with `Validation passed`. It may warn that `CLAUDE.md` at the plugin root is not loaded as context: expected, that file is for this repository's agents.
 2. `claude plugin validate <plugin>/.claude-plugin/marketplace.json` ends with `Validation passed` and no warning that the entry's version differs from `plugin.json`'s.
-3. `claude plugin marketplace add <plugin>`, then `claude plugin install matt-with-paseo@matt-with-paseo-plugin`: both succeed.
-4. `claude plugin list` shows `matt-with-paseo@matt-with-paseo-plugin` as enabled, at the `version` of `package.json`.
-5. `claude plugin details matt-with-paseo` lists the `PreToolUse` hook of `hooks/hooks.json` in its component inventory.
+3. `claude plugin marketplace add <plugin>`, then `claude plugin install matt-with-paseo-plugin@matt-with-paseo-plugin`: both succeed.
+4. `claude plugin list` shows `matt-with-paseo-plugin@matt-with-paseo-plugin` as enabled, at the `version` of `package.json`.
+5. `claude plugin details matt-with-paseo-plugin` lists the `PreToolUse` hook of `hooks/hooks.json` in its component inventory.
 6. `claude plugin marketplace remove matt-with-paseo-plugin` removes the marketplace and the plugin, then `claude plugin list` no longer shows it.
 
 ## Role identity
