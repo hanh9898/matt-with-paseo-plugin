@@ -34,8 +34,8 @@ Acceptance criteria:
 - [ ] <criterion not met>: <why, and what remains>
 
 Checks written: <each check the ticket added, with its file, and that it was written to fail before the change>
-Tests: deferred to the stream's end (docs/agents/evidence-standards.md)
-Code review: deferred to the stream's end (docs/agents/evidence-standards.md)
+Tests: deferred to the milestone (docs/agents/evidence-standards.md)
+Code review: deferred to the milestone (docs/agents/evidence-standards.md)
 Open: <what remains open or in doubt; "nothing" when nothing>
 Outside the file zone: <each change outside the ticket's files or outside git; "none" when none>
 ```
