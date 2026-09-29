@@ -224,3 +224,14 @@ test("the guard reads no file and runs no program: it decides from the tool call
   });
   assert.equal(result.status, 2);
 });
+
+test("the refusal ends with one `Next:` line naming what the ticket agent does now", () => {
+  for (const command of ["git push origin HEAD", "cd x && git checkout main", "git reset --hard HEAD~1", "git clean -fd", "git branch -D other"]) {
+    const lines = bash(command).stderr.trimEnd().split("\n");
+    assert.ok((lines.at(-1) ?? "").startsWith("Next: "), `${command}: the last line is the \`Next:\` line: ${lines.join(" | ")}`);
+    assert.equal(lines.filter((line) => line.startsWith("Next:")).length, 1, `${command}: one \`Next:\` line`);
+    assert.match(lines.at(-1) ?? "", /commit/);
+    assert.match(lines.at(-1) ?? "", /report/);
+    assert.match(lines.at(-1) ?? "", /orchestrator/);
+  }
+});

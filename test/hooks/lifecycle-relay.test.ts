@@ -161,3 +161,23 @@ test("held messages are combined by the messages module, in order", () => {
   const both = combine(["first", "second"]);
   assert.ok(both.indexOf("first") !== -1 && both.indexOf("first") < both.indexOf("second"));
 });
+
+test("every message the relay sends ends with a `Next:` line, and held ones with one", async () => {
+  const idle = relayed();
+  await idle.emitCreated({ agent: ticketAgent });
+  await idle.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [] });
+  await idle.emitPermissionRequested({ agent: ticketAgent, request: { id: "req-9", name: "Bash", kind: "tool" } });
+  await idle.emitArchived({ agent: ticketAgent });
+  assert.equal(idle.sent.length, 4);
+  for (const message of idle.sent) assert.ok(message.text.split("\n").at(-1)?.startsWith("Next: "), message.text);
+
+  const busy = relayed();
+  busy.setRunning("orch-1", true);
+  await busy.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [] });
+  await busy.emitPermissionRequested({ agent: ticketAgent, request: { id: "req-9", name: "Bash", kind: "tool" } });
+  busy.setRunning("orch-1", false);
+  await busy.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [] });
+  const lines = (busy.sent[0]?.text ?? "").split("\n");
+  assert.ok(lines.at(-1)?.startsWith("Next: "), "the held message ends with a `Next:` line");
+  assert.equal(lines.filter((line) => line.startsWith("Next:")).length, 1, "and holds only that one");
+});
