@@ -12,7 +12,9 @@ What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-pl
 
 ## Development
 
-The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step.
+The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step; the plugin was tested on Node 22, and `package.json` has no `engines` field, so npm does not refuse another version.
+
+Install from a clone: `git clone https://github.com/hanh9898/matt-with-paseo-plugin`, `cd matt-with-paseo-plugin`, `npm ci`, then `paseo plugin install <path to the clone>` (the smoke test runs the same command with a plugin id, `--id`). The Claude Code half installs as `matt-with-paseo-plugin@matt-with-paseo-plugin` (see the Claude Code plugin paragraph below). Nothing is published to npm.
 
 Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin.json`](paseo-plugin.json)), tested on Paseo `0.10.1`. The [smoke test](test/smoke/README.md) targets that version. When Paseo cuts a new minor, the [release checklist](docs/agents/release-checklist.md) widens the range after the smoke test passes on it.
 
@@ -338,4 +340,4 @@ For agents and for reviewers: [`AGENTS.md`](AGENTS.md) points to the [coding sta
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). [NOTICE](NOTICE) credits sting9k/seatworks at `6d316b0` as the source of the lessons and the adapted designs.

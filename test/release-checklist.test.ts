@@ -8,9 +8,15 @@ function read(name: string): string {
   return readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
 }
 
+/** The numbered steps of the "Widen the host range" section: the release steps (#37) sit in a section of their own. */
 function steps(): string[] {
   assert.ok(existsSync(new URL(`../${CHECKLIST}`, import.meta.url)), `${CHECKLIST} exists`);
-  return read(CHECKLIST)
+  const text = read(CHECKLIST);
+  const start = text.indexOf("## Widen the host range");
+  assert.ok(start !== -1, "the checklist has a Widen the host range section");
+  const next = text.indexOf("\n## ", start + 1);
+  return text
+    .slice(start, next === -1 ? undefined : next)
     .split("\n")
     .filter((line) => /^\d+\. /.test(line));
 }
