@@ -181,3 +181,102 @@ test("every message the relay sends ends with a `Next:` line, and held ones with
   assert.ok(lines.at(-1)?.startsWith("Next: "), "the held message ends with a `Next:` line");
   assert.equal(lines.filter((line) => line.startsWith("Next:")).length, 1, "and holds only that one");
 });
+
+/** An item of the timeline as Paseo reports it: a message typed in a client carries a client message id; a prompt sent through the orchestrator's tools does not. */
+const typed = (id: string) => ({ type: "user_message", text: "please use the other table", clientMessageId: id, messageId: `p-${id}` });
+const prompted = { type: "user_message", text: "Ticket 07: do this", messageId: "p-0" };
+
+test("a message the user typed in a ticket agent's chat reaches its orchestrator with the turn end, as one message", async () => {
+  const host = relayed();
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [prompted, typed("c-1")] });
+  assert.equal(host.sent.length, 1, "one message, not two");
+  const [message] = host.sent;
+  assert.equal(message?.agentId, "orch-1");
+  const text = message?.text ?? "";
+  assert.match(text, /Human words/);
+  assert.ok(text.includes("c-1") && text.includes("tkt-7") && text.includes("07"));
+  assert.ok(text.indexOf("Human words") < text.indexOf("Turn ended"), "the words come first");
+  assert.equal(text.split("
+").filter((line) => line.startsWith("Next:")).length, 1);
+  assert.doesNotMatch(text, /other table/, "the text of the message stays out (T6)");
+  assert.deepEqual(host.failures, []);
+});
+
+test("the orchestrator's own prompts, the first one included, are not relayed as human words", async () => {
+  const host = relayed();
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [prompted, { ...prompted, text: "Ticket 07: go on", messageId: "p-1" }] });
+  assert.equal(host.sent.length, 1);
+  assert.doesNotMatch(host.sent[0]?.text ?? "", /Human words/);
+});
+
+test("the same history at the next turn end is not relayed again, and a new message is", async () => {
+  const host = relayed();
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [typed("c-1")] });
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [typed("c-1")] });
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [typed("c-1"), typed("c-2")] });
+  const texts = host.sent.map((sent) => sent.text);
+  assert.equal(texts.filter((text) => text.includes("c-1")).length, 1, "c-1 goes once");
+  assert.equal(texts.filter((text) => text.includes("c-2")).length, 1, "c-2 goes once");
+  assert.doesNotMatch(texts[1] ?? "", /Human words/);
+});
+
+test("a message typed in an agent that is not a ticket agent is left alone (T3)", async () => {
+  const host = relayed();
+  host.setLabels("stray", { stream: "demo" });
+  const stray: HostAgent = { ...ticketAgent, id: "stray" };
+  await host.emitTurnEnded({ agent: stray, outcome: completed, timeline: [typed("c-1")] });
+  await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [typed("c-2")] });
+  assert.deepEqual(host.sent, []);
+});
+
+test("a ticket agent with no orchestrator has nobody to tell, and its words are not marked as told", async () => {
+  const host = relayed();
+  const alone: HostAgent = { ...ticketAgent, parentAgentId: null };
+  await host.emitTurnEnded({ agent: alone, outcome: completed, timeline: [typed("c-1")] });
+  assert.deepEqual(host.sent, []);
+});
+
+test("the words wait with the turn end while the orchestrator runs, and go out with what else is held", async () => {
+  const host = relayed();
+  host.setRunning("orch-1", true);
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [typed("c-1")] });
+  assert.deepEqual(host.sent, []);
+  host.setRunning("orch-1", false);
+  await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [] });
+  assert.equal(host.sent.length, 1);
+  const lines = (host.sent[0]?.text ?? "").split("
+");
+  assert.match(host.sent[0]?.text ?? "", /Human words/);
+  assert.equal(lines.filter((line) => line.startsWith("Next:")).length, 1);
+  assert.ok(lines.at(-1)?.startsWith("Next: "));
+});
+
+test("a refused send leaves the words to be told at the next turn end (T4)", async () => {
+  const host = relayed();
+  const send = host.send.bind(host);
+  let refuse = true;
+  host.send = async (agentId, text) => {
+    if (refuse) throw new Error("refused");
+    await send(agentId, text);
+  };
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [typed("c-1")] });
+  assert.equal(host.failures.length, 1);
+  refuse = false;
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [typed("c-1")] });
+  assert.match(host.sent[0]?.text ?? "", /Human words/);
+});
+
+test("archiving forgets which words were told", async () => {
+  const host = relayed();
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [typed("c-1")] });
+  await host.emitArchived({ agent: ticketAgent });
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [typed("c-1")] });
+  assert.equal(host.sent.filter((sent) => sent.text.includes("Human words")).length, 2);
+});
+
+test("a timeline that is not a list does not stop the turn end from being told (T4)", async () => {
+  const host = relayed();
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: undefined as unknown as unknown[] });
+  assert.equal(host.sent.length, 1);
+  assert.deepEqual(host.failures, []);
+});
