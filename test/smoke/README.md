@@ -103,6 +103,20 @@ Written, not run. Targets Paseo `0.10.1`. Run it after the steps above, with `mw
 3. The marker on a ticket agent and its absence on the orchestrator are the "Git guard" section's part C, steps 1 to 3.
 4. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]`. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
+## Human words
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. This section settles how `server/human-words.ts` tells a message a person typed from a prompt the orchestrator sent; the code rests on a reading of the `0.10.1` daemon's source, and these steps are where it is proven.
+
+1. Start an orchestrator titled `[mwp-smoke] orchestrator`. From it, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=99`, with `create_agent` and a first prompt that answers in one line. When its turn ends, the orchestrator gets a `Turn ended:` message and no `Human words:` text: the first prompt is the orchestrator's.
+2. From the orchestrator, send the ticket agent a second prompt with `send_agent_prompt`. Its turn end reaches the orchestrator as `Turn ended:` alone, again with no `Human words:` text.
+3. Read the ticket agent's timeline through `get_agent_activity` (or the plugin's own log) and record, for the first prompt and the second, the fields of each `user_message` item: `messageId`, `clientMessageId` and any other. Expected: both carry `messageId` and neither carries `clientMessageId`. If either carries a `clientMessageId`, `server/human-words.ts` would pass the orchestrator's prompt on as a person's: stop and record it as a finding.
+4. Type a message in the ticket agent's own chat in the Paseo app, such as `use the other table`, and let its turn end. Record the same fields for this item. Expected: `clientMessageId` is present. The orchestrator then gets one message, `Human words:` ahead of `Turn ended:`, with one `Next:` line at its end; it names ticket `99`, the agent and the message id, and not the words typed. If `clientMessageId` is absent for a message typed in the app, the person's words are missed: record it as a finding.
+5. Type a second message and let the turn end. The orchestrator's message names only the new id: the timeline that `agent.turn_ended` carries is the agent's whole history (expected from the source, confirm it), and the relay tells each id once.
+6. While the ticket agent's turn runs, type a message in its chat. Record when the orchestrator's message arrives: at that turn's end, since the port has no per-item event. If the orchestrator's turn is running then, the message waits and goes out with the held ones as one message with one `Next:` line.
+7. Send a message with `paseo` CLI to the ticket agent (`paseo agent send`, or the CLI's equivalent on this version) and record whether it carries a `clientMessageId`. It decides whether a CLI message counts as a person's.
+8. Type in the chat of an agent with no labels and one with only `wave=1`: no `Human words:` message.
+9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
 ## Results
 
 None yet.

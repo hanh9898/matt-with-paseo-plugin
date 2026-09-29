@@ -11,11 +11,12 @@ test("each message type has one text, and it names the agent, the wave and the t
     MESSAGES.permissionRequested(subject, { id: "req-9", name: "Bash", kind: "tool" }),
     MESSAGES.created(subject),
     MESSAGES.archived(subject),
+    MESSAGES.humanWords(subject, ["c-1"]),
   ];
   for (const text of texts) {
     for (const fact of ["tkt-7", "1", "07"]) assert.ok(text.includes(fact), `"${text}" names ${fact}`);
   }
-  assert.equal(new Set(texts.map((text) => text.split(/[:.]/)[0])).size, 4, "each type opens with its own words");
+  assert.equal(new Set(texts.map((text) => text.split(/[:.]/)[0])).size, 5, "each type opens with its own words");
 });
 
 /** Every message type with each case whose moves differ: the key is the type's name in `MESSAGES`. */
@@ -31,6 +32,7 @@ const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
   },
   created: { created: MESSAGES.created(subject) },
   archived: { archived: MESSAGES.archived(subject) },
+  humanWords: { one: MESSAGES.humanWords(subject, ["c-1"]) },
 };
 
 /** The `Next:` line of a text: its last line, or null when the last line is anything else. */
@@ -79,6 +81,9 @@ test("the moves use the tools and words of the skills, one set per case", () => 
   assert.match(next("permissionRequested", "tool"), /respond_to_permission/);
   assert.match(next("created", "created"), /turn end/);
   assert.match(next("archived", "archived"), /step 8/);
+  assert.match(next("humanWords", "one"), /get_agent_activity/, "the words are read where they are, not carried");
+  assert.match(next("humanWords", "one"), /changed the plan/, "the orchestrator records whether they changed it");
+  assert.match(next("humanWords", "one"), /report/, "and the report lists it");
   const lines = Object.values(SAMPLES).flatMap((cases) => Object.values(cases).map((text) => nextLineOf(text)));
   assert.equal(new Set(lines).size, lines.length, "no two cases share a `Next:` line");
 });
@@ -127,4 +132,26 @@ test("no hook module writes a message text of its own", () => {
     assert.match(text, /\.\.\/messages\.ts/, `${file} takes its texts from server/messages.ts`);
     assert.doesNotMatch(text, /host\.send\([^)]*[`"']/, `${file} sends a text it did not take from server/messages.ts`);
   }
+});
+
+test("the human words message names the user's messages by id and count, and never carries their text (T6)", () => {
+  const text = MESSAGES.humanWords(subject, ["c-1", "c-2"]);
+  assert.match(text, /^Human words/);
+  assert.ok(text.includes("c-1") && text.includes("c-2"), "each message id is named");
+  assert.match(text, /2 messages/);
+  assert.match(MESSAGES.humanWords(subject, ["c-1"]), /1 message(?!s)/);
+});
+
+test("a long run of ids is cut to a few, and the rest are counted", () => {
+  const ids = Array.from({ length: 40 }, (_, index) => `c-${index}`);
+  const text = MESSAGES.humanWords(subject, ids);
+  assert.ok(text.includes("c-0") && !text.includes("c-39"), "the first ids are named, the last are not");
+  assert.match(text, /40 messages/);
+  assert.match(text, /more/);
+});
+
+test("the human words message combines with a turn end into one `Next:` line", () => {
+  const both = combine([MESSAGES.humanWords(subject, ["c-1"]), MESSAGES.turnEnded(subject, { kind: "completed" })]);
+  assert.equal(both.split("\n").filter((line) => line.startsWith("Next:")).length, 1);
+  assert.ok(both.indexOf("Human words") < both.indexOf("Turn ended"));
 });
