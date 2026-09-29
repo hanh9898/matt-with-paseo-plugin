@@ -189,18 +189,19 @@ Paseo loads only the entries and the `client/`, `server/` and `shared/` folders,
 
 ### One version token
 
-The plugin's version and id are spelled in several files, and a spelling that lags fails silently: Claude Code takes `plugin.json`'s version over the marketplace entry's without saying so. The version lives in one place, `version` in `package.json`; every other spelling is checked against it, and the id is checked the same way against `paseo-plugin.json`.
+The plugin's version, id and Claude Code name are spelled in several files, and a spelling that lags fails silently: Claude Code takes `plugin.json`'s version over the marketplace entry's without saying so. The version lives in one place, `version` in `package.json`; every other spelling is checked against it. The Paseo id is checked against `paseo-plugin.json`, and the Claude Code name is the one exception to it.
 
 | Identifier | Spelled in | Checked against |
 |---|---|---|
 | Version | `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `plugins[0].version`, `shared/contract.ts` `CONTRACT_VERSION` | `package.json` `version` |
-| Id (`matt-with-paseo`) | `package.json` `name`, `.claude-plugin/plugin.json` `name`, `.claude-plugin/marketplace.json` `plugins[0].name` | `paseo-plugin.json` `id` |
+| Paseo id (`matt-with-paseo`) | `package.json` `name` | `paseo-plugin.json` `id` |
+| Claude Code name (`matt-with-paseo-plugin`) | `.claude-plugin/marketplace.json` `plugins[0].name` | `.claude-plugin/plugin.json` `name` |
 
 `paseo-plugin.json` carries no version: Paseo's manifest schema takes `id`, `description`, `requirements` and `build` and no other key (read in `@getpaseo/server` `0.10.1`), so the file takes part through its id. The contract version between the skills and the plugin is the version token itself, read by the skills from the plugin's version.
 
 `test/version-token.test.ts` runs the check (`test/support/version-token.ts`) and fails with one line per spelling that differs, naming that file and the one that holds the token. To release, change `version` in `package.json`, then in the three other places; `npm test` names any that lags.
 
-The marketplace is named `matt-with-paseo-plugin`, not `matt-with-paseo`: the skills repository's marketplace has that name, and a user registers one marketplace per name. The plugin installs as `matt-with-paseo@matt-with-paseo-plugin`.
+The Claude Code plugin and its marketplace are both named `matt-with-paseo-plugin`, not `matt-with-paseo`: the skills repository's plugin and marketplace have that name, ticket agents enable both plugins, and a user registers one marketplace per name. The plugin installs as `matt-with-paseo-plugin@matt-with-paseo-plugin`. The Paseo id stays `matt-with-paseo`.
 
 ## Contributing
 
