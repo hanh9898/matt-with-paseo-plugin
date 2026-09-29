@@ -151,6 +151,16 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Gate cap". Mark every ag
 4. Restart the daemon with `MWP_STATE_DIR` unset. Expected: no directory `matt-with-paseo` appears in the repository, and none appears under the platform's data folder until something persists.
 5. `paseo plugin remove mwp-smoke`, and archive every `[mwp-smoke]` agent.
 
+## Cost levels
+
+Written, not run. Targets Paseo `0.10.1`. Run it with `mwp-smoke` installed. It reads the profiles and creates none. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Record `list_profiles` (ids, names, provider, model, mode, thinking). Run steps 2 to 4, then `list_profiles` again. Expected: the two lists are identical: the plugin created, edited and deleted no profile.
+2. In the installed plugin's folder, `presets/cost-levels.json` exists (`paseo plugin` lists the install path). If it is missing, `files` in `package.json` did not ship it: record it as a finding.
+3. Start the daemon with `MWP_COST_LEVEL=cheap` and `MWP_COST_TICKET=claude/claude-sonnet-5-5`. Run `node --experimental-strip-types -e "import('./server/cost-levels.ts').then(async (a) => { const b = await import('./shared/cost-levels.ts'); const l = a.loadCostLevels(); for (const r of b.ROLES) console.log(r, JSON.stringify(b.choiceFor(l, r, process.env))); })"` in the plugin's folder. Expected: the stream and wave roles print the cheap level's model with `"from":"level"`, and the ticket role prints `claude-sonnet-5-5` with `"from":"override"`.
+4. Repeat step 3 with `MWP_COST_LEVEL=nope` and `MWP_COST_TICKET=big`. Expected: every role prints the balanced level's choice with `"from":"level"`, and nothing throws.
+5. From an orchestrator titled `[mwp-smoke] orchestrator`, create a ticket agent titled `[mwp-smoke] ticket` with the provider and model step 3 printed for the ticket role. Expected: the agent starts on that model; the chosen `modeId` and `thinkingOptionId` come from the profile the orchestrator copied, not from the preset. Archive every `[mwp-smoke]` agent.
+
 ## Results
 
 None yet.
