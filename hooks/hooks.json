@@ -1,0 +1,16 @@
+{
+  "description": "Refuses a ticket agent's push, checkout and other branch-moving git; the orchestrator is not guarded.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/guard/git-guard.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}
