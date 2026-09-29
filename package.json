@@ -14,7 +14,8 @@
     "shared/",
     "harness/",
     "guard/",
-    "hooks/"
+    "hooks/",
+    ".claude-plugin/"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -81,6 +81,17 @@ Written, not run. Targets Paseo `0.10.1`. Parts A and B need Node only and run o
 5. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo] agent.create handler failed`.
 6. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
+## Claude Code plugin
+
+Written, not run. Targets Paseo `0.10.1`; the steps need Claude Code, not the daemon. Run them in a scratch Claude Code configuration: set `CLAUDE_CONFIG_DIR` to a new folder for this terminal only, so the machine's own Claude Code settings and plugins stay as they are. `<plugin>` is the absolute path of this repository's checkout.
+
+1. `claude plugin validate <plugin>` ends with `Validation passed`. It may warn that `CLAUDE.md` at the plugin root is not loaded as context: expected, that file is for this repository's agents.
+2. `claude plugin validate <plugin>/.claude-plugin/marketplace.json` ends with `Validation passed` and no warning that the entry's version differs from `plugin.json`'s.
+3. `claude plugin marketplace add <plugin>`, then `claude plugin install matt-with-paseo@matt-with-paseo-plugin`: both succeed.
+4. `claude plugin list` shows `matt-with-paseo@matt-with-paseo-plugin` as enabled, at the `version` of `package.json`.
+5. `claude plugin details matt-with-paseo` lists the `PreToolUse` hook of `hooks/hooks.json` in its component inventory.
+6. `claude plugin marketplace remove matt-with-paseo-plugin` removes the marketplace and the plugin, then `claude plugin list` no longer shows it.
+
 ## Results
 
 None yet.
