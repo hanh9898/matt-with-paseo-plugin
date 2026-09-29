@@ -48,6 +48,9 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `shared/gate-cap.ts` | The gate cap: the default share, the setting that adjusts it and the count it gives |
 | `server/harness.ts` | The loader of the descriptors |
 | `harness/` | One descriptor per agent, `<agent>.json`: data, not code |
+| `shared/cost-levels.ts` | The cost levels: the roles, the two settings, and the reader that gives a role its agent and model |
+| `server/cost-levels.ts` | The loader of the presets file |
+| `presets/` | The cost level presets, `cost-levels.json`: data, not code |
 | `guard/git-guard.mjs` | The git guard: a standalone Node script a `PreToolUse` hook runs |
 | `hooks/hooks.json` | The hook file that runs the guard for an agent that loads the plugin |
 | `test/` | The tests (`*.test.ts`) and the [smoke test](test/smoke/README.md) |
@@ -255,6 +258,31 @@ What it does not do:
 - The setting is read once, at start: a change takes effect when the daemon restarts the plugin. The plugin adds no settings screen: the variable is the setting.
 
 The checks are `test/gate-cap.test.ts`, `test/hooks/gate-cap.test.ts` and `test/gate-cap-docs.test.ts`; the smoke test ("Gate cap") runs it on Paseo `0.10.1`.
+
+### Cost levels
+
+A new user cannot choose every role's agent and model at once, so the plugin ships three presets that choose them together. `presets/cost-levels.json` holds them, and it is the only place they are written:
+
+| Level | What it sets |
+|---|---|
+| Cheap (`cheap`) | A small model in every role |
+| Balanced (`balanced`, the default) | A strong model for the stream and wave roles, a mid model for the ticket role |
+| Max (`max`) | The strongest model for the stream and wave roles, a strong one for the ticket role |
+
+A level sets three roles, `stream`, `wave` and `ticket`, each to an `agent` (an id from `harness/`) and a `model`. The presets sit on top of Paseo's own profiles (`list_profiles`, which read `provider`, `model`, `modeId` and `thinkingOptionId`): a level names an agent and a model and nothing else, so the mode and the thinking level stay the profile's. The plugin only reads: it never creates, edits or deletes a profile, and `overlay` in `shared/cost-levels.ts` returns a copy of a profile with the choice on top.
+
+Two settings, read from the daemon's environment; a value that does not parse falls back, so a typo never stops a wave.
+
+| Setting | Takes | Falls back to |
+|---|---|---|
+| `MWP_COST_LEVEL` | A level's id, in any case: `cheap`, `balanced` or `max` | The file's `default` |
+| `MWP_COST_STREAM`, `MWP_COST_WAVE`, `MWP_COST_TICKET` | `agent/model` (for example `claude/claude-opus-5-5`), for that one role | The level's choice for that role |
+
+The override is per role: `MWP_COST_LEVEL=cheap` with `MWP_COST_TICKET=claude/claude-sonnet-5-5` runs every role on the cheap level except the ticket role. To change a level or add one, edit `presets/cost-levels.json`; `loadCostLevels` in `server/cost-levels.ts` refuses a file that breaks the shape, naming it. Model ids belong in that file and agent ids in `harness/`: no code names either.
+
+Which part is whose. The "setup offers the presets" criterion means the skills' own setup, where the orchestrator chooses how agents launch. The plugin's part is the presets, the two settings and the reader. The skills' part is in `hanh9898/matt-with-paseo`: setup lists the levels from `presets/cost-levels.json` (or reads them through `choiceFor`), lets the user pick one and override a role, and copies the chosen agent and model, with the profile's `modeId` and `thinkingOptionId`, into `create_agent`. Nothing in this repository launches an agent, so the plugin calls no reader itself; whether the installed plugin's `presets/` is found by the skills is unverified until the smoke test ("Cost levels") runs on Paseo `0.10.1`.
+
+The checks are `test/cost-levels.test.ts` and `test/cost-levels-docs.test.ts`.
 
 ### State outside the repository
 
