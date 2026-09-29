@@ -10,8 +10,8 @@ import type { HostAgent, HostHooks } from "../host.ts";
  * when its agent's turn ends (a canceled turn leaves none open) or when the agent is archived.
  */
 export function registerWaitingCount(hooks: HostHooks): void {
-  /** The open requests per agent, each with the agent whose count it joins. */
-  const open = new Map<string, Map<string, string>>();
+  /** The open requests per agent, each with the agent whose count it joins; null while its labels are being read. */
+  const open = new Map<string, Map<string, string | null>>();
 
   function ownerOf(agent: HostAgent, labels: Record<string, string>): string | null {
     if (labels["wave"] !== undefined && labels["ticket"] !== undefined) return agent.parentAgentId;
@@ -29,12 +29,21 @@ export function registerWaitingCount(hooks: HostHooks): void {
     if (requests?.size === 0) open.delete(agentId);
   }
 
+  /** Opens the request before its labels are read, so a resolution that arrives meanwhile still settles it. */
   hooks.onPermissionRequested(async ({ agent, request }, host) => {
-    const owner = ownerOf(agent, await host.labelsOf(agent.id));
-    if (owner === null) return;
-    const requests = open.get(agent.id) ?? new Map<string, string>();
-    requests.set(request.id, owner);
+    const requests = open.get(agent.id) ?? new Map<string, string | null>();
+    requests.set(request.id, null);
     open.set(agent.id, requests);
+    let owner: string | null = null;
+    try {
+      owner = ownerOf(agent, await host.labelsOf(agent.id));
+    } finally {
+      const stillOpen = open.get(agent.id);
+      if (stillOpen?.has(request.id)) {
+        if (owner === null) settle(agent.id, request.id);
+        else stillOpen.set(request.id, owner);
+      }
+    }
   });
 
   hooks.onPermissionResolved(({ agent, requestId }) => settle(agent.id, requestId));
