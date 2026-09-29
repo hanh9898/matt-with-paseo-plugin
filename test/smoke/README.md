@@ -141,6 +141,16 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `
 6. An agent with no labels, and one with only `wave=1`, is created under the orchestrator: no `Gate cap passed:` message.
 7. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
+## State outside the repository
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Gate cap". Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Start the daemon with `MWP_STATE_DIR` set to an empty absolute directory outside any repository, with `mwp-smoke` installed. In a scratch git repository, note `git status --porcelain` (empty) and `git rev-parse HEAD`.
+2. Run the relay, sensor and gate cap steps against agents whose working directory is that repository. Expected: `git status --porcelain` is still empty and `HEAD` is unchanged: the plugin wrote nothing in the repository.
+3. List the state directory. Expected: empty, or only files a change after this ticket added; today nothing persists. Record what is there.
+4. Restart the daemon with `MWP_STATE_DIR` unset. Expected: no directory `matt-with-paseo` appears in the repository, and none appears under the platform's data folder until something persists.
+5. `paseo plugin remove mwp-smoke`, and archive every `[mwp-smoke]` agent.
+
 ## Results
 
 None yet.
