@@ -26,21 +26,36 @@ function product(): string[] {
     .filter((path) => !path.startsWith("test/"));
 }
 
-function escape(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Lower-case words: a run of letters, split at case changes (`isClaude`, `HTMLClaude`), digits, `_` and `-`, joined by single spaces and fenced by spaces. */
+function wordsOf(text: string): string {
+  const words = text
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^A-Za-z]+/)
+    .filter((word) => word !== "");
+  return ` ${words.join(" ").toLowerCase()} `;
 }
 
-/** The ids `text` names as a word, in any case: in an identifier, a string, a comment. */
+/** The ids `text` names as a word, in any case: in an identifier (`isClaude`, `CLAUDE_CONFIG_DIR`), a string or a comment. */
 function named(text: string, ids: string[]): string[] {
-  return ids.filter((id) => new RegExp(`\\b${escape(id)}\\b`, "i").test(text));
+  const words = wordsOf(text);
+  return ids.filter((id) => words.includes(wordsOf(id)));
 }
 
 test("the check sees an agent id named as a word, in any case", () => {
   assert.deepEqual(named('const provider = "claude";', ["claude"]), ["claude"]);
   assert.deepEqual(named("// Claude writes it", ["claude"]), ["claude"]);
   assert.deepEqual(named("if (agent === 'codex') {}", ["claude", "codex"]), ["codex"]);
-  assert.deepEqual(named("const claudeLike = 1;", ["claude"]), []);
   assert.deepEqual(named("const x = 1;", ["claude"]), []);
+  assert.deepEqual(named("const clauded = 1;", ["claude"]), []);
+});
+
+test("the check sees an agent id inside an identifier", () => {
+  assert.deepEqual(named("process.env.CLAUDE_CONFIG_DIR", ["claude"]), ["claude"]);
+  assert.deepEqual(named("const isClaude = true;", ["claude"]), ["claude"]);
+  assert.deepEqual(named("const claudeLike = 1;", ["claude"]), ["claude"]);
+  assert.deepEqual(named("const HTMLClaude2 = 1;", ["claude"]), ["claude"]);
+  assert.deepEqual(named("run gemini-cli now", ["gemini-cli"]), ["gemini-cli"]);
 });
 
 test("harness/ holds at least one agent id, so the check below is not vacuous", () => {
