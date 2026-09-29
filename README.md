@@ -28,12 +28,16 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/hooks/` | The hook handlers, one module per handler |
 | `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
 | `server/hooks/waiting-count.ts` | The handler that counts what waits for the user, per chat |
+| `server/hooks/ticket-marker.ts` | The handler that sets the ticket marker in a ticket agent's environment |
 | `server/messages.ts` | The texts the plugin sends to an orchestrator, one per message type |
 | `shared/` | Code and contracts both runtimes import |
 | `shared/harness.ts` | The harness descriptor's field table and its checks |
 | `shared/waiting.ts` | The `waiting.count` RPC the pill reads |
+| `shared/role-marker.ts` | The name and value of the ticket marker: the one place that names it |
 | `server/harness.ts` | The loader of the descriptors |
 | `harness/` | One descriptor per agent, `<agent>.json`: data, not code |
+| `guard/git-guard.mjs` | The git guard: a standalone Node script a `PreToolUse` hook runs |
+| `hooks/hooks.json` | The hook file that runs the guard for an agent that loads the plugin |
 | `test/` | The tests (`*.test.ts`) and the [smoke test](test/smoke/README.md) |
 | `test/support/fake-host.ts` | The fake adapter of the port, for tests |
 | `test/hooks/` | One test per hook handler, named after it |
@@ -64,7 +68,7 @@ export function registerRelay(hooks: HostHooks): void {
 }
 ```
 
-A test builds a `FakeHost` from `test/support/fake-host.ts`, passes it as the hooks, emits the event Paseo would send, and reads what the handler did. No daemon and no SDK are involved. `await host.create({ env })` returns the environment after every `beforeCreate` handler, in the order they registered. `host.setLabels(agentId, labels)` sets what `labelsOf` reports. A handler that throws is recorded in `failures` instead of reaching the test, as the real adapter keeps it out of Paseo.
+A test builds a `FakeHost` from `test/support/fake-host.ts`, passes it as the hooks, emits the event Paseo would send, and reads what the handler did. No daemon and no SDK are involved. `await host.create({ env, title })` returns the environment after every `beforeCreate` handler, in the order they registered; a handler receives `{ env, title }`, the only marks of the agent before Paseo sets its labels. `host.setLabels(agentId, labels)` sets what `labelsOf` reports. A handler that throws is recorded in `failures` instead of reaching the test, as the real adapter keeps it out of Paseo.
 
 ```ts
 // test/hooks/relay.test.ts
@@ -122,6 +126,29 @@ A checkpoint is Paseo's own `AskUserQuestion` prompt (ADR 0001), so the plugin d
 
 The count travels over the `waiting.count` RPC (`shared/waiting.ts`), served through the port's `serveWaitingCount`. `client/waiting-pill.ts` puts a pill on each agent that has a workspace, those listed when the plugin starts and those that appear later, and reads its count again when an agent updates or goes away, every 30 seconds, and when the pill is pressed; a failed read leaves the pill as it was. Every text the pill shows is in `client/pill-text.ts`, and a check fails when another client file writes one. The client imports no Paseo SDK beyond `index.client.ts`'s context type and the RPC contract, so `test/host-port.test.ts` names those two files beside the adapter.
 
+### The git guard
+
+A ticket agent runs in a worktree with broad permissions, and the orchestrator ships its branch. The guard keeps the ticket agent's git to its own branch: with the ticket marker set, a shell tool call that runs `git push`, `git checkout`, `git switch`, `git rebase`, `git merge`, `git pull`, `git reset --hard`, `git clean -f`, `git branch -D` or `git restore .` is refused with a message that says the orchestrator runs it. `git commit`, `git add`, `git status`, `git diff`, `git log` and every other command pass. Where the marker is not set, nothing is refused, so the orchestrator pushes and cleans up as before.
+
+| Part | Where | Does |
+|---|---|---|
+| The marker | `shared/role-marker.ts` (`ROLE_ENV`, `TICKET_ROLE`) | Names `MWP_ROLE=ticket`; the guard, the handler and ticket 14 all read it |
+| The handler | `server/hooks/ticket-marker.ts` | In `beforeCreate`, adds the marker to the environment of an agent titled `[Wave N] <NN> <ticket name>`, as the wave skill titles every ticket agent |
+| The guard | `guard/git-guard.mjs` | Reads the tool call on stdin, exits 2 with the message on stderr to refuse; fails open |
+| The hook file | `hooks/hooks.json` | Runs `node "${CLAUDE_PLUGIN_ROOT}/guard/git-guard.mjs"` in a `PreToolUse` hook for `Bash` and `PowerShell`, for an agent that loads this repository as a plugin |
+| The descriptor | `guard` in `harness/<agent>.json` | `hook` for an agent that runs hooks; `path-shim` for one that does not |
+
+The handler recognises the agent by its title, not by its labels (T3 names labels): Paseo sets labels after the `agent.create` hook has run and gives the hook no agent id, so the title is all the hook sees. The guard is one Node file so that Windows, macOS and Linux run the same code, and nothing is written into any agent's settings: the hook file reaches an agent through the plugin.
+
+What it does not cover:
+
+- Only the `hook` value is built; no `path-shim` exists yet.
+- The hook file takes effect once an agent loads this repository as a Claude Code plugin, which needs the `.claude-plugin/plugin.json` of ticket 16.
+- An agent Paseo resumes after a daemon restart is not re-marked: the environment set at creation is not kept, and only an `agent.session_open` hook could set it again, when labels are readable.
+- It reads a command as a shell splits it and sees through `&&`, `;`, `|`, `$( )`, `bash -c`, `eval`, `env`, `sudo` and `git -C dir`; it does not follow a git alias or a program that runs git for the agent. It is a guardrail against a ticket agent's habits, not a sandbox.
+
+The checks are `test/guard/git-guard.test.ts` (the script, run as the hook runner runs it), `test/guard-wiring.test.ts` and `test/hooks/ticket-marker.test.ts`; the proof on the three systems and on a real host is written in the [smoke test](test/smoke/README.md).
+
 ### Harness descriptors
 
 An agent is data. `harness/<agent>.json` holds every fact the plugin needs of that agent, the file name is the agent's id, and no code names an agent (`test/agent-names.test.ts` fails when a module outside `test/` does). Only `claude.json` ships.
@@ -132,10 +159,11 @@ An agent is data. `harness/<agent>.json` holds every fact the plugin needs of th
 | `skillsDir` | The skills directory, relative to the config directory |
 | `skills` | `native`: the agent loads the plugin's skills itself. `provisioned`: the plugin lays them down |
 | `mcpDelivery` | `agent-config`: MCP servers ride the launch config edited before the agent is created. `config-file`: they go in a file in the config directory |
+| `guard` | `hook`: the agent runs the plugin's `PreToolUse` hook, which is the git guard. `path-shim`: an agent without hooks gets a `git` shim first on its path |
 
 To add an agent, add `harness/<agent>.json` with every field; nothing else changes. `loadHarnesses` in `server/harness.ts` returns the descriptors keyed by id, and `test/harness-contract.test.ts` checks each file in the folder.
 
-To add a field, add one row to `HARNESS_FIELDS` in `shared/harness.ts` (its check and what it expects) and its value to each `harness/<agent>.json`, after the last field. The descriptor's type, the loader's refusal of a file without the field and the contract test all read that table. To give an existing field new values, change its row. Fields still to come: `guard` (ticket 02) and `sandboxed` (ticket 19).
+To add a field, add one row to `HARNESS_FIELDS` in `shared/harness.ts` (its check and what it expects) and its value to each `harness/<agent>.json`, after the last field. The descriptor's type, the loader's refusal of a file without the field and the contract test all read that table. To give an existing field new values, change its row. A field still to come: `sandboxed` (ticket 19).
 
 Paseo loads only the entries and the `client/`, `server/` and `shared/` folders, so `harness/` is listed in `files` in `package.json`, and the loader reads it as files at run time from `new URL("../harness/", import.meta.url)`. It is not a code import, so the descriptors stay data. Whether that URL resolves to the plugin's root in the daemon's compiled bundle is not verified yet: no entry calls the loader until a later ticket does.
 

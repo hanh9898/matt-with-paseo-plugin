@@ -55,6 +55,32 @@ Written, not run. Targets Paseo `0.10.1`. Run it after the relay steps, with `mw
 
 Read the plugin's own output with `paseo plugin logs mwp-smoke`; a line starting `[matt-with-paseo]` is a handler that failed and was kept out of Paseo. A pill read that failed is logged in the app's console with the same prefix.
 
+## Git guard
+
+Written, not run. Targets Paseo `0.10.1`. Parts A and B need Node only and run on each of Windows, macOS and Linux; part C runs on the daemon after the steps above, with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Install nothing into the machine's own Claude Code settings: part B uses a scratch configuration directory.
+
+**A. The script, on each system.** `<plugin>` is the absolute path of this repository's checkout.
+
+1. Windows (PowerShell): `$env:MWP_ROLE = "ticket"; '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | node <plugin>guardgit-guard.mjs; $LASTEXITCODE`. macOS and Linux: `printf '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | MWP_ROLE=ticket node <plugin>/guard/git-guard.mjs; echo $?`. The output is a line starting `Refused: git push` and then `2`.
+2. Repeat with `git checkout main`, `git switch main` and `git reset --hard`: each is refused with its own name in the line.
+3. Repeat with `git commit -m x` and `git status`: no output, exit 0.
+4. Repeat step 1 with `MWP_ROLE` unset (`Remove-Item Env:MWP_ROLE`, `env -u MWP_ROLE`): no output, exit 0.
+
+**B. The hook file, in a scratch Claude Code configuration.** Make a scratch clone with a bare remote, and a scratch configuration directory (`CLAUDE_CONFIG_DIR` set to a new folder for this terminal only).
+
+1. In the clone, `MWP_ROLE=ticket claude --plugin-dir <plugin> -p "Run git push origin HEAD and git checkout -b other, then say what each printed."` (Windows: set `$env:MWP_ROLE` first). Both are refused with a `Refused:` message, and the remote holds no new commit.
+2. The same command with `MWP_ROLE` unset: the push succeeds and the branch is created.
+3. With `MWP_ROLE=ticket`, ask for `git add` and `git commit -m x` on a new file: the commit succeeds on the current branch.
+
+**C. The marker, on the daemon.**
+
+1. From an orchestrator titled `[mwp-smoke] orchestrator`, create an agent titled `[Wave 1] 99 [mwp-smoke] guard` with the labels `wave=1` and `ticket=99` and this prompt: print the value of `MWP_ROLE` (PowerShell: `$env:MWP_ROLE`), run `git push` and `git checkout main` and report each message, then create `guard-smoke.txt` and commit it. It prints `ticket`, both commands are refused with a message starting `Refused:`, and the commit succeeds. This needs the repository enabled as a Claude Code plugin for that agent (ticket 16's `.claude-plugin/plugin.json`); before that, only the value `ticket` can be read.
+2. Create a second agent titled `[mwp-smoke] plain` with the same labels and a prompt that prints `MWP_ROLE`: it prints nothing, because its title is not `[Wave N] <NN> ...`.
+3. In the orchestrator's own shell, `git push --dry-run` in a checkout with a remote succeeds: the orchestrator is not guarded.
+4. Read what happens after a resume: restart the daemon, prompt the first agent again to print `MWP_ROLE`. It prints nothing (a known gap, see the README's "The git guard"); record what is seen.
+5. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo] agent.create handler failed`.
+6. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
 ## Results
 
 None yet.

@@ -12,7 +12,9 @@
     "client/",
     "server/",
     "shared/",
-    "harness/"
+    "harness/",
+    "guard/",
+    "hooks/"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

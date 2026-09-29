@@ -68,6 +68,17 @@ test("beforeCreate handlers change the environment in order; a throwing one leav
   assert.equal(host.failures.length, 1);
 });
 
+test("beforeCreate handlers see the title the agent is created with", async () => {
+  const host = new FakeHost();
+  const seen: unknown[] = [];
+  host.beforeCreate((request) => {
+    seen.push(request.title);
+  });
+  await host.create({ env: {}, title: "[Wave 1] 02 x" });
+  await host.create({ env: {} });
+  assert.deepEqual(seen, ["[Wave 1] 02 x", undefined]);
+});
+
 test("with no beforeCreate handler the environment is unchanged", async () => {
   const host = new FakeHost();
   assert.deepEqual((await host.create({ env: { A: "b" } })).env, { A: "b" });

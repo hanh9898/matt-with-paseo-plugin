@@ -99,7 +99,7 @@ export function connectPaseo(server: Registration): HostHooks {
       void server.before("agent.create", async ({ request }, context) => {
         try {
           const change: CreateChange | void = await handler(
-            { env: request.env ?? {} } satisfies CreateRequest,
+            { env: request.env ?? {}, title: request.config.title ?? null } satisfies CreateRequest,
             hostFor(context.paseo),
           );
           return change ? { ...request, env: change.env } : undefined;
