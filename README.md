@@ -303,7 +303,7 @@ A restart of the plugin forgets what those hold and starts from the next event, 
 
 `test/state-outside-repo.test.ts` fails when any module of the plugin other than `server/state.ts` imports a file-writing API of `node:fs` (only reads pass) or `node:child_process`, however the import is spelled, and when another module names where the state lives. It reads the imports, so it does not see a write made by a program the plugin starts through some other route; `node:child_process` is refused for that reason. The check runs at the milestone run; the smoke test ("State outside the repository") reads a real host's state directory and a repository's diff on Paseo `0.10.1`.
 
-Where the wave files (`wave<N>-common-rules.md`) stay, in the integration branch's checkout as the wave skill writes them or outside the repository, is decided separately (#12's second criterion); the plugin writes none of them.
+The state rule covers the plugin's own writes. The wave skill's `wave<N>-common-rules.md` stays in the integration branch's checkout, as the skill writes it, by the user's decision on #12; the plugin writes none of them.
 
 ### One version token
 
