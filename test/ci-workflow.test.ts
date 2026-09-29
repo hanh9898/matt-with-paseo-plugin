@@ -73,3 +73,14 @@ test("the workflow adds no dependency of its own and installs from the lockfile"
   assert.doesNotMatch(text, /npm install|npm i\b|npx /);
   assert.ok(existsSync(new URL("../package-lock.json", import.meta.url)), "npm ci reads package-lock.json");
 });
+
+test("the release checklist, CONTRIBUTING.md, the README and CHANGELOG.md name the CI run", () => {
+  const read = (name: string): string => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+  const checklist = read("docs/agents/release-checklist.md");
+  assert.match(checklist, /\.github\/workflows\/ci\.yml/, "the checklist names the workflow file");
+  assert.match(checklist, /release\/v/, "the checklist ties the run to a release/v* branch");
+  assert.ok(read("README.md").includes(".github/workflows/ci.yml"), "the README names the workflow");
+  assert.ok(read("CONTRIBUTING.md").includes(".github/workflows/ci.yml"), "CONTRIBUTING.md names the workflow");
+  const changelog = read("CHANGELOG.md");
+  assert.match(changelog.slice(changelog.indexOf("## [Unreleased]")), /CI on three systems/i);
+});
