@@ -10,8 +10,10 @@ export interface Reading {
 
 /** Each group lists its home first: the reading every other spelling of the group is checked against. */
 export interface Identifiers {
-  /** The version token: `package.json` holds it, the manifests and the contract constant repeat it. */
+  /** The version token: `package.json` holds it, the manifests repeat it. */
   version: Reading[];
+  /** The contract version, a whole number: `docs/contract.md` holds it, the constant in `shared/contract.ts` repeats it. */
+  contract: Reading[];
   /** The Paseo plugin id: `paseo-plugin.json` holds it, and `package.json` names the package the same. */
   id: Reading[];
   /**
@@ -25,6 +27,8 @@ export interface Identifiers {
 const PLUGIN_MANIFEST = ".claude-plugin/plugin.json";
 const MARKETPLACE = ".claude-plugin/marketplace.json";
 const CONTRACT_MODULE = "shared/contract.ts";
+const CONTRACT_DOC = "docs/contract.md";
+const WHOLE_NUMBER = /^[1-9]\d*$/;
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -71,13 +75,19 @@ function marketplaceEntry(root: string): Record<string, unknown> {
   return entry;
 }
 
+function contractDocVersion(root: string): Reading {
+  const match = /^Contract version: (.*)$/m.exec(readText(root, CONTRACT_DOC));
+  if (match?.[1] === undefined) throw new Error(`${CONTRACT_DOC}: has no "Contract version: <n>" line`);
+  return { file: CONTRACT_DOC, field: "Contract version", value: match[1].trim() };
+}
+
 function contractVersion(root: string): Reading {
   const match = /export const CONTRACT_VERSION\s*=\s*"([^"]*)"/.exec(readText(root, CONTRACT_MODULE));
   if (match?.[1] === undefined) throw new Error(`${CONTRACT_MODULE}: does not export CONTRACT_VERSION as a string`);
   return { file: CONTRACT_MODULE, field: "CONTRACT_VERSION", value: match[1] };
 }
 
-/** Reads every spelling of the version, the Paseo id and the Claude Code name under `root`; a file or field that is missing stops the read. */
+/** Reads every spelling of the version, the contract version, the Paseo id and the Claude Code name under `root`; a file or field that is missing stops the read. */
 export function readIdentifiers(root: string): Identifiers {
   const pkg = readJson(root, "package.json");
   const paseo = readJson(root, "paseo-plugin.json");
@@ -88,8 +98,8 @@ export function readIdentifiers(root: string): Identifiers {
       stringAt(pkg, "package.json", "version", "version"),
       stringAt(plugin, PLUGIN_MANIFEST, "version", "version"),
       stringAt(entry, MARKETPLACE, "version", "plugins[0].version"),
-      contractVersion(root),
     ],
+    contract: [contractDocVersion(root), contractVersion(root)],
     id: [stringAt(paseo, "paseo-plugin.json", "id", "id"), stringAt(pkg, "package.json", "name", "name")],
     claudeName: [
       stringAt(plugin, PLUGIN_MANIFEST, "name", "name"),
@@ -110,13 +120,25 @@ export function disagreements(readings: readonly Reading[]): string[] {
     );
 }
 
-/** What is wrong with the version token, the Paseo id and the Claude Code name under `root`; an empty list means every spelling agrees. */
+/** What is wrong with the version token, the contract version, the Paseo id and the Claude Code name under `root`; an empty list means every spelling agrees. */
 export function problemsIn(root: string): string[] {
-  const { version, id, claudeName } = readIdentifiers(root);
+  const { version, contract, id, claudeName } = readIdentifiers(root);
   const [token] = version;
   const notAVersion =
     token !== undefined && !SEMVER.test(token.value)
       ? [`${token.file} ${token.field} is "${token.value}", which is not a version such as 1.2.3`]
       : [];
-  return [...notAVersion, ...disagreements(version), ...disagreements(id), ...disagreements(claudeName)];
+  const [contractHome] = contract;
+  const notANumber =
+    contractHome !== undefined && !WHOLE_NUMBER.test(contractHome.value)
+      ? [`${contractHome.file} ${contractHome.field} is "${contractHome.value}", which is not a whole number such as 1`]
+      : [];
+  return [
+    ...notAVersion,
+    ...notANumber,
+    ...disagreements(version),
+    ...disagreements(contract),
+    ...disagreements(id),
+    ...disagreements(claudeName),
+  ];
 }
