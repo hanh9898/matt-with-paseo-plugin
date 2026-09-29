@@ -130,6 +130,24 @@ test("a handler that throws is logged with the event and the agent's id and does
   }
 });
 
+test("isRunning is true only while Paseo reports the agent running", async () => {
+  const { server, fire } = stubServer();
+  let status: string | undefined = "running";
+  const paseo = {
+    agents: { ref: () => ({ refresh: async () => (status === undefined ? null : { agent: { status, labels: {} } }) }) },
+  };
+  const seen: boolean[] = [];
+  connectPaseo(server).onCreated(async (_event, host) => {
+    seen.push(await host.isRunning("worker"));
+    status = "idle";
+    seen.push(await host.isRunning("worker"));
+    status = undefined;
+    seen.push(await host.isRunning("worker"));
+  });
+  await fire("agent.created", { agent }, { paseo });
+  assert.deepEqual(seen, [true, false, false]);
+});
+
 test("beforeCreate returns the request with the handler's environment", async () => {
   const { server, fire } = stubServer();
   const { paseo } = stubPaseo();

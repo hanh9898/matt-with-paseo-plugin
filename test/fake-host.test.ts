@@ -80,6 +80,15 @@ test("labelsOf reports the labels a test sets, and none for an agent it does not
   assert.deepEqual(await host.labelsOf("stranger"), {});
 });
 
+test("isRunning reports what a test sets, and idle for an agent it does not know", async () => {
+  const host = new FakeHost();
+  host.setRunning("orchestrator", true);
+  assert.equal(await host.isRunning("orchestrator"), true);
+  host.setRunning("orchestrator", false);
+  assert.equal(await host.isRunning("orchestrator"), false);
+  assert.equal(await host.isRunning("stranger"), false);
+});
+
 test("the fake emits the archived event to its handlers", async () => {
   const host = new FakeHost();
   const seen: string[] = [];
