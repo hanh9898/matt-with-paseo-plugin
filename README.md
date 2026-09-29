@@ -17,6 +17,8 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | Path | Holds |
 |---|---|
 | `paseo-plugin.json` | The manifest: the plugin id and the supported Paseo range |
+| `.claude-plugin/plugin.json` | The Claude Code plugin manifest: name and version, so this repository loads as a Claude Code plugin |
+| `.claude-plugin/marketplace.json` | The Claude Code marketplace that lists this one plugin, for `claude plugin install` |
 | `index.server.ts` | The server entry, run in the daemon subprocess |
 | `index.client.ts` | The client entry, run in the app: it starts the composer pill |
 | `client/` | App-side code the client entry imports |
@@ -34,12 +36,14 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `shared/harness.ts` | The harness descriptor's field table and its checks |
 | `shared/waiting.ts` | The `waiting.count` RPC the pill reads |
 | `shared/role-marker.ts` | The name and value of the ticket marker: the one place that names it |
+| `shared/contract.ts` | The contract version between the skills and the plugin: `CONTRACT_VERSION` |
 | `server/harness.ts` | The loader of the descriptors |
 | `harness/` | One descriptor per agent, `<agent>.json`: data, not code |
 | `guard/git-guard.mjs` | The git guard: a standalone Node script a `PreToolUse` hook runs |
 | `hooks/hooks.json` | The hook file that runs the guard for an agent that loads the plugin |
 | `test/` | The tests (`*.test.ts`) and the [smoke test](test/smoke/README.md) |
 | `test/support/fake-host.ts` | The fake adapter of the port, for tests |
+| `test/support/version-token.ts` | Reads every spelling of the version and the plugin id, and names the files that disagree |
 | `test/hooks/` | One test per hook handler, named after it |
 
 Paseo loads only the entries and the `client/`, `server/` and `shared/` folders; keep any other code module out of the repository root.
@@ -143,7 +147,7 @@ The handler recognises the agent by its title, not by its labels (T3 names label
 What it does not cover:
 
 - Only the `hook` value is built; no `path-shim` exists yet.
-- The hook file takes effect once an agent loads this repository as a Claude Code plugin, which needs the `.claude-plugin/plugin.json` of ticket 16.
+- The hook file takes effect once an agent loads this repository as a Claude Code plugin: `.claude-plugin/plugin.json` makes it loadable, and someone still has to enable it for the ticket agents.
 - An agent Paseo resumes after a daemon restart is not re-marked: the environment set at creation is not kept, and only an `agent.session_open` hook could set it again, when labels are readable.
 - It reads a command as a shell splits it and sees through `&&`, `;`, `|`, `$( )`, `bash -c`, `eval`, `env`, `sudo` and `git -C dir`; it does not follow a git alias or a program that runs git for the agent. It is a guardrail against a ticket agent's habits, not a sandbox.
 
@@ -166,6 +170,21 @@ To add an agent, add `harness/<agent>.json` with every field; nothing else chang
 To add a field, add one row to `HARNESS_FIELDS` in `shared/harness.ts` (its check and what it expects) and its value to each `harness/<agent>.json`, after the last field. The descriptor's type, the loader's refusal of a file without the field and the contract test all read that table. To give an existing field new values, change its row. A field still to come: `sandboxed` (ticket 19).
 
 Paseo loads only the entries and the `client/`, `server/` and `shared/` folders, so `harness/` is listed in `files` in `package.json`, and the loader reads it as files at run time from `new URL("../harness/", import.meta.url)`. It is not a code import, so the descriptors stay data. Whether that URL resolves to the plugin's root in the daemon's compiled bundle is not verified yet: no entry calls the loader until a later ticket does.
+
+### One version token
+
+The plugin's version and id are spelled in several files, and a spelling that lags fails silently: Claude Code takes `plugin.json`'s version over the marketplace entry's without saying so. The version lives in one place, `version` in `package.json`; every other spelling is checked against it, and the id is checked the same way against `paseo-plugin.json`.
+
+| Identifier | Spelled in | Checked against |
+|---|---|---|
+| Version | `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `plugins[0].version`, `shared/contract.ts` `CONTRACT_VERSION` | `package.json` `version` |
+| Id (`matt-with-paseo`) | `package.json` `name`, `.claude-plugin/plugin.json` `name`, `.claude-plugin/marketplace.json` `plugins[0].name` | `paseo-plugin.json` `id` |
+
+`paseo-plugin.json` carries no version: Paseo's manifest schema takes `id`, `description`, `requirements` and `build` and no other key (read in `@getpaseo/server` `0.10.1`), so the file takes part through its id. The contract version between the skills and the plugin is the version token itself, read by the skills from the plugin's version.
+
+`test/version-token.test.ts` runs the check (`test/support/version-token.ts`) and fails with one line per spelling that differs, naming that file and the one that holds the token. To release, change `version` in `package.json`, then in the three other places; `npm test` names any that lags.
+
+The marketplace is named `matt-with-paseo-plugin`, not `matt-with-paseo`: the skills repository's marketplace has that name, and a user registers one marketplace per name. The plugin installs as `matt-with-paseo@matt-with-paseo-plugin`.
 
 ## Contributing
 
