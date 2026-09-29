@@ -53,14 +53,24 @@ export function registerRelay(hooks: HostHooks): void {
 }
 ```
 
-A test builds a `FakeHost` from `test/support/fake-host.ts`, passes it as the hooks, emits the event Paseo would send, and reads what the handler did. No daemon and no SDK are involved. A handler that throws is recorded in `failures` instead of reaching the test, as the real adapter keeps it out of Paseo.
+A test builds a `FakeHost` from `test/support/fake-host.ts`, passes it as the hooks, emits the event Paseo would send, and reads what the handler did. No daemon and no SDK are involved. `await host.create({ env })` returns the environment after every `beforeCreate` handler, in the order they registered. `host.setLabels(agentId, labels)` sets what `labelsOf` reports. A handler that throws is recorded in `failures` instead of reaching the test, as the real adapter keeps it out of Paseo.
 
 ```ts
 // test/hooks/relay.test.ts
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { registerRelay } from "../../server/hooks/relay.ts";
+import type { HostAgent } from "../../server/host.ts";
 import { FakeHost } from "../support/fake-host.ts";
+
+const worker: HostAgent = {
+  id: "worker",
+  workspaceId: null,
+  parentAgentId: "orchestrator",
+  provider: "claude",
+  cwd: "/repo",
+  title: null,
+};
 
 test("a worker's turn end reaches its orchestrator", async () => {
   const host = new FakeHost();
