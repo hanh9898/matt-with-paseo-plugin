@@ -73,6 +73,9 @@ test("the moves use the tools and words of the skills, one set per case", () => 
   assert.match(next("permissionRequested", "question"), /list_pending_permissions/);
   assert.match(next("permissionRequested", "question"), /checkpoint/);
   assert.match(next("permissionRequested", "question"), /respond_to_permission/);
+  assert.match(next("permissionRequested", "question"), /no longer listed/, "a request that is gone is settled (ADR 0001)");
+  assert.match(next("permissionRequested", "question"), /delegation table/, "the plugin may answer under delegation (ADR 0001)");
+  assert.match(next("permissionRequested", "question"), /tkt-7's chat/, "the user answers where the agent asked (ADR 0001)");
   assert.match(next("permissionRequested", "tool"), /respond_to_permission/);
   assert.match(next("created", "created"), /turn end/);
   assert.match(next("archived", "archived"), /step 8/);
