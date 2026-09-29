@@ -15,6 +15,7 @@
     "harness/",
     "guard/",
     "hooks/",
+    "sensor/",
     ".claude-plugin/"
   ],
   "scripts": {

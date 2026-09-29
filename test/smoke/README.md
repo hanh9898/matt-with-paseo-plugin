@@ -117,6 +117,18 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `
 8. Type in the chat of an agent with no labels and one with only `wave=1`: no `Human words:` message.
 9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
+## Cheap sensor
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. From an orchestrator titled `[mwp-smoke] orchestrator`, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=99`, and a first prompt that runs one shell command and answers in one line. When its turn ends the orchestrator gets `Turn ended:` and no `Stall suspected:` message.
+2. Read the ticket agent's timeline through `get_agent_activity` and record the `type` of each item and, for the tool call and the assistant message, the fields the sensor reads (`type`, `name`, `text`). Expected: the shell command is a `tool_call` item. If it is not, `newToolCalls` counts wrong: record it as a finding.
+3. Send the ticket agent a prompt that asks for a one-line answer with no tool, twice in a row. Expected: no `Stall suspected:` after the first; after the second, one that quotes "two turns in a row ran no tool", ending with a `Next:` line.
+4. Cancel a turn of the ticket agent. Expected: one `Stall suspected:` that quotes "the turn was canceled".
+5. With the orchestrator mid-turn, repeat step 4. Expected: the message waits and goes out when the orchestrator's turn ends.
+6. An agent with no labels, and one with only `wave=1`, gets a failed or canceled turn: no `Stall suspected:` message.
+7. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]` that names the sensor or `sensor/conditions.json`. A line about the conditions file means `new URL("../sensor/conditions.json", import.meta.url)` did not resolve in the daemon's bundle: record it as a finding. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
 ## Results
 
 None yet.

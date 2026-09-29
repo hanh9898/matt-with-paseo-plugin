@@ -12,11 +12,12 @@ test("each message type has one text, and it names the agent, the wave and the t
     MESSAGES.created(subject),
     MESSAGES.archived(subject),
     MESSAGES.humanWords(subject, ["c-1"]),
+    MESSAGES.stallSuspected(subject, ["the turn ended in failure"]),
   ];
   for (const text of texts) {
     for (const fact of ["tkt-7", "1", "07"]) assert.ok(text.includes(fact), `"${text}" names ${fact}`);
   }
-  assert.equal(new Set(texts.map((text) => text.split(/[:.]/)[0])).size, 5, "each type opens with its own words");
+  assert.equal(new Set(texts.map((text) => text.split(/[:.]/)[0])).size, 6, "each type opens with its own words");
 });
 
 /** Every message type with each case whose moves differ: the key is the type's name in `MESSAGES`. */
@@ -33,6 +34,7 @@ const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
   created: { created: MESSAGES.created(subject) },
   archived: { archived: MESSAGES.archived(subject) },
   humanWords: { one: MESSAGES.humanWords(subject, ["c-1"]) },
+  stallSuspected: { one: MESSAGES.stallSuspected(subject, ["the turn ended in failure"]) },
 };
 
 /** The `Next:` line of a text: its last line, or null when the last line is anything else. */

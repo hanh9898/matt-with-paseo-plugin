@@ -93,6 +93,12 @@ export const MESSAGES = {
       `read what the user typed to agent ${subject.agentId} with get_agent_activity`,
       `record in ticket ${subject.ticket}'s report that the user spoke to it, and whether it changed the plan`,
     ]),
+  stallSuspected: (subject: Subject, says: readonly string[]) =>
+    message("Stall suspected", subject, `the sensor flagged: ${says.join("; ")}`, [
+      `judge whether ticket ${subject.ticket} is stalled: read agent ${subject.agentId}'s recent activity with get_agent_activity`,
+      `prompt agent ${subject.agentId} to resume, or record ticket ${subject.ticket} as stalled with the reason, when it is stalled`,
+      `leave ticket ${subject.ticket} alone when its agent is working`,
+    ]),
   archived: (subject: Subject) =>
     message("Agent archived", subject, undefined, [
       `finish step 8's clean-up of ticket ${subject.ticket} when you archived agent ${subject.agentId}`,

@@ -31,6 +31,9 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
 | `server/hooks/waiting-count.ts` | The handler that counts what waits for the user, per chat |
 | `server/hooks/ticket-marker.ts` | The handler that sets the ticket marker in a ticket agent's environment |
+| `server/hooks/stall-sensor.ts` | The handler that flags a ticket agent that may have stalled, and tells its orchestrator only then |
+| `server/sensor.ts` | The sensor: loads the conditions and checks them one at a time against a turn end's facts |
+| `sensor/` | The sensor's conditions, `conditions.json`: data, not code |
 | `server/human-words.ts` | Finds the messages a person typed in a ticket agent's chat, told from the orchestrator's prompts |
 | `server/messages.ts` | The texts the plugin sends to an orchestrator, one per message type |
 | `shared/` | Code and contracts both runtimes import |
@@ -203,6 +206,30 @@ To add an agent, add `harness/<agent>.json` with every field; nothing else chang
 To add a field, add one row to `HARNESS_FIELDS` in `shared/harness.ts` (its check and what it expects) and its value to each `harness/<agent>.json`, after the last field. The descriptor's type, the loader's refusal of a file without the field and the contract test all read that table. To give an existing field new values, change its row. `sandboxed` is a capability the descriptor states, not a setting the plugin turns on: an agent that lacks a sandbox must say `false`, so it does not look like one that has it. Routing and the UI are meant to read it, but nothing reads it yet: no code routes work by harness and no screen shows one, so the field is data only until a ticket adds that reader.
 
 Paseo loads only the entries and the `client/`, `server/` and `shared/` folders, so `harness/` is listed in `files` in `package.json`, and the loader reads it as files at run time from `new URL("../harness/", import.meta.url)`. It is not a code import, so the descriptors stay data. Whether that URL resolves to the plugin's root in the daemon's compiled bundle is not verified yet: no entry calls the loader until a later ticket does.
+
+### The cheap sensor
+
+Reading every ticket agent's transcript with a strong model is too costly, and reading none misses a stall. The sensor sits in front of the orchestrator's stall judgement (the wave skill's heartbeat judgement, in `hanh9898/matt-with-paseo`): at each ticket agent's turn end it checks the conditions of `sensor/conditions.json`, one at a time, against facts the turn end already carries, and sends the orchestrator a `Stall suspected:` message, ending with its `Next:` line, only when one is flagged. A turn that flags nothing sends nothing.
+
+| Field of a condition | Takes |
+|---|---|
+| `id`, `says` | The name, and the one line the message quotes |
+| `check` | `code`: a fact and a comparison. `model`: a question for a small model |
+| `fact` | `outcome`, `newItems` (timeline items added since the last turn end), `newToolCalls`, `tailRepeats` (the last timeline item is the one of the last turn end) |
+| `is`, `atMost`, `atLeast` | Exactly one: the word the fact equals, or the number it stays at most or at least |
+| `times` | The turns in a row it must hold before it flags; it flags again at each further multiple |
+
+To add a condition, add an entry to `sensor/conditions.json`; a file that breaks the shape fails to load, and `test/sensor.test.ts` names why. To add a fact, add it to `Facts` and `factsOf` in `server/sensor.ts`. The message text is `MESSAGES.stallSuspected` in `server/messages.ts`; it carries the conditions' `says` lines and never a timeline item or an error message (T6).
+
+What it does not do:
+
+- No model is wired. `off-task` is a named slot (`check: "model"`, `model: null`): the data holds its question, and the sensor lists it and never flags it, until a later ticket gives it a caller.
+- It sees turn ends only. The port has no clock, so an agent whose turn never ends is not seen; the orchestrator's own heartbeat rounds still cover that, as before the sensor.
+- It does not judge: the flagged case goes to the orchestrator's stall judgement, which decides. The skill's part of the change is in `hanh9898/matt-with-paseo`.
+- The `tool_call` item type and the `text` and `name` fields it reads are those of Paseo `0.10.1`'s timeline as read, not run; the smoke test ("Cheap sensor") confirms them.
+- No eval case is written: `claude plugin eval` runs a Claude Code plugin's prompts, and this repository's Claude Code plugin holds one `PreToolUse` hook and no skill, so no eval prompt can reach the sensor, which lives in the Paseo plugin. The proof that a stalled agent is still caught is `test/hooks/stall-sensor.test.ts`, on the fake host, and the smoke test on a real one.
+
+The checks are `test/sensor.test.ts`, `test/hooks/stall-sensor.test.ts` and `test/sensor-docs.test.ts`. `sensor/` is listed in `files` in `package.json`, and `loadConditions` reads it at run time from `new URL("../sensor/conditions.json", import.meta.url)`; whether that resolves in the daemon's compiled bundle is not verified yet (the same open point as `harness/`).
 
 ### One version token
 
