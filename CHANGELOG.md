@@ -10,3 +10,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Repository setup: agent documents (`AGENTS.md`, `docs/agents/`), coding standards, evidence standards, ship rules, pull request and issue templates, and community files.
 - Plugin skeleton: `paseo-plugin.json` declaring `requirements.paseo` as `>=0.10.1 <0.11.0`, the Paseo version the smoke test targets (`0.10.1`), a strict TypeScript package, one entry module, and a test folder with a smoke test.
+- One narrow host port: `server/host.ts` is the interface hook handlers use to reach Paseo, `server/paseo-host.ts` is the only module that imports the Paseo SDK, and `test/support/fake-host.ts` is the fake adapter that lets handlers be tested without a daemon.
