@@ -67,7 +67,7 @@
 
 | Ticket | Agent id | Workspace id | Branch | Base commit | Private resources | Cleaned |
 |---|---|---|---|---|---|---|
-| 33 | 4813877d-c137-4097-9934-adc72e5af720 | wks_f0cb5d4bc508455c | plugin-vision-milestones/wave1/33-docs-set | 98d50ea7df74076ec49f80aa5b392563770e9542 | temp dir `%TEMP%\plugin-vision-milestones-33` | [ ] |
+| 33 | 4813877d-c137-4097-9934-adc72e5af720 | wks_f0cb5d4bc508455c | plugin-vision-milestones/wave1/33-docs-set | 98d50ea7df74076ec49f80aa5b392563770e9542 | temp dir `%TEMP%\plugin-vision-milestones-33` | [x] |
 
 ## Review
 - Not applicable: one-ticket wave, so no seam. The code review itself is deferred to milestone `v0.1.0` (docs/agents/evidence-standards.md); ticket 33 ran none either.
