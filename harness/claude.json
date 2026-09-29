@@ -3,5 +3,6 @@
   "skillsDir": "skills",
   "skills": "native",
   "mcpDelivery": "agent-config",
-  "guard": "hook"
+  "guard": "hook",
+  "sandboxed": true
 }

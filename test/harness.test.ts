@@ -12,6 +12,7 @@ const valid = {
   skills: "native",
   mcpDelivery: "agent-config",
   guard: "hook",
+  sandboxed: true,
 };
 
 test("a descriptor with every field of the table is valid", () => {
@@ -34,9 +35,9 @@ test("a missing field is a problem that names the field", () => {
 });
 
 test("a key that is not a field of the table is a problem that names the key", () => {
-  const problems = problemsOf({ ...valid, sandboxed: true });
+  const problems = problemsOf({ ...valid, network: true });
   assert.equal(problems.length, 1);
-  assert.ok(problems[0]?.startsWith("sandboxed:"), problems[0]);
+  assert.ok(problems[0]?.startsWith("network:"), problems[0]);
 });
 
 const bad: Array<[field: string, value: unknown]> = [
@@ -58,6 +59,12 @@ const bad: Array<[field: string, value: unknown]> = [
   ["guard", "Hook"],
   ["guard", true],
   ["guard", ["hook"]],
+  ["sandboxed", "true"],
+  ["sandboxed", "false"],
+  ["sandboxed", 1],
+  ["sandboxed", 0],
+  ["sandboxed", null],
+  ["sandboxed", ["true"]],
 ];
 
 test("a value the field does not accept is a problem that names the field", () => {
@@ -71,6 +78,10 @@ test("a value the field does not accept is a problem that names the field", () =
 test("the guard field takes hook or path-shim, and a descriptor with either is valid", () => {
   assert.deepEqual([...GUARDS], ["hook", "path-shim"]);
   for (const guard of GUARDS) assert.deepEqual(problemsOf({ ...valid, guard }), [], guard);
+});
+
+test("the sandboxed field takes true or false, and a descriptor with either is valid", () => {
+  for (const sandboxed of [true, false]) assert.deepEqual(problemsOf({ ...valid, sandboxed }), [], String(sandboxed));
 });
 
 test("a value that is not an object is not a descriptor", () => {

@@ -18,6 +18,12 @@ test("harness/claude.json guards through a hook: the agent runs hooks, so no shi
   assert.equal(raw.guard, "hook");
 });
 
+test("harness/claude.json declares sandboxed as a boolean: claude has a sandbox its settings can allow writes into", () => {
+  const raw: unknown = JSON.parse(readFileSync(new URL("claude.json", dir), "utf8"));
+  assert.ok(typeof raw === "object" && raw !== null && "sandboxed" in raw);
+  assert.equal(raw.sandboxed, true);
+});
+
 // The contract every descriptor passes: a file added to harness/ is covered with no edit here.
 for (const file of files) {
   const text = readFileSync(new URL(file, dir), "utf8");

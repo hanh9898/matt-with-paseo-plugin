@@ -164,10 +164,11 @@ An agent is data. `harness/<agent>.json` holds every fact the plugin needs of th
 | `skills` | `native`: the agent loads the plugin's skills itself. `provisioned`: the plugin lays them down |
 | `mcpDelivery` | `agent-config`: MCP servers ride the launch config edited before the agent is created. `config-file`: they go in a file in the config directory |
 | `guard` | `hook`: the agent runs the plugin's `PreToolUse` hook, which is the git guard. `path-shim`: an agent without hooks gets a `git` shim first on its path |
+| `sandboxed` | `true`: the agent has a sandbox that can confine its file writes, so the plugin can rely on it. `false`: it has none, and what it may write is only as safe as its permissions |
 
 To add an agent, add `harness/<agent>.json` with every field; nothing else changes. `loadHarnesses` in `server/harness.ts` returns the descriptors keyed by id, and `test/harness-contract.test.ts` checks each file in the folder.
 
-To add a field, add one row to `HARNESS_FIELDS` in `shared/harness.ts` (its check and what it expects) and its value to each `harness/<agent>.json`, after the last field. The descriptor's type, the loader's refusal of a file without the field and the contract test all read that table. To give an existing field new values, change its row. A field still to come: `sandboxed` (ticket 19).
+To add a field, add one row to `HARNESS_FIELDS` in `shared/harness.ts` (its check and what it expects) and its value to each `harness/<agent>.json`, after the last field. The descriptor's type, the loader's refusal of a file without the field and the contract test all read that table. To give an existing field new values, change its row. `sandboxed` is a capability the descriptor states, not a setting the plugin turns on: an agent that lacks a sandbox must say `false`, so it does not look like one that has it. Routing and the UI are meant to read it, but nothing reads it yet: no code routes work by harness and no screen shows one, so the field is data only until a ticket adds that reader.
 
 Paseo loads only the entries and the `client/`, `server/` and `shared/` folders, so `harness/` is listed in `files` in `package.json`, and the loader reads it as files at run time from `new URL("../harness/", import.meta.url)`. It is not a code import, so the descriptors stay data. Whether that URL resolves to the plugin's root in the daemon's compiled bundle is not verified yet: no entry calls the loader until a later ticket does.
 
