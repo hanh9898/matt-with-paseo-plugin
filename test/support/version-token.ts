@@ -12,8 +12,14 @@ export interface Reading {
 export interface Identifiers {
   /** The version token: `package.json` holds it, the manifests and the contract constant repeat it. */
   version: Reading[];
-  /** The plugin id: `paseo-plugin.json` holds it, and every other manifest names the plugin the same. */
+  /** The Paseo plugin id: `paseo-plugin.json` holds it, and `package.json` names the package the same. */
   id: Reading[];
+  /**
+   * The Claude Code plugin name, the one exception to the id: it is not the Paseo id, so the skills repository's
+   * plugin of that name and this one can be enabled together. `plugin.json` holds it, and the marketplace entry
+   * repeats it, or `claude plugin install` cannot find the plugin.
+   */
+  claudeName: Reading[];
 }
 
 const PLUGIN_MANIFEST = ".claude-plugin/plugin.json";
@@ -71,7 +77,7 @@ function contractVersion(root: string): Reading {
   return { file: CONTRACT_MODULE, field: "CONTRACT_VERSION", value: match[1] };
 }
 
-/** Reads every spelling of the version and of the plugin id under `root`; a file or field that is missing stops the read. */
+/** Reads every spelling of the version, the Paseo id and the Claude Code name under `root`; a file or field that is missing stops the read. */
 export function readIdentifiers(root: string): Identifiers {
   const pkg = readJson(root, "package.json");
   const paseo = readJson(root, "paseo-plugin.json");
@@ -84,9 +90,8 @@ export function readIdentifiers(root: string): Identifiers {
       stringAt(entry, MARKETPLACE, "version", "plugins[0].version"),
       contractVersion(root),
     ],
-    id: [
-      stringAt(paseo, "paseo-plugin.json", "id", "id"),
-      stringAt(pkg, "package.json", "name", "name"),
+    id: [stringAt(paseo, "paseo-plugin.json", "id", "id"), stringAt(pkg, "package.json", "name", "name")],
+    claudeName: [
       stringAt(plugin, PLUGIN_MANIFEST, "name", "name"),
       stringAt(entry, MARKETPLACE, "name", "plugins[0].name"),
     ],
@@ -105,13 +110,13 @@ export function disagreements(readings: readonly Reading[]): string[] {
     );
 }
 
-/** What is wrong with the version token and the plugin id under `root`; an empty list means every spelling agrees. */
+/** What is wrong with the version token, the Paseo id and the Claude Code name under `root`; an empty list means every spelling agrees. */
 export function problemsIn(root: string): string[] {
-  const { version, id } = readIdentifiers(root);
+  const { version, id, claudeName } = readIdentifiers(root);
   const [token] = version;
   const notAVersion =
     token !== undefined && !SEMVER.test(token.value)
       ? [`${token.file} ${token.field} is "${token.value}", which is not a version such as 1.2.3`]
       : [];
-  return [...notAVersion, ...disagreements(version), ...disagreements(id)];
+  return [...notAVersion, ...disagreements(version), ...disagreements(id), ...disagreements(claudeName)];
 }
