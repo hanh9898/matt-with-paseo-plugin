@@ -1,0 +1,166 @@
+# Smoke test: the plugin loads on a real Paseo host
+
+Written, not run by the ticket that added it. The stream runs it once, at its end (`docs/agents/evidence-standards.md`).
+
+| Manifest range (`requirements.paseo`) | Paseo version this smoke test targets |
+|---|---|
+| `>=0.10.1 <0.11.0` | `0.10.1` (daemon, CLI and plugin SDK), Windows |
+
+The two cells are one claim: `0.10.1` is the version the range was tested on, and the range stops before the next minor release. Move them together, and record the result of a new run under Results.
+
+Installing the plugin touches every session on the machine's daemon. Run it only on a daemon whose owner agreed to that, and remove the plugin at the end so the daemon's plugin set is as it was.
+
+## Steps
+
+`<plugin>` is the absolute path of this repository's checkout.
+
+1. `paseo --version` prints `0.10.1`. Any other version: stop, the run does not count for this range.
+2. `paseo daemon status --json` shows `pluginsEnabled` as `true` in the daemon's `config.json`. Otherwise stop: enabling plugins needs the daemon owner's consent.
+3. `paseo plugin install <plugin> --id mwp-smoke` reports success.
+4. `paseo plugin ls` lists `mwp-smoke` as `running` with no error. Any other status: `paseo plugin logs mwp-smoke` holds the reason, and an error resolving `./server/paseo-host.ts` there means the daemon rejects the `.ts` extension in relative imports.
+5. `paseo plugin remove mwp-smoke`, then `paseo plugin ls` no longer lists `mwp-smoke`.
+
+## Lifecycle relay
+
+Written, not run. Targets Paseo `0.10.1`. Run it after the steps above, with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Start an orchestrator agent titled `[mwp-smoke] orchestrator`, and set no heartbeat.
+2. From it, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=99` and a prompt that answers in one line and stops. The orchestrator ends its turn.
+3. The orchestrator's timeline gains a message starting `Turn ended:` naming the ticket `99`, the wave `1` and the outcome `completed`. It arrives with no heartbeat set and no `notifyOnFinish`. The orchestrator's own turn end adds no message.
+4. Create a second ticket agent with the same labels whose prompt asks a question with `AskUserQuestion`. The orchestrator's timeline gains a message starting `Permission pending:` with the request id and `AskUserQuestion`, and not the question's text.
+5. Prompt the orchestrator with a long turn (a shell command that sleeps 60 seconds) and, while it runs, prompt a ticket agent so that its turn ends. Nothing arrives until the orchestrator's turn ends; then one message arrives.
+6. Create a third agent with no labels and one with only `wave=1`. Neither one's turn end or permission produces a message.
+7. Archive the ticket agents; each archive produces an `Agent archived:` message.
+8. Read every relay message from the steps above: its last line is a `Next:` line, it names the ticket `99`, and the tools in it (`get_agent_activity`, `list_pending_permissions`, `respond_to_permission`) exist on this daemon. A message held in step 5 has exactly one `Next:` line, at its end, with the moves of every message it joins.
+9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
+Read the plugin's own output with `paseo plugin logs mwp-smoke`: a line starting `[matt-with-paseo]` is a handler that failed and was kept out of Paseo.
+
+## Waiting pill
+
+Written, not run. Targets Paseo `0.10.1`. Run it after the relay steps, with `mwp-smoke` still installed and the app open on the same daemon. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. The pill's words are the ones in `client/pill-text.ts`: read them there. While the pill shows, read its words against the plain labels in `client/pill-text.ts` (`PLAIN_LABELS`): a precise term of the skills' words blocks on the pill, alone, is a finding.
+
+1. Start an agent titled `[mwp-smoke] stream` with the label `stream=mwp-smoke`. Its composer track bar shows no pill.
+2. From it, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=99` and a prompt that asks one question with `AskUserQuestion`. Within 30 seconds the stream agent's composer shows the pill with the count 1. The ticket agent's own composer shows no pill.
+3. Create a second such ticket agent. The pill shows the count 2.
+4. Answer the first question in that ticket agent's chat, with Paseo's own prompt. The pill shows the count 1; answer the second and the pill disappears.
+5. Prompt the stream agent to ask one question with `AskUserQuestion` itself. Its pill shows the count 1; answer it and the pill disappears.
+6. Ask a question from an agent with no labels and from one with only `wave=1`. No pill appears in any composer.
+7. Ask a question from a ticket agent, then cancel its turn without answering. The pill disappears.
+8. Reload the plugin (`paseo plugin reload mwp-smoke`) with the stream agent idle, then have a new ticket agent ask a question. The stream agent's pill shows the count 1 though the stream agent did nothing since the reload.
+9. Screenshots of the stream agent's chat with the pill at the count 1, in Paseo's own window, saved as `pill-first-view.png`, `pill-scrolled.png` and `pill-narrow.png`:
+   - first view: the chat as it opens, the composer with the pill in view;
+   - scrolled: the chat scrolled up past its first view, so the pill's place in the composer is shown with the chat above it;
+   - narrow width: the window narrowed until the layout turns compact (mobile width), the pill still readable.
+   Attach them to the stream's pull request under Evidence.
+10. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
+Read the plugin's own output with `paseo plugin logs mwp-smoke`; a line starting `[matt-with-paseo]` is a handler that failed and was kept out of Paseo. A pill read that failed is logged in the app's console with the same prefix.
+
+## Git guard
+
+Written, not run. Targets Paseo `0.10.1`. Parts A and B need Node only and run on each of Windows, macOS and Linux; part C runs on the daemon after the steps above, with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Install nothing into the machine's own Claude Code settings: part B uses a scratch configuration directory.
+
+**A. The script, on each system.** `<plugin>` is the absolute path of this repository's checkout.
+
+1. Windows (PowerShell): `$env:MWP_ROLE = "ticket"; '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | node <plugin>guardgit-guard.mjs; $LASTEXITCODE`. macOS and Linux: `printf '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | MWP_ROLE=ticket node <plugin>/guard/git-guard.mjs; echo $?`. The output is a line starting `Refused: git push`, a last line starting `Next:` that says to commit, carry on and name the command in the report, and then `2`.
+2. Repeat with `git checkout main`, `git switch main` and `git reset --hard`: each is refused with its own name in the line.
+3. Repeat with `git commit -m x` and `git status`: no output, exit 0.
+4. Repeat step 1 with `MWP_ROLE` unset (`Remove-Item Env:MWP_ROLE`, `env -u MWP_ROLE`): no output, exit 0.
+
+**B. The hook file, in a scratch Claude Code configuration.** Make a scratch clone with a bare remote, and a scratch configuration directory (`CLAUDE_CONFIG_DIR` set to a new folder for this terminal only).
+
+1. In the clone, `MWP_ROLE=ticket claude --plugin-dir <plugin> -p "Run git push origin HEAD and git checkout -b other, then say what each printed."` (Windows: set `$env:MWP_ROLE` first). Both are refused with a `Refused:` message, and the remote holds no new commit.
+2. The same command with `MWP_ROLE` unset: the push succeeds and the branch is created.
+3. With `MWP_ROLE=ticket`, ask for `git add` and `git commit -m x` on a new file: the commit succeeds on the current branch.
+
+**C. The marker, on the daemon.**
+
+1. From an orchestrator titled `[mwp-smoke] orchestrator`, create an agent titled `[Wave 1] 99 [mwp-smoke] guard` with the labels `wave=1` and `ticket=99` and this prompt: print the value of `MWP_ROLE` (PowerShell: `$env:MWP_ROLE`), run `git push` and `git checkout main` and report each message, then create `guard-smoke.txt` and commit it. It prints `ticket`, both commands are refused with a message starting `Refused:`, and the commit succeeds. This needs the repository enabled as a Claude Code plugin for that agent (ticket 16's `.claude-plugin/plugin.json`); before that, only the value `ticket` can be read.
+2. Create a second agent titled `[mwp-smoke] plain` with the same labels and a prompt that prints `MWP_ROLE`: it prints nothing, because its title is not `[Wave N] <NN> ...`.
+3. In the orchestrator's own shell, `git push --dry-run` in a checkout with a remote succeeds: the orchestrator is not guarded.
+4. Read what happens after a resume: restart the daemon, prompt the first agent again to print `MWP_ROLE`. It prints nothing (a known gap, see the README's "The git guard"); record what is seen.
+5. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo] agent.create handler failed`.
+6. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
+## Claude Code plugin
+
+Written, not run. Targets Paseo `0.10.1`; the steps need Claude Code, not the daemon. Run them in a scratch Claude Code configuration: set `CLAUDE_CONFIG_DIR` to a new folder for this terminal only, so the machine's own Claude Code settings and plugins stay as they are. `<plugin>` is the absolute path of this repository's checkout.
+
+1. `claude plugin validate <plugin>` ends with `Validation passed`. It may warn that `CLAUDE.md` at the plugin root is not loaded as context: expected, that file is for this repository's agents.
+2. `claude plugin validate <plugin>/.claude-plugin/marketplace.json` ends with `Validation passed` and no warning that the entry's version differs from `plugin.json`'s.
+3. `claude plugin marketplace add <plugin>`, then `claude plugin install matt-with-paseo-plugin@matt-with-paseo-plugin`: both succeed.
+4. `claude plugin list` shows `matt-with-paseo-plugin@matt-with-paseo-plugin` as enabled, at the `version` of `package.json`.
+5. `claude plugin details matt-with-paseo-plugin` lists the `PreToolUse` hook of `hooks/hooks.json` in its component inventory.
+6. `claude plugin marketplace remove matt-with-paseo-plugin` removes the marketplace and the plugin, then `claude plugin list` no longer shows it.
+
+## Role identity
+
+Written, not run. Targets Paseo `0.10.1`. Run it after the steps above, with `mwp-smoke` installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Keep the output of `paseo provider ls --json` taken before step 3 of the steps above (the install). With `mwp-smoke` installed and running, run it again: the list is the same, so the plugin added no provider, per role or otherwise.
+2. From an orchestrator titled `[mwp-smoke] orchestrator`, create a ticket agent with the labels `wave=1` and `ticket=99` on a provider from that list. The agent is created and its turn end reaches the orchestrator (the lifecycle relay), so the role rode on the labels and no provider was picked for it.
+3. The marker on a ticket agent and its absence on the orchestrator are the "Git guard" section's part C, steps 1 to 3.
+4. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]`. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
+## Human words
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. This section settles how `server/human-words.ts` tells a message a person typed from a prompt the orchestrator sent; the code rests on a reading of the `0.10.1` daemon's source, and these steps are where it is proven.
+
+1. Start an orchestrator titled `[mwp-smoke] orchestrator`. From it, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=99`, with `create_agent` and a first prompt that answers in one line. When its turn ends, the orchestrator gets a `Turn ended:` message and no `Human words:` text: the first prompt is the orchestrator's.
+2. From the orchestrator, send the ticket agent a second prompt with `send_agent_prompt`. Its turn end reaches the orchestrator as `Turn ended:` alone, again with no `Human words:` text.
+3. Read the ticket agent's timeline through `get_agent_activity` (or the plugin's own log) and record, for the first prompt and the second, the fields of each `user_message` item: `messageId`, `clientMessageId` and any other. Expected: both carry `messageId` and neither carries `clientMessageId`. If either carries a `clientMessageId`, `server/human-words.ts` would pass the orchestrator's prompt on as a person's: stop and record it as a finding.
+4. Type a message in the ticket agent's own chat in the Paseo app, such as `use the other table`, and let its turn end. Record the same fields for this item. Expected: `clientMessageId` is present. The orchestrator then gets one message, `Human words:` ahead of `Turn ended:`, with one `Next:` line at its end; it names ticket `99`, the agent and the message id, and not the words typed. If `clientMessageId` is absent for a message typed in the app, the person's words are missed: record it as a finding.
+5. Type a second message and let the turn end. The orchestrator's message names only the new id: the timeline that `agent.turn_ended` carries is the agent's whole history (expected from the source, confirm it), and the relay tells each id once.
+6. While the ticket agent's turn runs, type a message in its chat. Record when the orchestrator's message arrives: at that turn's end, since the port has no per-item event. If the orchestrator's turn is running then, the message waits and goes out with the held ones as one message with one `Next:` line.
+7. Send a message with `paseo` CLI to the ticket agent (`paseo agent send`, or the CLI's equivalent on this version) and record whether it carries a `clientMessageId`. It decides whether a CLI message counts as a person's.
+8. Type in the chat of an agent with no labels and one with only `wave=1`: no `Human words:` message.
+9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
+## Cheap sensor
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. From an orchestrator titled `[mwp-smoke] orchestrator`, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=99`, and a first prompt that runs one shell command and answers in one line. When its turn ends the orchestrator gets `Turn ended:` and no `Stall suspected:` message.
+2. Read the ticket agent's timeline through `get_agent_activity` and record the `type` of each item and, for the tool call and the assistant message, the fields the sensor reads (`type`, `name`, `text`). Expected: the shell command is a `tool_call` item. If it is not, `newToolCalls` counts wrong: record it as a finding.
+3. Send the ticket agent a prompt that asks for a one-line answer with no tool, twice in a row. Expected: no `Stall suspected:` after the first; after the second, one that quotes "two turns in a row ran no tool", ending with a `Next:` line.
+4. Cancel a turn of the ticket agent. Expected: one `Stall suspected:` that quotes "the turn was canceled".
+5. With the orchestrator mid-turn, repeat step 4. Expected: the message waits and goes out when the orchestrator's turn ends.
+6. An agent with no labels, and one with only `wave=1`, gets a failed or canceled turn: no `Stall suspected:` message.
+7. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]` that names the sensor or `sensor/conditions.json`. A line about the conditions file means `new URL("../sensor/conditions.json", import.meta.url)` did not resolve in the daemon's bundle: record it as a finding. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
+## Gate cap
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Start the daemon with `MWP_GATE_SHARE=0.01` in its environment, so the cap is one whatever the machine's processors. From an orchestrator titled `[mwp-smoke] orchestrator`, create one ticket agent titled `[mwp-smoke] ticket A` with the labels `wave=1` and `ticket=98`, and a first prompt that sleeps thirty seconds in a shell command. The orchestrator gets `Agent created:` and no `Gate cap passed:` message.
+2. While A runs, create a second, `[mwp-smoke] ticket B` with `ticket=99`. Expected: one `Gate cap passed:` message that names ticket 99, says `2 ticket agents run against a cap of 1`, and ends with a `Next:` line. If none arrives, `isRunning` did not report A as running: record it as a finding.
+3. Let A finish and archive it, then create a `[mwp-smoke] ticket C` (`ticket=97`) while B is idle. Expected: no `Gate cap passed:` message.
+4. Restart the daemon with `MWP_GATE_SHARE` unset, and create ticket agents one after another, each with a prompt that sleeps thirty seconds, until a `Gate cap passed:` message arrives. Expected: its `cap of N` is half of `node -p "os.availableParallelism()"`, rounded down, at least one, and it arrives with the agent that makes `N + 1` run.
+5. With the orchestrator mid-turn, repeat step 2. Expected: the message waits and goes out when the orchestrator's turn ends.
+6. An agent with no labels, and one with only `wave=1`, is created under the orchestrator: no `Gate cap passed:` message.
+7. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
+## State outside the repository
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Gate cap". Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Start the daemon with `MWP_STATE_DIR` set to an empty absolute directory outside any repository, with `mwp-smoke` installed. In a scratch git repository, note `git status --porcelain` (empty) and `git rev-parse HEAD`.
+2. Run the relay, sensor and gate cap steps against agents whose working directory is that repository. Expected: `git status --porcelain` is still empty and `HEAD` is unchanged: the plugin wrote nothing in the repository.
+3. List the state directory. Expected: empty, or only files a change after this ticket added; today nothing persists. Record what is there.
+4. Restart the daemon with `MWP_STATE_DIR` unset. Expected: no directory `matt-with-paseo` appears in the repository, and none appears under the platform's data folder until something persists.
+5. `paseo plugin remove mwp-smoke`, and archive every `[mwp-smoke]` agent.
+
+## Cost levels
+
+Written, not run. Targets Paseo `0.10.1`. Run it with `mwp-smoke` installed. It reads the profiles and creates none. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Record `list_profiles` (ids, names, provider, model, mode, thinking). Run steps 2 to 4, then `list_profiles` again. Expected: the two lists are identical: the plugin created, edited and deleted no profile.
+2. In the installed plugin's folder, `presets/cost-levels.json` exists (`paseo plugin` lists the install path). If it is missing, `files` in `package.json` did not ship it: record it as a finding.
+3. Start the daemon with `MWP_COST_LEVEL=cheap` and `MWP_COST_TICKET=claude/claude-sonnet-5-5`. Run `node --experimental-strip-types -e "import('./server/cost-levels.ts').then(async (a) => { const b = await import('./shared/cost-levels.ts'); const l = a.loadCostLevels(); for (const r of b.ROLES) console.log(r, JSON.stringify(b.choiceFor(l, r, process.env))); })"` in the plugin's folder. Expected: the stream and wave roles print the cheap level's model with `"from":"level"`, and the ticket role prints `claude-sonnet-5-5` with `"from":"override"`.
+4. Repeat step 3 with `MWP_COST_LEVEL=nope` and `MWP_COST_TICKET=big`. Expected: every role prints the balanced level's choice with `"from":"level"`, and nothing throws.
+5. From an orchestrator titled `[mwp-smoke] orchestrator`, create a ticket agent titled `[mwp-smoke] ticket` with the provider and model step 3 printed for the ticket role. Expected: the agent starts on that model; the chosen `modeId` and `thinkingOptionId` come from the profile the orchestrator copied, not from the preset. Archive every `[mwp-smoke]` agent.
+
+## Results
+
+None yet.
