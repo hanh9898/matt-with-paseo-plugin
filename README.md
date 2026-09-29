@@ -66,7 +66,10 @@ Paseo loads only the entries and the `client/`, `server/` and `shared/` folders;
 npm install
 npm run typecheck
 npm test
+npm run check
 ```
+
+`npm run check` is the command that proves everything: it runs the typecheck, then every test, then the docs-set test that the `test` script's glob misses (`test/docs/docs-set.test.mjs`), and stops at the first failure. It has no lint or format step. The smoke steps in [`test/smoke/README.md`](test/smoke/README.md) stay manual.
 
 ### The host port
 

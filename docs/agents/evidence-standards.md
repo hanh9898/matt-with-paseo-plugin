@@ -10,7 +10,7 @@ Before that, no ticket runs any test (its own included), the drift check, an eva
 
 Once the milestone's last stream has merged into `main`, the **milestone run** happens once, on a branch `release/v0.x.0` cut from `main`, in this order:
 
-1. **One full test run**: every test the repository has, in one command, plus every smoke step in `test/smoke/README.md` on a real Paseo daemon.
+1. **One full test run**: every test the repository has, in one command, `npm run check` (typecheck, then every test, stopping at the first failure), plus every smoke step in `test/smoke/README.md` on a real Paseo daemon, which stay manual.
 2. **One milestone-wide code review**: `mattpocock-skills:code-review` on both axes, Standards and Spec, with the previous release tag (or the repository's first commit, for `v0.1.0`) as the fixed point, naming this file in the call. Standards reads `CODING_STANDARDS.md`; Spec reads every ticket the milestone resolved and the milestone's exit criteria in `docs/roadmap.md`.
 3. **One fix pass**: every finding of steps 1 and 2 is fixed, skipped with a reason, or put off to a named ticket of a later milestone, in one round, on the same branch.
 4. **The eval**, when the repository has a plugin to eval: the eval suite, once, after the fix pass. Until then this step reads "not applicable: no plugin to eval yet".
