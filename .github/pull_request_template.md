@@ -4,8 +4,8 @@
 
 ## Evidence
 
-- **Before:** <!-- failing test run, output or screenshot -->
-  **After:** <!-- passing test run, output or screenshot -->
+- **Before:** <!-- failing test run, output or screenshot; a stream's pull request shows the end-of-stream runs -->
+  **After:** <!-- passing test run, code review findings, eval report, or screenshot -->
 
 ## Merge Danger
 

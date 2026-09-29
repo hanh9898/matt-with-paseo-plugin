@@ -14,7 +14,7 @@ Single-context; the vocabulary is the words blocks of the `matt-with-paseo` and 
 
 ## Evidence standards
 
-How this repo proves a change works: `docs/agents/evidence-standards.md`. Tests and review run once, at the end of a stream; no ticket runs the suite, an eval or a code review.
+How this repo proves a change works: `docs/agents/evidence-standards.md`. Tests and review run only at the end of a stream: one full test run, one stream-wide code review on both axes, one fix pass, then the eval when there is a plugin to eval. No ticket runs any test, an eval or a code review, and no merge runs the suite or the checks.
 
 ## Ship rules
 

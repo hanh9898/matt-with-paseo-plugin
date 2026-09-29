@@ -13,7 +13,7 @@ Issues and pull requests are welcome. By taking part you agree to the [Code of C
 | Topic | Where it lives |
 |---|---|
 | How code and agent documents are written | [`CODING_STANDARDS.md`](CODING_STANDARDS.md) |
-| How a change is proven to work, and when tests and review run | [`docs/agents/evidence-standards.md`](docs/agents/evidence-standards.md) |
+| How a change is proven to work: tests and review run only at the end of a stream | [`docs/agents/evidence-standards.md`](docs/agents/evidence-standards.md) |
 | How ticket comments are written | [`docs/agents/comment-template.md`](docs/agents/comment-template.md) |
 | How a stream of work ships | [`docs/agents/ship-rules.md`](docs/agents/ship-rules.md) |
 
@@ -21,8 +21,9 @@ Issues and pull requests are welcome. By taking part you agree to the [Code of C
 
 1. Branch from `main`.
 2. Write commits as [Conventional Commits](https://www.conventionalcommits.org/) (rule C1 of the coding standards).
-3. Fill in the [pull request template](.github/pull_request_template.md): Summary, Evidence, Merge Danger.
-4. Add a line under `## [Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md) for any change a user can see.
-5. When a fix comes from a real incident, describe the symptom you saw.
+3. Write the checks for your acceptance criteria; the stream's end runs them, not you.
+4. Fill in the [pull request template](.github/pull_request_template.md): Summary, Evidence, Merge Danger.
+5. Add a line under `## [Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md) for any change a user can see.
+6. When a fix comes from a real incident, describe the symptom you saw.
 
 The maintainer merges. Do not merge your own pull request.

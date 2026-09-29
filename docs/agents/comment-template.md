@@ -30,16 +30,17 @@ Resolved: <one line: what the ticket now delivers>
 Branch: `<ticket branch>` at `<commit>`, base `<base commit>`
 
 Acceptance criteria:
-- [x] <criterion, as the ticket words it>: <how it was checked: command and result, or file and line>
+- [x] <criterion, as the ticket words it>: <the check that proves it: file and line>
 - [ ] <criterion not met>: <why, and what remains>
 
-Checks run: <the ticket's own tests, red then green, and the per-ticket checks of the evidence standards, each with its command and result>
+Checks written: <each check the ticket added, with its file, and that it was written to fail before the change>
+Tests: deferred to the stream's end (docs/agents/evidence-standards.md)
 Code review: deferred to the stream's end (docs/agents/evidence-standards.md)
 Open: <what remains open or in doubt; "nothing" when nothing>
 Outside the file zone: <each change outside the ticket's files or outside git; "none" when none>
 ```
 
-For a symptom ticket, `Checks run` shows the test red on the base commit before the fix and green after, each as a command and its output.
+For a symptom ticket, `Checks written` names the check that goes red on exactly that symptom.
 
 ## Decision
 
