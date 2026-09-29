@@ -15,7 +15,7 @@ Once the milestone's last stream has merged into `main`, the **milestone run** h
 3. **One fix pass**: every finding of steps 1 and 2 is fixed, skipped with a reason, or put off to a named ticket of a later milestone, in one round, on the same branch.
 4. **The eval**, when the repository has a plugin to eval: the eval suite, once, after the fix pass. Until then this step reads "not applicable: no plugin to eval yet".
 
-The run's results go into the `release/v0.x.0` pull request under Evidence: the test run's command and summary line, the smoke results, the review's findings per axis with the outcome of each, and the eval's report. The release is tagged only after that pull request merges.
+The run's results go into the `release/v0.x.0` pull request under Evidence: the test run's command and summary line, the smoke results, the review's findings per axis with the outcome of each, and the eval's report. The release is tagged only after that pull request merges. The stream that ships a milestone updates the roadmap in its pull request ([`docs/roadmap.md`](../roadmap.md)).
 
 Every wave's step 7 writes its `## Review` as "deferred to milestone `v0.x.0` (evidence standards)".
 
