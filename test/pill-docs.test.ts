@@ -57,6 +57,12 @@ test("the host port section names the two additions", () => {
   }
 });
 
+test("the README and the smoke steps leave the pill's own words to client/pill-text.ts", () => {
+  for (const name of ["README.md", "test/smoke/README.md"]) {
+    assert.doesNotMatch(read(name), /`(?:<n>|\d+) waiting`/, `${name} writes the pill's label`);
+  }
+});
+
 test("CHANGELOG.md lists the composer pill under Unreleased", () => {
   const changelog = read("CHANGELOG.md");
   const unreleased = changelog.slice(changelog.indexOf("## [Unreleased]"));

@@ -110,6 +110,25 @@ test("an archived agent drops what it had open", async () => {
   assert.equal(await host.waitingCount("stream-1"), 0);
 });
 
+test("a request resolved while its agent's labels are still being read does not stay counted", async () => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => void (release = resolve));
+  class Slow extends FakeHost {
+    override async labelsOf(agentId: string): Promise<Record<string, string>> {
+      await gate;
+      return super.labelsOf(agentId);
+    }
+  }
+  const host = new Slow();
+  registerWaitingCount(host);
+  host.setLabels("tkt-7", { wave: "1", ticket: "07" });
+  const opening = host.emitPermissionRequested({ agent: ticketAgent, request: question("r1") });
+  await host.emitPermissionResolved({ agent: ticketAgent, requestId: "r1" });
+  release();
+  await opening;
+  assert.equal(await host.waitingCount("stream-1"), 0);
+});
+
 test("a host that cannot read the labels leaves the request out and does not throw into Paseo (T4)", async () => {
   class Blind extends FakeHost {
     override async labelsOf(): Promise<Record<string, string>> {

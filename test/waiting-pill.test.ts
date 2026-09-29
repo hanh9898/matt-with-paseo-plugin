@@ -11,6 +11,8 @@ function stubClient() {
   const counts = new Map<string, number>();
   const asked: string[] = [];
   const pills = new Map<string, { contribution: Contribution; patches: { label?: string; visible?: boolean }[]; removed: boolean }>();
+  const listed: PillUpdate[] = [];
+  let listFails = false;
   let handler: ((update: PillUpdate) => void) | null = null;
   let unsubscribed = false;
   let holding = false;
@@ -19,6 +21,12 @@ function stubClient() {
   const client: PillClient = {
     paseo: {
       agents: {
+        async list() {
+          if (listFails) throw new Error("list down");
+          return {
+            entries: listed.flatMap((update) => (update.kind === "upsert" ? [{ agent: update.agent }] : [])),
+          };
+        },
         subscribe(next) {
           handler = next;
           return () => {
@@ -50,6 +58,8 @@ function stubClient() {
   return {
     client,
     counts,
+    listed,
+    setListFails: (value: boolean) => void (listFails = value),
     asked,
     pills,
     agent,
@@ -127,6 +137,34 @@ test("an update to an agent refreshes that agent's own pill", async () => {
   stub.emit(stub.agent("stream-1"));
   await settle();
   assert.deepEqual(stub.shown("stream-1"), { label: PILL.label(1), visible: true });
+});
+
+test("an agent already there when the plugin starts gets a pill, and its ticket agent's question shows on it", async () => {
+  const stub = stubClient();
+  stub.listed.push(stub.agent("stream-1"));
+  contribute(stub.client);
+  await settle();
+  assert.equal(stub.pills.get("stream-1")?.removed, false);
+  stub.counts.set("stream-1", 1);
+  stub.emit(stub.agent("tkt-7", "stream-1"));
+  await settle();
+  assert.deepEqual(stub.shown("stream-1"), { label: PILL.label(1), visible: true });
+});
+
+test("a list that fails is logged and the pill still follows agent updates (T4)", async () => {
+  const stub = stubClient();
+  const log = mock.method(console, "error", () => {});
+  try {
+    stub.setListFails(true);
+    contribute(stub.client);
+    await settle();
+    assert.match(String(log.mock.calls[0]?.arguments[0]), /list down/);
+    stub.emit(stub.agent("stream-1"));
+    await settle();
+    assert.equal(stub.pills.get("stream-1")?.removed, false);
+  } finally {
+    log.mock.restore();
+  }
 });
 
 test("an agent with no workspace gets no pill", async () => {
