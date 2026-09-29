@@ -96,7 +96,7 @@ Written, not run. Targets Paseo `0.10.1`; the steps need Claude Code, not the da
 
 Written, not run. Targets Paseo `0.10.1`. Run it after the steps above, with `mwp-smoke` installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
 
-1. Before installing, `paseo provider ls --json` and keep the list. With `mwp-smoke` installed and running, run it again: the list is the same, so the plugin added no provider, per role or otherwise.
+1. Keep the output of `paseo provider ls --json` taken before step 3 of the steps above (the install). With `mwp-smoke` installed and running, run it again: the list is the same, so the plugin added no provider, per role or otherwise.
 2. From an orchestrator titled `[mwp-smoke] orchestrator`, create a ticket agent with the labels `wave=1` and `ticket=99` on a provider from that list. The agent is created and its turn end reaches the orchestrator (the lifecycle relay), so the role rode on the labels and no provider was picked for it.
 3. The marker on a ticket agent and its absence on the orchestrator are the "Git guard" section's part C, steps 1 to 3.
 4. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]`. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.

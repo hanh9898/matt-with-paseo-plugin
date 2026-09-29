@@ -137,7 +137,7 @@ A ticket agent runs in a worktree with broad permissions, and the orchestrator s
 
 | Part | Where | Does |
 |---|---|---|
-| The marker | `shared/role-marker.ts` (`ROLE_ENV`, `TICKET_ROLE`) | Names `MWP_ROLE=ticket`; the guard and the handler both read it |
+| The marker | `shared/role-marker.ts` (`ROLE_ENV`, `TICKET_ROLE`) | Names `MWP_ROLE=ticket`; the guard, the handler and ticket 14 all read it |
 | The handler | `server/hooks/ticket-marker.ts` | In `beforeCreate`, adds the marker to the environment of an agent titled `[Wave N] <NN> <ticket name>`, as the wave skill titles every ticket agent |
 | The guard | `guard/git-guard.mjs` | Reads the tool call on stdin, exits 2 with the message on stderr to refuse; fails open |
 | The hook file | `hooks/hooks.json` | Runs `node "${CLAUDE_PLUGIN_ROOT}/guard/git-guard.mjs"` in a `PreToolUse` hook for `Bash` and `PowerShell`, for an agent that loads this repository as a plugin |
@@ -156,7 +156,7 @@ The checks are `test/guard/git-guard.test.ts` (the script, run as the hook runne
 
 ### Role identity
 
-A role is what an agent is to the plugin: a ticket agent, the stream agent, or neither. The plugin gives a role no provider: it registers none with Paseo (no `registerProvider`), so the picker holds only the providers Paseo and the user added, and a provider is needed only for a hand-started agent. The wave skill puts the role on the agent's labels, and the plugin reads it from wherever it can see the agent:
+A role is what an agent is to the plugin: a ticket agent, the stream agent, or neither. The plugin gives a role no provider: it registers none with Paseo (no `registerProvider`) and writes none into the daemon's config (no `providers` or `agentProfiles` patch), so the picker holds only the providers Paseo and the user added, and a provider is needed only for a hand-started agent. The wave skill puts the role on the agent's labels, and the plugin reads it from wherever it can see the agent:
 
 | Where the plugin sees the agent | How it tells the role | Read by |
 |---|---|---|
