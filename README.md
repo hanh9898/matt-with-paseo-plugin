@@ -17,15 +17,21 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | Path | Holds |
 |---|---|
 | `paseo-plugin.json` | The manifest: the plugin id and the supported Paseo range |
-| `index.server.ts` | The one entry module, run in the daemon subprocess |
+| `index.server.ts` | The server entry, run in the daemon subprocess |
+| `index.client.ts` | The client entry, run in the app: it starts the composer pill |
+| `client/` | App-side code the client entry imports |
+| `client/waiting-pill.ts` | The composer pill: one per agent, hidden at zero |
+| `client/pill-text.ts` | Every text the pill shows |
 | `server/` | Daemon-side code the entry imports |
 | `server/host.ts` | The host port: the events a handler receives, the actions it may take, where it registers |
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
 | `server/hooks/` | The hook handlers, one module per handler |
 | `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
+| `server/hooks/waiting-count.ts` | The handler that counts what waits for the user, per chat |
 | `server/messages.ts` | The texts the plugin sends to an orchestrator, one per message type |
 | `shared/` | Code and contracts both runtimes import |
 | `shared/harness.ts` | The harness descriptor's field table and its checks |
+| `shared/waiting.ts` | The `waiting.count` RPC the pill reads |
 | `server/harness.ts` | The loader of the descriptors |
 | `harness/` | One descriptor per agent, `<agent>.json`: data, not code |
 | `test/` | The tests (`*.test.ts`) and the [smoke test](test/smoke/README.md) |
@@ -44,7 +50,7 @@ npm test
 
 Only `server/paseo-host.ts` imports `@getpaseo/plugin`; a handler imports `server/host.ts` and nothing from the SDK.
 
-A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onCreated`, `hooks.onArchived` or `hooks.beforeCreate`, and each callback receives `(event, host)`. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
+A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onPermissionResolved`, `hooks.onCreated`, `hooks.onArchived` or `hooks.beforeCreate`, and each callback receives `(event, host)`. `hooks.serveWaitingCount` answers the composer pill's question. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
 
 ```ts
 // server/hooks/relay.ts
@@ -101,6 +107,20 @@ Each handler in `server/hooks/` needs a `test/hooks/<name>.test.ts` that uses `F
 A ticket agent is the one that carries the labels `wave` and `ticket`, as the wave skill starts every ticket agent; any other agent is left alone. Its orchestrator is its `parentAgentId`; an agent with none has nobody to tell. When `isRunning` reports the orchestrator mid-turn, the message is held and all held messages go out as one when that orchestrator's `agent.turn_ended` fires; an orchestrator that is archived loses what was held. A host that cannot say whether the orchestrator runs is treated as idle, and the message goes out at once.
 
 Every text lives in `server/messages.ts`, one line per message and `combine` for the held ones, so a line every message ends with is one edit there. The heartbeat path in the skills stays the fallback while the plugin is off; that is a change in `hanh9898/matt-with-paseo`, not here.
+
+### The waiting pill
+
+A checkpoint is Paseo's own `AskUserQuestion` prompt (ADR 0001), so the plugin draws no card for it. It adds one composer pill that counts what waits for the user in a chat, and shows it as `<n> waiting`; at zero the pill is hidden, so an agent with nothing pending looks as Paseo made it.
+
+`server/hooks/waiting-count.ts` keeps the open requests from `agent.permission_requested` and drops one on `agent.permission_resolved`, on its agent's `agent.turn_ended` and on `agent.archived`. A request counts toward the chat where the user sees it:
+
+| Agent, recognised by its labels | Its request counts toward |
+|---|---|
+| a ticket agent: `wave` and `ticket` | its orchestrator (`parentAgentId`); none when it has no parent |
+| the stream agent: `stream` and no `wave` | itself |
+| any other agent | nothing (T3) |
+
+The count travels over the `waiting.count` RPC (`shared/waiting.ts`), served through the port's `serveWaitingCount`. `client/waiting-pill.ts` puts a pill on each agent that has a workspace and reads its count again when an agent updates or goes away, every 30 seconds, and when the pill is pressed; a failed read leaves the pill as it was. Every text the pill shows is in `client/pill-text.ts`, and a check fails when another client file writes one. The client imports no Paseo SDK beyond `index.client.ts`'s context type and the RPC contract, so `test/host-port.test.ts` names those two files beside the adapter.
 
 ### Harness descriptors
 
