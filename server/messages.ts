@@ -14,8 +14,7 @@ export type Subject = { agentId: string; wave: string; ticket: string };
 
 type RequestHead = Pick<PermissionRequest, "id" | "name" | "kind">;
 
-const NEXT = "
-Next: ";
+const NEXT = "\nNext: ";
 /** Separates the moves on a `Next:` line, so a move never holds it. Each move names its ticket: `combine` may join several messages' moves. */
 const MOVES = "; ";
 
@@ -105,7 +104,6 @@ export function combine(texts: readonly string[]): string {
       if (!moves.includes(move)) moves.push(move);
     }
   }
-  const joined = bodies.join("
-");
+  const joined = bodies.join("\n");
   return moves.length === 0 ? joined : `${joined}${NEXT}${moves.join(MOVES)}.`;
 }
