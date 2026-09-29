@@ -73,12 +73,11 @@ test("the check reads every place the version and the id are spelled, so none is
   );
   assert.deepEqual(
     read.id.map((r) => `${r.file} ${r.field}`),
-    [
-      "paseo-plugin.json id",
-      "package.json name",
-      ".claude-plugin/plugin.json name",
-      ".claude-plugin/marketplace.json plugins[0].name",
-    ],
+    ["paseo-plugin.json id", "package.json name"],
+  );
+  assert.deepEqual(
+    read.claudeName.map((r) => `${r.file} ${r.field}`),
+    [".claude-plugin/plugin.json name", ".claude-plugin/marketplace.json plugins[0].name"],
   );
 });
 
@@ -110,22 +109,28 @@ const DISAGREEMENTS: { name: string; edit: (dir: string) => void; offender: stri
     home: "package.json",
   },
   {
-    name: "plugin.json name against paseo-plugin.json",
-    edit: (dir) => setJson(dir, ".claude-plugin/plugin.json", ["name"], "other-id"),
-    offender: ".claude-plugin/plugin.json",
-    home: "paseo-plugin.json",
-  },
-  {
-    name: "marketplace.json entry name against paseo-plugin.json",
-    edit: (dir) => setJson(dir, ".claude-plugin/marketplace.json", ["plugins", 0, "name"], "other-id"),
-    offender: ".claude-plugin/marketplace.json",
-    home: "paseo-plugin.json",
-  },
-  {
     name: "package.json name against paseo-plugin.json",
     edit: (dir) => setJson(dir, "package.json", ["name"], "other-id"),
     offender: "package.json",
     home: "paseo-plugin.json",
+  },
+  {
+    name: "the Paseo id against package.json name",
+    edit: (dir) => setJson(dir, "paseo-plugin.json", ["id"], "other-id"),
+    offender: "package.json",
+    home: "paseo-plugin.json",
+  },
+  {
+    name: "the marketplace entry's name against plugin.json name",
+    edit: (dir) => setJson(dir, ".claude-plugin/marketplace.json", ["plugins", 0, "name"], "other-name"),
+    offender: ".claude-plugin/marketplace.json",
+    home: ".claude-plugin/plugin.json",
+  },
+  {
+    name: "plugin.json name against the marketplace entry's name",
+    edit: (dir) => setJson(dir, ".claude-plugin/plugin.json", ["name"], "other-name"),
+    offender: ".claude-plugin/marketplace.json",
+    home: ".claude-plugin/plugin.json",
   },
 ];
 
@@ -164,6 +169,20 @@ test("two spellings that differ from each other and from the token give two mess
   assert.equal(problems.length, 2, problems.join("\n"));
   assert.ok(problems.some((p) => p.includes(".claude-plugin/plugin.json") && p.includes("package.json")));
   assert.ok(problems.some((p) => p.includes(".claude-plugin/marketplace.json") && p.includes("package.json")));
+});
+
+test("the Claude Code plugin name is free of the Paseo id: renaming it in both manifests passes", () => {
+  const problems = inScratchRoot((dir) => {
+    setJson(dir, ".claude-plugin/plugin.json", ["name"], "another-name");
+    setJson(dir, ".claude-plugin/marketplace.json", ["plugins", 0, "name"], "another-name");
+  });
+  assert.deepEqual(problems, []);
+});
+
+test("the Claude Code plugin name still matches between plugin.json and its marketplace entry, or install fails", () => {
+  const problems = inScratchRoot((dir) => setJson(dir, ".claude-plugin/plugin.json", ["name"], "another-name"));
+  assert.equal(problems.length, 1, problems.join("\n"));
+  assert.ok(problems[0]?.includes(".claude-plugin/plugin.json") && problems[0].includes(".claude-plugin/marketplace.json"));
 });
 
 test("a token that is not a version is refused, even when every spelling matches it", () => {

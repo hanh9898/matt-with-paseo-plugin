@@ -46,7 +46,7 @@ test("the README says where the token lives, what is checked against it and how 
     "shared/contract.ts",
     "test/version-token.test.ts",
     "matt-with-paseo-plugin",
-    "matt-with-paseo@matt-with-paseo-plugin",
+    "matt-with-paseo-plugin@matt-with-paseo-plugin",
   ];
   for (const needle of needles) assert.ok(text.includes(needle), `One version token names ${needle}`);
 });
@@ -81,11 +81,13 @@ test("the smoke test has written steps that load the Claude Code manifests, befo
     "Written, not run",
     "claude plugin validate",
     "CLAUDE_CONFIG_DIR",
-    "matt-with-paseo@matt-with-paseo-plugin",
+    "matt-with-paseo-plugin@matt-with-paseo-plugin",
     "package.json",
     "CLAUDE.md",
   ]) {
     assert.ok(body.includes(needle), `the Claude Code plugin section names ${needle}`);
   }
+  assert.ok(!body.includes("matt-with-paseo@"), "the section installs no plugin named matt-with-paseo");
+  assert.ok(!body.includes("details matt-with-paseo`"), "the section reads the details of the renamed plugin");
   assert.ok(smoke.indexOf("\n## Results") > start, "Results stays the last section");
 });
