@@ -163,6 +163,23 @@ test("beforeCreate returns the request with the handler's environment", async ()
   assert.deepEqual(changed, { ...request, env: { KEPT: "yes", MWP_ROLE: "ticket" } });
 });
 
+test("beforeCreate hands the handler the title the agent is created with, and null when it has none", async () => {
+  const { server, fire } = stubServer();
+  const { paseo } = stubPaseo();
+  const seen: unknown[] = [];
+  connectPaseo(server).beforeCreate((request) => {
+    seen.push(request);
+  });
+  await fire("before:agent.create", { request: { config: { provider: "claude", cwd: "/repo", title: "[Wave 1] 02 x" }, env: { A: "b" } } }, { paseo });
+  await fire("before:agent.create", { request: { config: { provider: "claude", cwd: "/repo" } } }, { paseo });
+  await fire("before:agent.create", { request: { config: { provider: "claude", cwd: "/repo", title: null }, env: {} } }, { paseo });
+  assert.deepEqual(seen, [
+    { env: { A: "b" }, title: "[Wave 1] 02 x" },
+    { env: {}, title: null },
+    { env: {}, title: null },
+  ]);
+});
+
 test("beforeCreate leaves the request alone when the handler changes nothing or throws (T4)", async () => {
   const { server, fire } = stubServer();
   const { paseo } = stubPaseo();
