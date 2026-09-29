@@ -55,8 +55,11 @@ export type PermissionRequestedEvent = { agent: HostAgent; request: PermissionRe
 /** A request settled, however it was answered; the answer itself stays out: it can carry a credential (T6). */
 export type PermissionResolvedEvent = { agent: HostAgent; requestId: string };
 
-/** What Paseo is about to create an agent with. */
-export type CreateRequest = { env: Readonly<Record<string, string>> };
+/**
+ * What Paseo is about to create an agent with. Neither labels nor an agent id exist yet, so the title is the
+ * only mark of who the agent is; it is absent when the creator gave none.
+ */
+export type CreateRequest = { env: Readonly<Record<string, string>>; title?: string | null };
 /** What a `beforeCreate` handler changes: the environment the agent is created with, whole. */
 export type CreateChange = { env: Record<string, string> };
 

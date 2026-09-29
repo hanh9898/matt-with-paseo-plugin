@@ -111,7 +111,7 @@ export class FakeHost implements Host, HostHooks {
     let env: Record<string, string> = { ...request.env };
     for (const handler of this.beforeCreates) {
       try {
-        const change = await handler({ env }, this);
+        const change = await handler({ env, title: request.title }, this);
         if (change) env = change.env;
       } catch (error) {
         this.failures.push({ hook: "agent.create", error });
