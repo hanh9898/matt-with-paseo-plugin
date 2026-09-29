@@ -16,7 +16,12 @@ export interface PillRegistration {
 
 /** The slice of Paseo's client context the pill uses; the entry hands it the real context. */
 export interface PillClient {
-  paseo: { agents: { subscribe(handler: (update: PillUpdate) => void): () => void } };
+  paseo: {
+    agents: {
+      list(): Promise<{ entries: { agent: { id: string; workspaceId?: string | null; parentAgentId?: string | null } }[] }>;
+      subscribe(handler: (update: PillUpdate) => void): () => void;
+    };
+  };
   rpc(contract: typeof waitingCount, input: { agentId: string }): Promise<{ count: number }>;
   addComposerPill(contribution: {
     id: string;
@@ -77,6 +82,12 @@ export function contributeWaitingPill(client: PillClient): () => void {
     pills.set(agentId, { registration, reads: 0 });
   }
 
+  function track({ id, workspaceId, parentAgentId }: { id: string; workspaceId?: string | null; parentAgentId?: string | null }): void {
+    if (workspaceId) ensure(id, workspaceId);
+    void refresh(id);
+    if (parentAgentId) void refresh(parentAgentId);
+  }
+
   const unsubscribe = client.paseo.agents.subscribe((update) => {
     if (update.kind === "remove") {
       pills.get(update.agentId)?.registration.remove();
@@ -84,11 +95,18 @@ export function contributeWaitingPill(client: PillClient): () => void {
       refreshAll();
       return;
     }
-    const { id, workspaceId, parentAgentId } = update.agent;
-    if (workspaceId) ensure(id, workspaceId);
-    void refresh(id);
-    if (parentAgentId) void refresh(parentAgentId);
+    track(update.agent);
   });
+  // An agent that changes nothing after the plugin starts still needs its pill, or a question from its ticket agent shows nowhere.
+  client.paseo.agents.list().then(
+    ({ entries }) => {
+      for (const { agent } of entries) track(agent);
+    },
+    (error: unknown) => {
+      const cause = error instanceof Error ? error.message : String(error);
+      console.error(`[matt-with-paseo] pill could not list the agents: ${cause}`);
+    },
+  );
   const timer = setInterval(refreshAll, REFRESH_MS);
 
   return () => {
