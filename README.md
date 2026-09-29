@@ -23,6 +23,9 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
 | `server/hooks/` | The hook handlers, one module per handler |
 | `shared/` | Code and contracts both runtimes import |
+| `shared/harness.ts` | The harness descriptor's field table and its checks |
+| `server/harness.ts` | The loader of the descriptors |
+| `harness/` | One descriptor per agent, `<agent>.json`: data, not code |
 | `test/` | The tests (`*.test.ts`) and the [smoke test](test/smoke/README.md) |
 | `test/support/fake-host.ts` | The fake adapter of the port, for tests |
 | `test/hooks/` | One test per hook handler, named after it |
@@ -81,6 +84,23 @@ test("a worker's turn end reaches its orchestrator", async () => {
 ```
 
 Each handler in `server/hooks/` needs a `test/hooks/<name>.test.ts` that uses `FakeHost`; a check fails when one is missing. A hook the port does not yet expose is added to `server/host.ts`, `server/paseo-host.ts` and `FakeHost` together.
+
+### Harness descriptors
+
+An agent is data. `harness/<agent>.json` holds every fact the plugin needs of that agent, the file name is the agent's id, and no code names an agent (`test/agent-names.test.ts` fails when a module outside `test/` does). Only `claude.json` ships.
+
+| Field | Takes |
+|---|---|
+| `configDirVar` | The environment variable that names the agent's config directory |
+| `skillsDir` | The skills directory, relative to the config directory |
+| `skills` | `native`: the agent loads the plugin's skills itself. `provisioned`: the plugin lays them down |
+| `mcpDelivery` | `agent-config`: MCP servers ride the launch config edited before the agent is created. `config-file`: they go in a file in the config directory |
+
+To add an agent, add `harness/<agent>.json` with every field; nothing else changes. `loadHarnesses` in `server/harness.ts` returns the descriptors keyed by id, and `test/harness-contract.test.ts` checks each file in the folder.
+
+To add a field, add one row to `HARNESS_FIELDS` in `shared/harness.ts` (its check and what it expects) and its value to each `harness/<agent>.json`, after the last field. The descriptor's type, the loader's refusal of a file without the field and the contract test all read that table. To give an existing field new values, change its row. Fields still to come: `guard` (ticket 02) and `sandboxed` (ticket 19).
+
+Paseo loads only the entries and the `client/`, `server/` and `shared/` folders, so `harness/` is listed in `files` in `package.json`, and the loader reads it as files at run time from `new URL("../harness/", import.meta.url)`. It is not a code import, so the descriptors stay data. Whether that URL resolves to the plugin's root in the daemon's compiled bundle is not verified yet: no entry calls the loader until a later ticket does.
 
 ## Contributing
 
