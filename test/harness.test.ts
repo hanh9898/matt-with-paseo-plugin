@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { HARNESS_FIELDS, isDescriptor, problemsOf } from "../shared/harness.ts";
+import { GUARDS, HARNESS_FIELDS, isDescriptor, problemsOf } from "../shared/harness.ts";
 import { loadHarnesses } from "../server/harness.ts";
 
 const valid = {
@@ -11,6 +11,7 @@ const valid = {
   skillsDir: "skills",
   skills: "native",
   mcpDelivery: "agent-config",
+  guard: "hook",
 };
 
 test("a descriptor with every field of the table is valid", () => {
@@ -53,6 +54,10 @@ const bad: Array<[field: string, value: unknown]> = [
   ["skills", true],
   ["mcpDelivery", "magic"],
   ["mcpDelivery", ["agent-config"]],
+  ["guard", "magic"],
+  ["guard", "Hook"],
+  ["guard", true],
+  ["guard", ["hook"]],
 ];
 
 test("a value the field does not accept is a problem that names the field", () => {
@@ -61,6 +66,11 @@ test("a value the field does not accept is a problem that names the field", () =
     assert.equal(problems.length, 1, `${field} = ${JSON.stringify(value)}: ${problems.join("; ")}`);
     assert.ok(problems[0]?.startsWith(`${field}:`), problems[0]);
   }
+});
+
+test("the guard field takes hook or path-shim, and a descriptor with either is valid", () => {
+  assert.deepEqual([...GUARDS], ["hook", "path-shim"]);
+  for (const guard of GUARDS) assert.deepEqual(problemsOf({ ...valid, guard }), [], guard);
 });
 
 test("a value that is not an object is not a descriptor", () => {

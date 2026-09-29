@@ -12,6 +12,12 @@ test("harness/ ships the claude descriptor", () => {
   assert.ok(files.includes("claude.json"), "harness/claude.json exists");
 });
 
+test("harness/claude.json guards through a hook: the agent runs hooks, so no shim on its path is needed", () => {
+  const raw: unknown = JSON.parse(readFileSync(new URL("claude.json", dir), "utf8"));
+  assert.ok(typeof raw === "object" && raw !== null && "guard" in raw);
+  assert.equal(raw.guard, "hook");
+});
+
 // The contract every descriptor passes: a file added to harness/ is covered with no edit here.
 for (const file of files) {
   const text = readFileSync(new URL(file, dir), "utf8");
