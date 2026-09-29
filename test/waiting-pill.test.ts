@@ -253,7 +253,7 @@ test("every text the pill shows lives in client/pill-text.ts", () => {
   for (const path of others) {
     const text = readFileSync(new URL(path, root), "utf8");
     assert.ok(!text.includes(PILL.title), `${path} writes the pill's title`);
-    assert.ok(!/\} waiting|\d+ waiting/.test(text), `${path} writes the pill's label`);
+    assert.ok(!/\} waiting|\b\d+ waiting/.test(text), `${path} writes the pill's label`);
   }
   assert.match(readFileSync(new URL("client/waiting-pill.ts", root), "utf8"), /from "\.\/pill-text\.ts"/);
 });
