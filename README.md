@@ -22,6 +22,8 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/host.ts` | The host port: the events a handler receives, the actions it may take, where it registers |
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
 | `server/hooks/` | The hook handlers, one module per handler |
+| `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
+| `server/messages.ts` | The texts the plugin sends to an orchestrator, one per message type |
 | `shared/` | Code and contracts both runtimes import |
 | `shared/harness.ts` | The harness descriptor's field table and its checks |
 | `server/harness.ts` | The loader of the descriptors |
@@ -42,7 +44,7 @@ npm test
 
 Only `server/paseo-host.ts` imports `@getpaseo/plugin`; a handler imports `server/host.ts` and nothing from the SDK.
 
-A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onCreated`, `hooks.onArchived` or `hooks.beforeCreate`, and each callback receives `(event, host)`. `host` is the only way to reach Paseo: `labelsOf`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
+A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onCreated`, `hooks.onArchived` or `hooks.beforeCreate`, and each callback receives `(event, host)`. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
 
 ```ts
 // server/hooks/relay.ts
@@ -84,6 +86,21 @@ test("a worker's turn end reaches its orchestrator", async () => {
 ```
 
 Each handler in `server/hooks/` needs a `test/hooks/<name>.test.ts` that uses `FakeHost`; a check fails when one is missing. A hook the port does not yet expose is added to `server/host.ts`, `server/paseo-host.ts` and `FakeHost` together.
+
+### The lifecycle relay
+
+`server/hooks/lifecycle-relay.ts` replaces the heartbeat: what a ticket agent does reaches the orchestrator that owns it as a message.
+
+| Event | Message (from `server/messages.ts`) |
+|---|---|
+| `agent.turn_ended` | `Turn ended:` with the ticket, the wave, the agent and the outcome |
+| `agent.permission_requested` | `Permission pending:` with the request's id, tool name and kind; never its input |
+| `agent.created` | `Agent created:` |
+| `agent.archived` | `Agent archived:` |
+
+A ticket agent is the one that carries the labels `wave` and `ticket`, as the wave skill starts every ticket agent; any other agent is left alone. Its orchestrator is its `parentAgentId`; an agent with none has nobody to tell. When `isRunning` reports the orchestrator mid-turn, the message is held and all held messages go out as one when that orchestrator's `agent.turn_ended` fires; an orchestrator that is archived loses what was held. A host that cannot say whether the orchestrator runs is treated as idle, and the message goes out at once.
+
+Every text lives in `server/messages.ts`, one line per message and `combine` for the held ones, so a line every message ends with is one edit there. The heartbeat path in the skills stays the fallback while the plugin is off; that is a change in `hanh9898/matt-with-paseo`, not here.
 
 ### Harness descriptors
 

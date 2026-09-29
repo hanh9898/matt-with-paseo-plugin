@@ -26,6 +26,7 @@ export class FakeHost implements Host, HostHooks {
   readonly failures: { hook: string; error: unknown }[] = [];
 
   private readonly labels = new Map<string, Record<string, string>>();
+  private readonly running = new Set<string>();
   private readonly created: Handler<CreatedEvent>[] = [];
   private readonly archived: Handler<ArchivedEvent>[] = [];
   private readonly turnEnded: Handler<TurnEndedEvent>[] = [];
@@ -35,6 +36,12 @@ export class FakeHost implements Host, HostHooks {
   /** Sets the labels `labelsOf` reports for an agent. */
   setLabels(agentId: string, labels: Record<string, string>): void {
     this.labels.set(agentId, labels);
+  }
+
+  /** Sets whether `isRunning` reports an agent in a turn. */
+  setRunning(agentId: string, running: boolean): void {
+    if (running) this.running.add(agentId);
+    else this.running.delete(agentId);
   }
 
   onCreated(handler: Handler<CreatedEvent>): void {
@@ -89,6 +96,10 @@ export class FakeHost implements Host, HostHooks {
 
   async labelsOf(agentId: string): Promise<Record<string, string>> {
     return { ...this.labels.get(agentId) };
+  }
+
+  async isRunning(agentId: string): Promise<boolean> {
+    return this.running.has(agentId);
   }
 
   async send(agentId: string, text: string): Promise<void> {

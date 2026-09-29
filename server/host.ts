@@ -62,6 +62,8 @@ export type CreateChange = { env: Record<string, string> };
 export interface Host {
   /** The labels Paseo holds for an agent; empty when it has none or is unknown. */
   labelsOf(agentId: string): Promise<Record<string, string>>;
+  /** Whether Paseo reports the agent in a turn right now; false when it is idle, gone or unknown. */
+  isRunning(agentId: string): Promise<boolean>;
   /** Sends a message to an agent as a prompt. */
   send(agentId: string, text: string): Promise<void>;
   respondToPermission(agentId: string, requestId: string, answer: PermissionAnswer): Promise<void>;
