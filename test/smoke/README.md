@@ -30,7 +30,9 @@ Written, not run. Targets Paseo `0.10.1`. Run it after the steps above, with `mw
 4. Create a second ticket agent with the same labels whose prompt asks a question with `AskUserQuestion`. The orchestrator's timeline gains a message starting `Permission pending:` with the request id and `AskUserQuestion`, and not the question's text.
 5. Prompt the orchestrator with a long turn (a shell command that sleeps 60 seconds) and, while it runs, prompt a ticket agent so that its turn ends. Nothing arrives until the orchestrator's turn ends; then one message arrives.
 6. Create a third agent with no labels and one with only `wave=1`. Neither one's turn end or permission produces a message.
-7. Archive the ticket agents; each archive produces an `Agent archived:` message. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+7. Archive the ticket agents; each archive produces an `Agent archived:` message.
+8. Read every relay message from the steps above: its last line is a `Next:` line, it names the ticket `99`, and the tools in it (`get_agent_activity`, `list_pending_permissions`, `respond_to_permission`) exist on this daemon. A message held in step 5 has exactly one `Next:` line, at its end, with the moves of every message it joins.
+9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
 Read the plugin's own output with `paseo plugin logs mwp-smoke`: a line starting `[matt-with-paseo]` is a handler that failed and was kept out of Paseo.
 
@@ -61,7 +63,7 @@ Written, not run. Targets Paseo `0.10.1`. Parts A and B need Node only and run o
 
 **A. The script, on each system.** `<plugin>` is the absolute path of this repository's checkout.
 
-1. Windows (PowerShell): `$env:MWP_ROLE = "ticket"; '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | node <plugin>guardgit-guard.mjs; $LASTEXITCODE`. macOS and Linux: `printf '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | MWP_ROLE=ticket node <plugin>/guard/git-guard.mjs; echo $?`. The output is a line starting `Refused: git push` and then `2`.
+1. Windows (PowerShell): `$env:MWP_ROLE = "ticket"; '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | node <plugin>guardgit-guard.mjs; $LASTEXITCODE`. macOS and Linux: `printf '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | MWP_ROLE=ticket node <plugin>/guard/git-guard.mjs; echo $?`. The output is a line starting `Refused: git push`, a last line starting `Next:` that says to commit, carry on and name the command in the report, and then `2`.
 2. Repeat with `git checkout main`, `git switch main` and `git reset --hard`: each is refused with its own name in the line.
 3. Repeat with `git commit -m x` and `git status`: no output, exit 0.
 4. Repeat step 1 with `MWP_ROLE` unset (`Remove-Item Env:MWP_ROLE`, `env -u MWP_ROLE`): no output, exit 0.
