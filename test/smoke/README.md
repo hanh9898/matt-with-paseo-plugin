@@ -38,7 +38,7 @@ Read the plugin's own output with `paseo plugin logs mwp-smoke`: a line starting
 
 ## Waiting pill
 
-Written, not run. Targets Paseo `0.10.1`. Run it after the relay steps, with `mwp-smoke` still installed and the app open on the same daemon. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. The pill's words are the ones in `client/pill-text.ts`: read them there.
+Written, not run. Targets Paseo `0.10.1`. Run it after the relay steps, with `mwp-smoke` still installed and the app open on the same daemon. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. The pill's words are the ones in `client/pill-text.ts`: read them there. While the pill shows, read its words against the plain labels in `client/pill-text.ts` (`PLAIN_LABELS`): a precise term of the skills' words blocks on the pill, alone, is a finding.
 
 1. Start an agent titled `[mwp-smoke] stream` with the label `stream=mwp-smoke`. Its composer track bar shows no pill.
 2. From it, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=99` and a prompt that asks one question with `AskUserQuestion`. Within 30 seconds the stream agent's composer shows the pill with the count 1. The ticket agent's own composer shows no pill.
