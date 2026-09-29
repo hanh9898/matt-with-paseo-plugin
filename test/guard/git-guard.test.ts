@@ -64,7 +64,7 @@ const refused = [
   "/usr/bin/git push",
   "git.exe push",
   "GIT push",
-  "C:\\Program Files\\Git\\cmd\\git.exe push",
+  "C:\\Git\\cmd\\git.exe push",
   '"C:\\Program Files\\Git\\cmd\\git.exe" push',
   "'git' push",
   // the same command inside another shell or a substitution
