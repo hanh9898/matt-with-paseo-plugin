@@ -31,6 +31,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
 | `server/hooks/waiting-count.ts` | The handler that counts what waits for the user, per chat |
 | `server/hooks/ticket-marker.ts` | The handler that sets the ticket marker in a ticket agent's environment |
+| `server/human-words.ts` | Finds the messages a person typed in a ticket agent's chat, told from the orchestrator's prompts |
 | `server/messages.ts` | The texts the plugin sends to an orchestrator, one per message type |
 | `shared/` | Code and contracts both runtimes import |
 | `shared/harness.ts` | The harness descriptor's field table and its checks |
@@ -116,6 +117,14 @@ Each handler in `server/hooks/` needs a `test/hooks/<name>.test.ts` that uses `F
 A ticket agent is the one that carries the labels `wave` and `ticket`, as the wave skill starts every ticket agent; any other agent is left alone. Its orchestrator is its `parentAgentId`; an agent with none has nobody to tell. When `isRunning` reports the orchestrator mid-turn, the message is held and all held messages go out as one when that orchestrator's `agent.turn_ended` fires; an orchestrator that is archived loses what was held. A host that cannot say whether the orchestrator runs is treated as idle, and the message goes out at once.
 
 Every text lives in `server/messages.ts`: its body on one line, then a last `Next:` line that names the moves open to the orchestrator, in the wave skill's tools and words (`get_agent_activity`, `list_pending_permissions`, `respond_to_permission`, checkpoint). A check fails when a message type or case has no `Next:` line. `combine` takes the held messages apart at their `Next:` lines and writes one at the end with each message's moves, a shared move once, so a held message ends with one `Next:` line; each move names its ticket for that reason. The git guard's refusal, the one other text that reaches an agent (a ticket agent, on stderr), ends with a `Next:` line too; the guard is a standalone script, so its wording lives in `guard/git-guard.mjs` and a check reads its last line. The heartbeat path in the skills stays the fallback while the plugin is off; that is a change in `hanh9898/matt-with-paseo`, not here.
+
+### Human words
+
+A person can steer a ticket agent the orchestrator believes it controls, by typing in the agent's own chat. `server/hooks/lifecycle-relay.ts` reads the `timeline` that Paseo hands `agent.turn_ended` and, when it holds a user message the relay has not told yet, puts a `Human words:` message (from `server/messages.ts`) ahead of the turn end in the same message to the orchestrator. It names the ticket, the agent and the ids of the user's messages, never their text (a message can hold a credential); its `Next:` line sends the orchestrator to `get_agent_activity` to read them, and to record in the ticket's report that the user spoke and whether it changed the plan. The owner lookup and the hold are the relay's: a ticket agent is recognised by its labels, its orchestrator is its `parentAgentId`, and a busy orchestrator gets the words with what else is held.
+
+The orchestrator prompts its ticket agents too (the first prompt of `create_agent`, `send_agent_prompt`), and each prompt reaches the timeline as a `user_message` item. `server/human-words.ts` tells the two apart by `clientMessageId`: a client (the app, the CLI) sends one with what a person types, and the orchestrator's tools send none, so its prompts carry only Paseo's own `messageId`. That was read in the `0.10.1` daemon's source, not run; the smoke test "Human words" confirms it on a real host. An item with no `clientMessageId` counts as the orchestrator's, so a prompt is never passed on as a person's, and a client message sent without an id is missed. The timeline is the agent's whole history, so the relay keeps the ids it has told per agent and forgets them at `agent.archived`; after a restart of the plugin, the first turn end tells a ticket agent's earlier messages once. A steer typed mid-turn reaches the orchestrator when that turn ends, since the port has no per-item event.
+
+"The report lists it" is the skills' part. The plugin's part is the message with a stable `Human words:` lead and the ids, so an orchestrator can list it; the orchestrator's summary is written by the wave and stream skills in `hanh9898/matt-with-paseo`, which is not touched here.
 
 ### The waiting pill
 
