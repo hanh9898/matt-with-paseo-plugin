@@ -13,6 +13,7 @@
     "server/",
     "shared/",
     "harness/",
+    "presets/",
     "guard/",
     "hooks/",
     "sensor/",
