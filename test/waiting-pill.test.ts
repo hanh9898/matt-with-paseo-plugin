@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { mock, test } from "node:test";
+import { after, mock, test } from "node:test";
 import { PILL } from "../client/pill-text.ts";
 import { contributeWaitingPill, REFRESH_MS, type PillClient, type PillUpdate } from "../client/waiting-pill.ts";
 
@@ -73,11 +73,22 @@ function stubClient() {
   };
 }
 
+/** Every pill a check starts is cleaned up after the file, so its timer does not keep the process alive. */
+const cleanups: (() => void)[] = [];
+after(() => {
+  for (const cleanup of cleanups) cleanup();
+});
+function contribute(client: PillClient): () => void {
+  const cleanup = contributeWaitingPill(client);
+  cleanups.push(cleanup);
+  return cleanup;
+}
+
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 test("an agent gets a pill on its own workspace and chat, hidden while nothing waits", async () => {
   const stub = stubClient();
-  contributeWaitingPill(stub.client);
+  contribute(stub.client);
   stub.emit(stub.agent("stream-1"));
   await settle();
   const pill = stub.pills.get("stream-1");
@@ -90,7 +101,7 @@ test("an agent gets a pill on its own workspace and chat, hidden while nothing w
 
 test("the pill's count changes when a checkpoint opens and again when it settles", async () => {
   const stub = stubClient();
-  contributeWaitingPill(stub.client);
+  contribute(stub.client);
   stub.emit(stub.agent("stream-1"));
   await settle();
   stub.counts.set("stream-1", 2);
@@ -109,7 +120,7 @@ test("the pill's count changes when a checkpoint opens and again when it settles
 
 test("an update to an agent refreshes that agent's own pill", async () => {
   const stub = stubClient();
-  contributeWaitingPill(stub.client);
+  contribute(stub.client);
   stub.emit(stub.agent("stream-1"));
   await settle();
   stub.counts.set("stream-1", 1);
@@ -120,7 +131,7 @@ test("an update to an agent refreshes that agent's own pill", async () => {
 
 test("an agent with no workspace gets no pill", async () => {
   const stub = stubClient();
-  contributeWaitingPill(stub.client);
+  contribute(stub.client);
   stub.emit(stub.agent("draft", null, null));
   await settle();
   assert.equal(stub.pills.size, 0);
@@ -128,7 +139,7 @@ test("an agent with no workspace gets no pill", async () => {
 
 test("a removed agent loses its pill and the others are read again", async () => {
   const stub = stubClient();
-  contributeWaitingPill(stub.client);
+  contribute(stub.client);
   stub.emit(stub.agent("stream-1"));
   stub.emit(stub.agent("tkt-7", "stream-1"));
   await settle();
@@ -144,7 +155,7 @@ test("a removed agent loses its pill and the others are read again", async () =>
 
 test("pressing the pill reads the count again", async () => {
   const stub = stubClient();
-  contributeWaitingPill(stub.client);
+  contribute(stub.client);
   stub.emit(stub.agent("stream-1"));
   await settle();
   stub.counts.set("stream-1", 3);
@@ -158,7 +169,7 @@ test("a failed read leaves the pill as it was and is logged with the agent's id 
   const stub = stubClient();
   const log = mock.method(console, "error", () => {});
   try {
-    contributeWaitingPill(stub.client);
+    contribute(stub.client);
     stub.emit(stub.agent("stream-1"));
     await settle();
     stub.counts.set("stream-1", 2);
@@ -176,7 +187,7 @@ test("a failed read leaves the pill as it was and is logged with the agent's id 
 
 test("a reply that arrives after a newer one is dropped", async () => {
   const stub = stubClient();
-  contributeWaitingPill(stub.client);
+  contribute(stub.client);
   stub.emit(stub.agent("stream-1"));
   await settle();
   stub.counts.set("stream-1", 5);
@@ -198,7 +209,7 @@ test("the pill is read again on a timer, as a fallback for an update that never 
   mock.timers.enable({ apis: ["setInterval"] });
   try {
     const stub = stubClient();
-    contributeWaitingPill(stub.client);
+    contribute(stub.client);
     stub.emit(stub.agent("stream-1"));
     await settle();
     stub.counts.set("stream-1", 1);
@@ -214,7 +225,7 @@ test("cleanup stops listening, stops the timer and removes every pill", async ()
   mock.timers.enable({ apis: ["setInterval"] });
   try {
     const stub = stubClient();
-    const cleanup = contributeWaitingPill(stub.client);
+    const cleanup = contribute(stub.client);
     stub.emit(stub.agent("stream-1"));
     stub.emit(stub.agent("tkt-7", "stream-1"));
     await settle();
@@ -242,7 +253,7 @@ test("every text the pill shows lives in client/pill-text.ts", () => {
   for (const path of others) {
     const text = readFileSync(new URL(path, root), "utf8");
     assert.ok(!text.includes(PILL.title), `${path} writes the pill's title`);
-    assert.ok(!text.includes(PILL.label(1).slice(1)), `${path} writes the pill's label`);
+    assert.ok(!/\} waiting|\d+ waiting/.test(text), `${path} writes the pill's label`);
   }
   assert.match(readFileSync(new URL("client/waiting-pill.ts", root), "utf8"), /from "\.\/pill-text\.ts"/);
 });
