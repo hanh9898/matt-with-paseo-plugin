@@ -34,6 +34,27 @@ Written, not run. Targets Paseo `0.10.1`. Run it after the steps above, with `mw
 
 Read the plugin's own output with `paseo plugin logs mwp-smoke`: a line starting `[matt-with-paseo]` is a handler that failed and was kept out of Paseo.
 
+## Waiting pill
+
+Written, not run. Targets Paseo `0.10.1`. Run it after the relay steps, with `mwp-smoke` still installed and the app open on the same daemon. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. The pill's words are the ones in `client/pill-text.ts`: read them there.
+
+1. Start an agent titled `[mwp-smoke] stream` with the label `stream=mwp-smoke`. Its composer track bar shows no pill.
+2. From it, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=99` and a prompt that asks one question with `AskUserQuestion`. Within 30 seconds the stream agent's composer shows the pill with the count 1. The ticket agent's own composer shows no pill.
+3. Create a second such ticket agent. The pill shows the count 2.
+4. Answer the first question in that ticket agent's chat, with Paseo's own prompt. The pill shows the count 1; answer the second and the pill disappears.
+5. Prompt the stream agent to ask one question with `AskUserQuestion` itself. Its pill shows the count 1; answer it and the pill disappears.
+6. Ask a question from an agent with no labels and from one with only `wave=1`. No pill appears in any composer.
+7. Ask a question from a ticket agent, then cancel its turn without answering. The pill disappears.
+8. Reload the plugin (`paseo plugin reload mwp-smoke`) with the stream agent idle, then have a new ticket agent ask a question. The stream agent's pill shows the count 1 though the stream agent did nothing since the reload.
+9. Screenshots of the stream agent's chat with the pill at the count 1, in Paseo's own window, saved as `pill-first-view.png`, `pill-scrolled.png` and `pill-narrow.png`:
+   - first view: the chat as it opens, the composer with the pill in view;
+   - scrolled: the chat scrolled up past its first view, so the pill's place in the composer is shown with the chat above it;
+   - narrow width: the window narrowed until the layout turns compact (mobile width), the pill still readable.
+   Attach them to the stream's pull request under Evidence.
+10. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
+Read the plugin's own output with `paseo plugin logs mwp-smoke`; a line starting `[matt-with-paseo]` is a handler that failed and was kept out of Paseo. A pill read that failed is logged in the app's console with the same prefix.
+
 ## Results
 
 None yet.

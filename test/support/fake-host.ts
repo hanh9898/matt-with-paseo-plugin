@@ -8,6 +8,7 @@ import type {
   HostHooks,
   PermissionAnswer,
   PermissionRequestedEvent,
+  PermissionResolvedEvent,
   TimelineRow,
   TurnEndedEvent,
 } from "../../server/host.ts";
@@ -31,7 +32,9 @@ export class FakeHost implements Host, HostHooks {
   private readonly archived: Handler<ArchivedEvent>[] = [];
   private readonly turnEnded: Handler<TurnEndedEvent>[] = [];
   private readonly permissionRequested: Handler<PermissionRequestedEvent>[] = [];
+  private readonly permissionResolved: Handler<PermissionResolvedEvent>[] = [];
   private readonly beforeCreates: BeforeCreate[] = [];
+  private waitingCounter: ((agentId: string) => number | Promise<number>) | null = null;
 
   /** Sets the labels `labelsOf` reports for an agent. */
   setLabels(agentId: string, labels: Record<string, string>): void {
@@ -60,6 +63,14 @@ export class FakeHost implements Host, HostHooks {
     this.permissionRequested.push(handler);
   }
 
+  onPermissionResolved(handler: Handler<PermissionResolvedEvent>): void {
+    this.permissionResolved.push(handler);
+  }
+
+  serveWaitingCount(handler: (agentId: string) => number | Promise<number>): void {
+    this.waitingCounter = handler;
+  }
+
   beforeCreate(handler: BeforeCreate): void {
     this.beforeCreates.push(handler);
   }
@@ -78,6 +89,21 @@ export class FakeHost implements Host, HostHooks {
 
   emitPermissionRequested(event: PermissionRequestedEvent): Promise<void> {
     return this.run("agent.permission_requested", this.permissionRequested, event);
+  }
+
+  emitPermissionResolved(event: PermissionResolvedEvent): Promise<void> {
+    return this.run("agent.permission_resolved", this.permissionResolved, event);
+  }
+
+  /** What the composer pill would read: the served count, zero when none is served or the handler throws (T4). */
+  async waitingCount(agentId: string): Promise<number> {
+    if (this.waitingCounter === null) return 0;
+    try {
+      return await this.waitingCounter(agentId);
+    } catch (error) {
+      this.failures.push({ hook: "waiting.count", error });
+      return 0;
+    }
   }
 
   /** What Paseo would create with: the environment after every `beforeCreate` handler, in order. */

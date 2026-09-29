@@ -3,15 +3,21 @@ import type {
   PluginLifecycleEvents,
   PluginServerContext,
 } from "@getpaseo/plugin/server";
+import { waitingCount } from "../shared/waiting.ts";
 import type { CreateChange, CreateRequest, Handler, Host, HostHooks } from "./host.ts";
 
 /** The context Paseo hands the entry module. */
 export type PaseoServer = PluginServerContext;
 
 /** The part of the server context the adapter registers hooks on. */
-type Registration = Pick<PluginServerContext, "on" | "before">;
+type Registration = Pick<PluginServerContext, "on" | "before" | "handle">;
 
-type AgentEvent = "agent.created" | "agent.archived" | "agent.turn_ended" | "agent.permission_requested";
+type AgentEvent =
+  | "agent.created"
+  | "agent.archived"
+  | "agent.turn_ended"
+  | "agent.permission_requested"
+  | "agent.permission_resolved";
 
 /** Logs a failure the handler must not throw into Paseo, with the event and the agent's id, never a payload (T6). */
 function report(hook: string, agentId: string | undefined, error: unknown): void {
@@ -75,6 +81,20 @@ export function connectPaseo(server: Registration): HostHooks {
           request: { id: request.id, name: request.name, kind: request.kind, input: request.input },
         })),
       ),
+    onPermissionResolved: (handler) =>
+      void server.on(
+        "agent.permission_resolved",
+        forEvent("agent.permission_resolved", handler, ({ agent, requestId }) => ({ agent, requestId })),
+      ),
+    serveWaitingCount: (handler) =>
+      void server.handle(waitingCount, async ({ agentId }) => {
+        try {
+          return { count: await handler(agentId) };
+        } catch (error) {
+          report("waiting.count", agentId, error);
+          return { count: 0 };
+        }
+      }),
     beforeCreate: (handler) =>
       void server.before("agent.create", async ({ request }, context) => {
         try {

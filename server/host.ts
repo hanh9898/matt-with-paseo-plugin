@@ -52,6 +52,8 @@ export type CreatedEvent = { agent: HostAgent };
 export type ArchivedEvent = { agent: HostAgent };
 export type TurnEndedEvent = { agent: HostAgent; outcome: TurnOutcome; timeline: readonly unknown[] };
 export type PermissionRequestedEvent = { agent: HostAgent; request: PermissionRequest };
+/** A request settled, however it was answered; the answer itself stays out: it can carry a credential (T6). */
+export type PermissionResolvedEvent = { agent: HostAgent; requestId: string };
 
 /** What Paseo is about to create an agent with. */
 export type CreateRequest = { env: Readonly<Record<string, string>> };
@@ -78,6 +80,9 @@ export interface HostHooks {
   onArchived(handler: Handler<ArchivedEvent>): void;
   onTurnEnded(handler: Handler<TurnEndedEvent>): void;
   onPermissionRequested(handler: Handler<PermissionRequestedEvent>): void;
+  onPermissionResolved(handler: Handler<PermissionResolvedEvent>): void;
+  /** Serves the composer pill's question, "how many things wait for the user in this agent's chat"; a handler that throws answers zero (T4). */
+  serveWaitingCount(handler: (agentId: string) => number | Promise<number>): void;
   beforeCreate(
     handler: (request: CreateRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>,
   ): void;

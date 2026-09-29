@@ -6,6 +6,11 @@ import { test } from "node:test";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const ADAPTER = "server/paseo-host.ts";
+/**
+ * The two modules beyond the adapter that name the SDK, because the pill's wire is not a host call: the RPC
+ * contract both runtimes import (`defineRpc`) and the client entry (the type of the context Paseo hands it).
+ */
+const PILL_WIRE = ["index.client.ts", "shared/waiting.ts"];
 
 function posix(path: string): string {
   return path.split(sep).join("/");
@@ -27,9 +32,9 @@ function importsSdk(text: string): boolean {
   return /(?:\bfrom\s*|\bimport\s*\(?\s*)["']@getpaseo\//.test(text);
 }
 
-test("only the Paseo adapter imports the Paseo SDK (T2)", () => {
+test("only the Paseo adapter and the pill's wire import the Paseo SDK (T2)", () => {
   const importing = sources().filter((path) => importsSdk(read(path)));
-  assert.deepEqual(importing, [ADAPTER]);
+  assert.deepEqual(importing.sort(), [ADAPTER, ...PILL_WIRE].sort());
 });
 
 test("the entry module reaches Paseo through the adapter", () => {

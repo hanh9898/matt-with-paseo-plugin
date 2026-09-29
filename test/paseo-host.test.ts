@@ -14,6 +14,10 @@ function stubServer() {
       listeners.set(`before:${name}`, handler);
       return () => {};
     },
+    handle(contract: { name: string }, handler: unknown) {
+      listeners.set(`rpc:${contract.name}`, handler);
+      return () => {};
+    },
   };
   async function fire(name: string, ...args: unknown[]): Promise<unknown> {
     const handler = listeners.get(name);
@@ -51,11 +55,13 @@ test("each host hook registers one Paseo lifecycle hook", () => {
   hooks.onArchived(() => {});
   hooks.onTurnEnded(() => {});
   hooks.onPermissionRequested(() => {});
+  hooks.onPermissionResolved(() => {});
   hooks.beforeCreate(() => {});
   assert.deepEqual([...listeners.keys()].sort(), [
     "agent.archived",
     "agent.created",
     "agent.permission_requested",
+    "agent.permission_resolved",
     "agent.turn_ended",
     "before:agent.create",
   ]);
@@ -171,6 +177,38 @@ test("beforeCreate leaves the request alone when the handler changes nothing or 
     });
     assert.equal(await fire("before:agent.create", { request }, { paseo }), undefined);
     assert.match(String(log.mock.calls[0]?.arguments[0]), /agent\.create/);
+  } finally {
+    log.mock.restore();
+  }
+});
+
+test("a permission resolution reaches the handler with the agent and the request id, and none of the answer", async () => {
+  const { server, fire } = stubServer();
+  const { paseo } = stubPaseo();
+  const seen: unknown[] = [];
+  connectPaseo(server).onPermissionResolved((event) => {
+    seen.push(event);
+  });
+  const resolution = { behavior: "allow", updatedInput: { answers: { Colour: "Red" } } };
+  await fire("agent.permission_resolved", { agent, requestId: "r1", resolution }, { paseo });
+  assert.deepEqual(seen, [{ agent, requestId: "r1" }]);
+});
+
+test("the waiting-count query is served over the plugin's RPC and answers zero when the handler throws (T4)", async () => {
+  const { server, fire } = stubServer();
+  const { paseo } = stubPaseo();
+  const log = mock.method(console, "error", () => {});
+  try {
+    const asked: string[] = [];
+    connectPaseo(server).serveWaitingCount((agentId) => {
+      asked.push(agentId);
+      if (agentId === "broken") throw new Error("boom");
+      return 2;
+    });
+    assert.deepEqual(await fire("rpc:waiting.count", { agentId: "orchestrator" }, { paseo }), { count: 2 });
+    assert.deepEqual(await fire("rpc:waiting.count", { agentId: "broken" }, { paseo }), { count: 0 });
+    assert.deepEqual(asked, ["orchestrator", "broken"]);
+    assert.match(String(log.mock.calls[0]?.arguments[0]), /waiting\.count/);
   } finally {
     log.mock.restore();
   }
