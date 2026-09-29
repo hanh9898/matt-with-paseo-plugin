@@ -69,6 +69,16 @@ function afterRequest(subject: Subject, request: RequestHead): string[] {
       ];
 }
 
+/** The ids a human words message names before it counts the rest. */
+const IDS_SHOWN = 5;
+
+function humanWordsDetail(ids: readonly string[]): string {
+  const count = `${ids.length} message${ids.length === 1 ? "" : "s"} typed in its chat`;
+  const shown = ids.slice(0, IDS_SHOWN).join(", ");
+  const more = ids.length > IDS_SHOWN ? ` and ${ids.length - IDS_SHOWN} more` : "";
+  return `${count} (message ${shown}${more})`;
+}
+
 export const MESSAGES = {
   turnEnded: (subject: Subject, outcome: TurnOutcome) =>
     message("Turn ended", subject, outcomeOf(outcome), AFTER_TURN[outcome.kind](subject)),
@@ -77,6 +87,11 @@ export const MESSAGES = {
   created: (subject: Subject) =>
     message("Agent created", subject, undefined, [
       `carry on with the wave while ticket ${subject.ticket}'s turn end and any pending permission reach you as messages`,
+    ]),
+  humanWords: (subject: Subject, ids: readonly string[]) =>
+    message("Human words", subject, humanWordsDetail(ids), [
+      `read what the user typed to agent ${subject.agentId} with get_agent_activity`,
+      `record in ticket ${subject.ticket}'s report that the user spoke to it, and whether it changed the plan`,
     ]),
   archived: (subject: Subject) =>
     message("Agent archived", subject, undefined, [
