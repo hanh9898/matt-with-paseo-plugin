@@ -129,6 +129,18 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `
 6. An agent with no labels, and one with only `wave=1`, gets a failed or canceled turn: no `Stall suspected:` message.
 7. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]` that names the sensor or `sensor/conditions.json`. A line about the conditions file means `new URL("../sensor/conditions.json", import.meta.url)` did not resolve in the daemon's bundle: record it as a finding. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
+## Gate cap
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Start the daemon with `MWP_GATE_SHARE=0.01` in its environment, so the cap is one whatever the machine's processors. From an orchestrator titled `[mwp-smoke] orchestrator`, create one ticket agent titled `[mwp-smoke] ticket A` with the labels `wave=1` and `ticket=98`, and a first prompt that sleeps thirty seconds in a shell command. The orchestrator gets `Agent created:` and no `Gate cap passed:` message.
+2. While A runs, create a second, `[mwp-smoke] ticket B` with `ticket=99`. Expected: one `Gate cap passed:` message that names ticket 99, says `2 ticket agents run against a cap of 1`, and ends with a `Next:` line. If none arrives, `isRunning` did not report A as running: record it as a finding.
+3. Let A finish and archive it, then create a `[mwp-smoke] ticket C` (`ticket=97`) while B is idle. Expected: no `Gate cap passed:` message.
+4. Restart the daemon with `MWP_GATE_SHARE` unset, and create ticket agents one after another, each with a prompt that sleeps thirty seconds, until a `Gate cap passed:` message arrives. Expected: its `cap of N` is half of `node -p "os.availableParallelism()"`, rounded down, at least one, and it arrives with the agent that makes `N + 1` run.
+5. With the orchestrator mid-turn, repeat step 2. Expected: the message waits and goes out when the orchestrator's turn ends.
+6. An agent with no labels, and one with only `wave=1`, is created under the orchestrator: no `Gate cap passed:` message.
+7. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
 ## Results
 
 None yet.
