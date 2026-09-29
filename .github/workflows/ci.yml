@@ -1,0 +1,28 @@
+name: CI
+
+# Runs at the milestone run (docs/agents/evidence-standards.md): on a push to a
+# release/v* branch and on a pull request from one into main. No stream's ship
+# pull request starts it.
+on:
+  push:
+    branches: ["release/v*"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  check:
+    if: github.event_name == 'push' || startsWith(github.head_ref, 'release/v')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
