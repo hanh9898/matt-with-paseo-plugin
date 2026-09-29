@@ -34,6 +34,10 @@ function isRelativePath(value: unknown): value is string {
   return !value.split(/[/\\]/).includes("..");
 }
 
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === "boolean";
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -48,6 +52,7 @@ export const HARNESS_FIELDS = {
   skills: field(oneOf(SKILLS_MODES), `one of ${SKILLS_MODES.join(", ")}`),
   mcpDelivery: field(oneOf(MCP_DELIVERIES), `one of ${MCP_DELIVERIES.join(", ")}`),
   guard: field(oneOf(GUARDS), `one of ${GUARDS.join(", ")}`),
+  sandboxed: field(isBoolean, "true or false"),
 };
 
 type Fields = typeof HARNESS_FIELDS;
