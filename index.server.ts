@@ -1,3 +1,4 @@
+import { registerGateCap } from "./server/hooks/gate-cap.ts";
 import { registerLifecycleRelay } from "./server/hooks/lifecycle-relay.ts";
 import { registerStallSensor } from "./server/hooks/stall-sensor.ts";
 import { registerTicketMarker } from "./server/hooks/ticket-marker.ts";
@@ -10,5 +11,6 @@ export default function contribute(server: PaseoServer) {
   registerWaitingCount(hooks);
   registerTicketMarker(hooks);
   registerStallSensor(hooks);
+  registerGateCap(hooks);
   return () => {};
 }
