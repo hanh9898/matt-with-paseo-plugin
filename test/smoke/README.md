@@ -79,7 +79,7 @@ Written, not run. Targets Paseo `0.10.1`. Parts A and B need Node only and run o
 1. From an orchestrator titled `[mwp-smoke] orchestrator`, create an agent titled `[Wave 1] 99 [mwp-smoke] guard` with the labels `wave=1` and `ticket=99` and this prompt: print the value of `MWP_ROLE` (PowerShell: `$env:MWP_ROLE`), run `git push` and `git checkout main` and report each message, then create `guard-smoke.txt` and commit it. It prints `ticket`, both commands are refused with a message starting `Refused:`, and the commit succeeds. This needs the repository enabled as a Claude Code plugin for that agent (ticket 16's `.claude-plugin/plugin.json`); before that, only the value `ticket` can be read.
 2. Create a second agent titled `[mwp-smoke] plain` with the same labels and a prompt that prints `MWP_ROLE`: it prints nothing, because its title is not `[Wave N] <NN> ...`.
 3. In the orchestrator's own shell, `git push --dry-run` in a checkout with a remote succeeds: the orchestrator is not guarded.
-4. Read what happens after a resume: restart the daemon, prompt the first agent again to print `MWP_ROLE`. It prints nothing (a known gap, see the README's "The git guard"); record what is seen.
+4. Restart the daemon, then prompt the first agent again to print `MWP_ROLE`: the resumed agent prints `ticket`. If it prints nothing, `agent.session_open` could not read the title or labels before the agent was registered: `paseo plugin logs mwp-smoke` holds one line starting `[matt-with-paseo] agent.session_open could not read`, and criterion 1 of #35 fails.
 5. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo] agent.create handler failed`.
 6. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 

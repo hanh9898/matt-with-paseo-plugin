@@ -72,7 +72,7 @@ npm test
 
 Only `server/paseo-host.ts` imports `@getpaseo/plugin`; a handler imports `server/host.ts` and nothing from the SDK.
 
-A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onPermissionResolved`, `hooks.onCreated`, `hooks.onArchived` or `hooks.beforeCreate`, and each callback receives `(event, host)`. `hooks.serveWaitingCount` answers the composer pill's question. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
+A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onPermissionResolved`, `hooks.onCreated`, `hooks.onArchived`, `hooks.beforeCreate` or `hooks.beforeSessionOpen`, and each callback receives `(event, host)`. `hooks.serveWaitingCount` answers the composer pill's question. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
 
 ```ts
 // server/hooks/relay.ts
@@ -86,7 +86,7 @@ export function registerRelay(hooks: HostHooks): void {
 }
 ```
 
-A test builds a `FakeHost` from `test/support/fake-host.ts`, passes it as the hooks, emits the event Paseo would send, and reads what the handler did. No daemon and no SDK are involved. `await host.create({ env, title })` returns the environment after every `beforeCreate` handler, in the order they registered; a handler receives `{ env, title }`, the only marks of the agent before Paseo sets its labels. `host.setLabels(agentId, labels)` sets what `labelsOf` reports. A handler that throws is recorded in `failures` instead of reaching the test, as the real adapter keeps it out of Paseo.
+A test builds a `FakeHost` from `test/support/fake-host.ts`, passes it as the hooks, emits the event Paseo would send, and reads what the handler did. No daemon and no SDK are involved. `await host.create({ env, title })` returns the environment after every `beforeCreate` handler, in the order they registered; a handler receives `{ env, title }`, the only marks of the agent before Paseo sets its labels. `host.setLabels(agentId, labels)` sets what `labelsOf` reports. `await host.openSession({ agentId, env })` does the same for `beforeSessionOpen`, and a handler receives the title `host.setTitle(agentId, title)` set and the labels; an agent the fake was told nothing about arrives with `title: null` and no labels, as one Paseo cannot read yet. A handler that throws is recorded in `failures` instead of reaching the test, as the real adapter keeps it out of Paseo.
 
 ```ts
 // test/hooks/relay.test.ts
@@ -167,7 +167,7 @@ A ticket agent runs in a worktree with broad permissions, and the orchestrator s
 | Part | Where | Does |
 |---|---|---|
 | The marker | `shared/role-marker.ts` (`ROLE_ENV`, `TICKET_ROLE`) | Names `MWP_ROLE=ticket`; the guard, the handler and ticket 14 all read it |
-| The handler | `server/hooks/ticket-marker.ts` | In `beforeCreate`, adds the marker to the environment of an agent titled `[Wave N] <NN> <ticket name>`, as the wave skill titles every ticket agent |
+| The handler | `server/hooks/ticket-marker.ts` | In `beforeCreate`, adds the marker to the environment of an agent titled `[Wave N] <NN> <ticket name>`, as the wave skill titles every ticket agent; in `beforeSessionOpen`, adds it again for a resumed one, by its title or its `wave` and `ticket` labels |
 | The guard | `guard/git-guard.mjs` | Reads the tool call on stdin, exits 2 with the message on stderr to refuse; fails open |
 | The hook file | `hooks/hooks.json` | Runs `node "${CLAUDE_PLUGIN_ROOT}/guard/git-guard.mjs"` in a `PreToolUse` hook for `Bash` and `PowerShell`, for an agent that loads this repository as a plugin |
 | The descriptor | `guard` in `harness/<agent>.json` | `hook` for an agent that runs hooks; `path-shim` for one that does not |
@@ -178,7 +178,7 @@ What it does not cover:
 
 - Only the `hook` value is built; no `path-shim` exists yet.
 - The hook file takes effect once an agent loads this repository as a Claude Code plugin: `.claude-plugin/plugin.json` makes it loadable, and someone still has to enable it for the ticket agents.
-- An agent Paseo resumes after a daemon restart is not re-marked: the environment set at creation is not kept, and only an `agent.session_open` hook could set it again, when labels are readable.
+- An agent Paseo resumes after a daemon restart loses the environment set at creation, so `beforeSessionOpen` (Paseo's `agent.session_open`) sets the marker again from the agent's title or labels. On Paseo `0.10.1` that hook runs before a resumed agent is registered, so neither may be readable: the handler then fails open, logs one line and leaves the agent unmarked. The "Git guard" smoke steps show which case holds.
 - It reads a command as a shell splits it and sees through `&&`, `;`, `|`, `$( )`, `bash -c`, `eval`, `env`, `sudo` and `git -C dir`; it does not follow a git alias or a program that runs git for the agent. It is a guardrail against a ticket agent's habits, not a sandbox.
 
 The checks are `test/guard/git-guard.test.ts` (the script, run as the hook runner runs it), `test/guard-wiring.test.ts` and `test/hooks/ticket-marker.test.ts`; the proof on the three systems and on a real host is written in the [smoke test](test/smoke/README.md).
@@ -192,6 +192,7 @@ A role is what an agent is to the plugin: a ticket agent, the stream agent, or n
 | An event hook (`onCreated`, `onTurnEnded`, `onPermissionRequested`, ...) | The labels: a ticket agent carries `wave` and `ticket`, the stream agent `stream` and no `wave`; `shared/role-labels.ts` names them | `lifecycle-relay.ts`, `waiting-count.ts` |
 | A hook that runs inside the agent | The env marker `MWP_ROLE=ticket`: `hasTicketMarker(env)` in `shared/role-marker.ts` reads it, and the standalone `guard/git-guard.mjs` repeats its two words | the git guard |
 | `beforeCreate` | The title `[Wave N] <NN> <ticket name>`: Paseo `0.10.1` sets labels only after this hook, and gives it no agent id | `ticket-marker.ts`, which sets the marker |
+| `beforeSessionOpen` | The title or the `wave` and `ticket` labels, when Paseo can read them before a resumed agent is registered; otherwise neither, and the agent stays unmarked | `ticket-marker.ts`, which sets the marker again |
 
 The env marker exists because an event carries no environment, and a hook inside the agent cannot ask Paseo for labels. An agent without the marker is the orchestrator or one the plugin does not know, and keeps the environment Paseo made for it; an agent without the labels is left alone (T3). The title is the one place the plugin recognises an agent by something other than its labels (ticket 02's decision), and only where the labels do not exist yet.
 

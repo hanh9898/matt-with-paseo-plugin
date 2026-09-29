@@ -4,7 +4,7 @@ import type {
   PluginServerContext,
 } from "@getpaseo/plugin/server";
 import { waitingCount } from "../shared/waiting.ts";
-import type { CreateChange, CreateRequest, Handler, Host, HostHooks } from "./host.ts";
+import type { CreateChange, CreateRequest, Handler, Host, HostHooks, SessionOpenRequest } from "./host.ts";
 
 /** The context Paseo hands the entry module. */
 export type PaseoServer = PluginServerContext;
@@ -44,6 +44,16 @@ function hostFor(paseo: PluginHookContext["paseo"]): Host {
       await paseo.agents.ref(agentId).timeline.append({ type: "plugin", ...row });
     },
   };
+}
+
+/** The title and labels Paseo holds for an agent; null and none when it cannot read them, as before a resumed agent is registered. */
+async function readAgent(paseo: PluginHookContext["paseo"], agentId: string): Promise<Pick<SessionOpenRequest, "title" | "labels">> {
+  try {
+    const found = await paseo.agents.ref(agentId).refresh();
+    return found ? { title: found.agent.title ?? null, labels: { ...found.agent.labels } } : { title: null, labels: {} };
+  } catch {
+    return { title: null, labels: {} };
+  }
 }
 
 /** Wraps a handler for one lifecycle event: narrows the event, hands over the host, and keeps failures in the log (T4). */
@@ -105,6 +115,20 @@ export function connectPaseo(server: Registration): HostHooks {
           return change ? { ...request, env: change.env } : undefined;
         } catch (error) {
           report("agent.create", undefined, error);
+          return undefined;
+        }
+      }),
+    beforeSessionOpen: (handler) =>
+      void server.before("agent.session_open", async ({ request }, context) => {
+        try {
+          const { title, labels } = await readAgent(context.paseo, request.agentId);
+          const change: CreateChange | void = await handler(
+            { agentId: request.agentId, reason: request.reason, env: request.env, title, labels } satisfies SessionOpenRequest,
+            hostFor(context.paseo),
+          );
+          return change ? { ...request, env: change.env } : undefined;
+        } catch (error) {
+          report("agent.session_open", request.agentId, error);
           return undefined;
         }
       }),
