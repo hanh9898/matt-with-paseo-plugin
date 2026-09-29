@@ -9,11 +9,14 @@ import type {
   PermissionAnswer,
   PermissionRequestedEvent,
   PermissionResolvedEvent,
+  SessionOpenRequest,
   TimelineRow,
   TurnEndedEvent,
 } from "../../server/host.ts";
 
 type BeforeCreate = (request: CreateRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>;
+
+type BeforeSessionOpen = (request: SessionOpenRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>;
 
 /**
  * The fake adapter of the host port: no daemon, no SDK. A test registers its handlers on it, emits the
@@ -27,6 +30,7 @@ export class FakeHost implements Host, HostHooks {
   readonly failures: { hook: string; error: unknown }[] = [];
 
   private readonly labels = new Map<string, Record<string, string>>();
+  private readonly titles = new Map<string, string>();
   private readonly running = new Set<string>();
   private readonly created: Handler<CreatedEvent>[] = [];
   private readonly archived: Handler<ArchivedEvent>[] = [];
@@ -34,11 +38,17 @@ export class FakeHost implements Host, HostHooks {
   private readonly permissionRequested: Handler<PermissionRequestedEvent>[] = [];
   private readonly permissionResolved: Handler<PermissionResolvedEvent>[] = [];
   private readonly beforeCreates: BeforeCreate[] = [];
+  private readonly beforeSessionOpens: BeforeSessionOpen[] = [];
   private waitingCounter: ((agentId: string) => number | Promise<number>) | null = null;
 
   /** Sets the labels `labelsOf` reports for an agent. */
   setLabels(agentId: string, labels: Record<string, string>): void {
     this.labels.set(agentId, labels);
+  }
+
+  /** Sets the title `openSession` reports for an agent; an agent with none is one Paseo cannot read yet. */
+  setTitle(agentId: string, title: string): void {
+    this.titles.set(agentId, title);
   }
 
   /** Sets whether `isRunning` reports an agent in a turn. */
@@ -73,6 +83,10 @@ export class FakeHost implements Host, HostHooks {
 
   beforeCreate(handler: BeforeCreate): void {
     this.beforeCreates.push(handler);
+  }
+
+  beforeSessionOpen(handler: BeforeSessionOpen): void {
+    this.beforeSessionOpens.push(handler);
   }
 
   emitCreated(event: CreatedEvent): Promise<void> {
@@ -115,6 +129,22 @@ export class FakeHost implements Host, HostHooks {
         if (change) env = change.env;
       } catch (error) {
         this.failures.push({ hook: "agent.create", error });
+      }
+    }
+    return { env };
+  }
+
+  /** What Paseo would open a session with: the environment after every `beforeSessionOpen` handler, in order. */
+  async openSession(request: { agentId: string; env: Readonly<Record<string, string>>; reason?: SessionOpenRequest["reason"] }): Promise<CreateChange> {
+    let env: Record<string, string> = { ...request.env };
+    const title = this.titles.get(request.agentId) ?? null;
+    const labels = { ...this.labels.get(request.agentId) };
+    for (const handler of this.beforeSessionOpens) {
+      try {
+        const change = await handler({ agentId: request.agentId, reason: request.reason ?? "resume", env, title, labels }, this);
+        if (change) env = change.env;
+      } catch (error) {
+        this.failures.push({ hook: "agent.session_open", error });
       }
     }
     return { env };

@@ -37,7 +37,7 @@ test("the entry hands the relay the hooks the adapter returns, and sets no heart
   assert.doesNotMatch(entry, /heartbeat/i);
 });
 
-test("the entry registers a before hook for agent creation, and the marker handler gets the same hooks", () => {
+test("the entry registers before hooks for agent creation and session open, and the marker handler gets the same hooks", () => {
   const before: string[] = [];
   const server = {
     on: () => () => {},
@@ -48,7 +48,7 @@ test("the entry registers a before hook for agent creation, and the marker handl
     handle: () => () => {},
   };
   contribute(server as unknown as Parameters<typeof contribute>[0]);
-  assert.deepEqual(before, ["agent.create"]);
+  assert.deepEqual(before, ["agent.create", "agent.session_open"]);
   const entry = readFileSync(new URL("../index.server.ts", import.meta.url), "utf8");
   assert.match(entry, /registerTicketMarker(hooks)/);
 });

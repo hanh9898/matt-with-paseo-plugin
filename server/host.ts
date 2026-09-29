@@ -60,8 +60,21 @@ export type PermissionResolvedEvent = { agent: HostAgent; requestId: string };
  * only mark of who the agent is; it is absent when the creator gave none.
  */
 export type CreateRequest = { env: Readonly<Record<string, string>>; title?: string | null };
-/** What a `beforeCreate` handler changes: the environment the agent is created with, whole. */
+/** What a `beforeCreate` or `beforeSessionOpen` handler changes: the environment the agent is created or opened with, whole. */
 export type CreateChange = { env: Record<string, string> };
+
+/**
+ * A session Paseo is about to open for an agent it already has, on a resume for one. On Paseo `0.10.1` this runs
+ * before a resumed agent is registered, so what Paseo cannot read yet arrives as `title: null` and no labels;
+ * a handler that needs either fails open.
+ */
+export type SessionOpenRequest = {
+  agentId: string;
+  reason: "create" | "resume" | "refresh" | "import";
+  env: Readonly<Record<string, string>>;
+  title: string | null;
+  labels: Readonly<Record<string, string>>;
+};
 
 /** What a handler does with Paseo: the actions it may take while handling one event. */
 export interface Host {
@@ -88,5 +101,9 @@ export interface HostHooks {
   serveWaitingCount(handler: (agentId: string) => number | Promise<number>): void;
   beforeCreate(
     handler: (request: CreateRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>,
+  ): void;
+  /** Runs when Paseo opens an agent's session, a resume included; returns the environment it changes, as `beforeCreate` does. */
+  beforeSessionOpen(
+    handler: (request: SessionOpenRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>,
   ): void;
 }
