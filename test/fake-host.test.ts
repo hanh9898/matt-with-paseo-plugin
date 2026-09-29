@@ -98,3 +98,31 @@ test("the fake emits the archived event to its handlers", async () => {
   await host.emitArchived({ agent: orchestrator });
   assert.deepEqual(seen, ["orchestrator"]);
 });
+
+test("the fake emits the permission-resolved event to its handlers", async () => {
+  const host = new FakeHost();
+  const seen: string[] = [];
+  host.onPermissionResolved(({ agent, requestId }) => {
+    seen.push(`${agent.id}:${requestId}`);
+  });
+  await host.emitPermissionResolved({ agent: worker, requestId: "r1" });
+  assert.deepEqual(seen, ["worker:r1"]);
+});
+
+test("the fake answers a waiting-count query with the handler's count, and zero when none is served", async () => {
+  const host = new FakeHost();
+  assert.equal(await host.waitingCount("orchestrator"), 0);
+  host.serveWaitingCount((agentId) => (agentId === "orchestrator" ? 3 : 0));
+  assert.equal(await host.waitingCount("orchestrator"), 3);
+  assert.equal(await host.waitingCount("stranger"), 0);
+});
+
+test("a waiting-count handler that throws is recorded and counts as zero (T4)", async () => {
+  const host = new FakeHost();
+  host.serveWaitingCount(() => {
+    throw new Error("boom");
+  });
+  assert.equal(await host.waitingCount("orchestrator"), 0);
+  assert.equal(host.failures.length, 1);
+  assert.equal(host.failures[0]?.hook, "waiting.count");
+});
