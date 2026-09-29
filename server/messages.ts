@@ -53,14 +53,20 @@ const AFTER_TURN: Record<TurnOutcome["kind"], (subject: Subject) => string[]> = 
   ],
 };
 
-/** The moves open while a request waits: a question is a checkpoint, whose answer is the user's. */
+/**
+ * The moves open while a request waits. A question is a checkpoint (ADR 0001): the user answers it in the asking
+ * agent's chat, or the plugin does under the delegation table; the orchestrator reads it and leaves it to them.
+ */
 function afterRequest(subject: Subject, request: RequestHead): string[] {
-  const read = `read ticket ${subject.ticket}'s request ${request.id} with list_pending_permissions`;
+  const read = `read ticket ${subject.ticket}'s request ${request.id} with list_pending_permissions, and treat it as settled when it is no longer listed`;
   return request.kind === "question"
-    ? [read, `relay request ${request.id} to the user as a checkpoint, then answer it with respond_to_permission once they decide`]
+    ? [
+        read,
+        `leave the checkpoint to the user, who answers it in agent ${subject.agentId}'s chat, or answer it with respond_to_permission when the delegation table lets you decide`,
+      ]
     : [
         read,
-        `answer request ${request.id} with respond_to_permission, or relay it to the user as a checkpoint when the decision is theirs`,
+        `answer request ${request.id} with respond_to_permission, or leave it to the user when the decision is theirs`,
       ];
 }
 
