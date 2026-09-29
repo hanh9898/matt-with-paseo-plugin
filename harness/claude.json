@@ -2,5 +2,6 @@
   "configDirVar": "CLAUDE_CONFIG_DIR",
   "skillsDir": "skills",
   "skills": "native",
-  "mcpDelivery": "agent-config"
+  "mcpDelivery": "agent-config",
+  "guard": "hook"
 }

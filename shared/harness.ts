@@ -4,6 +4,9 @@ export const SKILLS_MODES = ["native", "provisioned"] as const;
 /** The ways a harness gets its MCP servers. `agent-config`: in the launch config the plugin edits before the agent is created. `config-file`: in a file in the agent's config directory. */
 export const MCP_DELIVERIES = ["agent-config", "config-file"] as const;
 
+/** The ways a harness keeps a ticket agent's git in check. `hook`: the agent runs the plugin's PreToolUse hook. `path-shim`: an agent without hooks gets a `git` shim first on its path. */
+export const GUARDS = ["hook", "path-shim"] as const;
+
 type Check<T> = (value: unknown) => value is T;
 
 interface Field<T> {
@@ -44,6 +47,7 @@ export const HARNESS_FIELDS = {
   skillsDir: field(isRelativePath, "a relative path under the config directory, without .."),
   skills: field(oneOf(SKILLS_MODES), `one of ${SKILLS_MODES.join(", ")}`),
   mcpDelivery: field(oneOf(MCP_DELIVERIES), `one of ${MCP_DELIVERIES.join(", ")}`),
+  guard: field(oneOf(GUARDS), `one of ${GUARDS.join(", ")}`),
 };
 
 type Fields = typeof HARNESS_FIELDS;
