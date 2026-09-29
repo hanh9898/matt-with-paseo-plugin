@@ -1,0 +1,91 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import type { HostAgent, HostHooks, PermissionRequestedEvent } from "../server/host.ts";
+import { FakeHost } from "./support/fake-host.ts";
+
+const orchestrator: HostAgent = {
+  id: "orchestrator",
+  workspaceId: "workspace",
+  parentAgentId: null,
+  provider: "claude",
+  cwd: "/repo",
+  title: null,
+};
+const worker: HostAgent = { ...orchestrator, id: "worker", parentAgentId: "orchestrator" };
+
+/** A handler written the way ticket handlers are: it takes the hooks and reaches Paseo only through the host it is given. */
+function registerRelay(hooks: HostHooks): void {
+  hooks.onTurnEnded(async ({ agent, outcome }, host) => {
+    if (agent.parentAgentId === null) return;
+    await host.send(agent.parentAgentId, `${agent.id} ended: ${outcome.kind}`);
+  });
+  hooks.onPermissionRequested(async ({ agent, request }, host) => {
+    await host.respondToPermission(agent.id, request.id, { behavior: "deny", message: "held" });
+    await host.appendTimelineRow(agent.id, { kind: "held", version: 1, data: { request: request.id } });
+  });
+}
+
+test("a handler registered on the fake runs on an emitted event, with the fake as its host", async () => {
+  const host = new FakeHost();
+  registerRelay(host);
+  await host.emitTurnEnded({ agent: worker, outcome: { kind: "completed" }, timeline: [] });
+  assert.deepEqual(host.sent, [{ agentId: "orchestrator", text: "worker ended: completed" }]);
+});
+
+test("the fake records answers and timeline rows without a daemon", async () => {
+  const host = new FakeHost();
+  registerRelay(host);
+  const event: PermissionRequestedEvent = { agent: worker, request: { id: "r1", name: "Bash", kind: "tool" } };
+  await host.emitPermissionRequested(event);
+  assert.deepEqual(host.answers, [{ agentId: "worker", requestId: "r1", answer: { behavior: "deny", message: "held" } }]);
+  assert.deepEqual(host.rows, [{ agentId: "worker", row: { kind: "held", version: 1, data: { request: "r1" } } }]);
+});
+
+test("a handler that throws does not reach the caller and is recorded (T4)", async () => {
+  const host = new FakeHost();
+  host.onCreated(() => {
+    throw new Error("boom");
+  });
+  let later = false;
+  host.onCreated(() => {
+    later = true;
+  });
+  await host.emitCreated({ agent: worker });
+  assert.equal(host.failures.length, 1);
+  assert.equal(host.failures[0]?.hook, "agent.created");
+  assert.ok(later, "the next handler still runs");
+});
+
+test("beforeCreate handlers change the environment in order; a throwing one leaves it as it was", async () => {
+  const host = new FakeHost();
+  host.beforeCreate(({ env }) => ({ env: { ...env, FIRST: "1" } }));
+  host.beforeCreate(() => {
+    throw new Error("boom");
+  });
+  host.beforeCreate(({ env }) => ({ env: { ...env, SECOND: env["FIRST"] ?? "missing" } }));
+  const created = await host.create({ env: { KEPT: "yes" } });
+  assert.deepEqual(created.env, { KEPT: "yes", FIRST: "1", SECOND: "1" });
+  assert.equal(host.failures.length, 1);
+});
+
+test("with no beforeCreate handler the environment is unchanged", async () => {
+  const host = new FakeHost();
+  assert.deepEqual((await host.create({ env: { A: "b" } })).env, { A: "b" });
+});
+
+test("labelsOf reports the labels a test sets, and none for an agent it does not know", async () => {
+  const host = new FakeHost();
+  host.setLabels("worker", { role: "ticket" });
+  assert.deepEqual(await host.labelsOf("worker"), { role: "ticket" });
+  assert.deepEqual(await host.labelsOf("stranger"), {});
+});
+
+test("the fake emits the archived event to its handlers", async () => {
+  const host = new FakeHost();
+  const seen: string[] = [];
+  host.onArchived(({ agent }) => {
+    seen.push(agent.id);
+  });
+  await host.emitArchived({ agent: orchestrator });
+  assert.deepEqual(seen, ["orchestrator"]);
+});
