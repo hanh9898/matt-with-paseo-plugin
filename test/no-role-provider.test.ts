@@ -7,8 +7,19 @@ import contribute from "../index.server.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
-/** What Paseo's plugin SDK offers to add a provider: the registration call, its ACP helper and its type. */
-const PROVIDER_API = ["registerProvider", "runAcpProvider", "ProviderRegistration"];
+/**
+ * What adds a provider: the SDK's registration call, its ACP helper and its type, and a write to the daemon's
+ * config, where seatworks kept one provider per role (`providers` and `agentProfiles` patched in).
+ */
+const PROVIDER_API: [name: string, pattern: RegExp][] = [
+  ["registerProvider", /\bregisterProvider\b/],
+  ["runAcpProvider", /\brunAcpProvider\b/],
+  ["ProviderRegistration", /\bProviderRegistration\b/],
+  ["patchDaemonConfig", /\bpatchDaemonConfig\b/],
+  ["MutableDaemonConfigPatch", /\bMutableDaemonConfigPatch\b/],
+  ["config.patch(", /\bconfig\s*\.\s*patch\s*\(/],
+  ["agentProfiles", /\bagentProfiles\b/],
+];
 
 function posix(path: string): string {
   return path.split(sep).join("/");
@@ -24,13 +35,16 @@ function product(): string[] {
 }
 
 function providerApiIn(text: string): string[] {
-  return PROVIDER_API.filter((name) => new RegExp(`\\b${name}\\b`).test(text));
+  return PROVIDER_API.filter(([, pattern]) => pattern.test(text)).map(([name]) => name);
 }
 
 test("the check sees a provider registered, however it is spelled", () => {
   assert.deepEqual(providerApiIn("server.registerProvider(roleProvider);"), ["registerProvider"]);
   assert.deepEqual(providerApiIn("export default runAcpProvider({ id: role });"), ["runAcpProvider"]);
   assert.deepEqual(providerApiIn("const role: ProviderRegistration = build();"), ["ProviderRegistration"]);
+  assert.deepEqual(providerApiIn("await paseo.config.patch({ providers: wanted });"), ["config.patch("]);
+  assert.deepEqual(providerApiIn("client.patchDaemonConfig(patch)"), ["patchDaemonConfig"]);
+  assert.deepEqual(providerApiIn("const keep = config.agentProfiles;"), ["agentProfiles"]);
   assert.deepEqual(providerApiIn("agent.provider = 'x'; // a field, not a registration"), []);
 });
 
