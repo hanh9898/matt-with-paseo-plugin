@@ -228,7 +228,7 @@ function decide(raw) {
   }
   if (refused === null) return;
   process.stderr.write(
-    `Refused: ${refused} is the orchestrator's to run. A ticket agent commits on its own branch; leave pushing, branch switches, rebase, merge and history rewrites to the orchestrator, and say in your report what it should do.\n`,
+    `Refused: ${refused} is the orchestrator's to run. A ticket agent commits on its own branch; pushing, branch switches, rebase, merge and history rewrites are the orchestrator's.\nNext: commit on your own branch and carry on with the ticket; name the command you needed in your report, for the orchestrator to run.\n`,
   );
   process.exitCode = 2;
 }
