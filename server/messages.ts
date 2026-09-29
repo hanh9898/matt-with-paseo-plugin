@@ -99,6 +99,11 @@ export const MESSAGES = {
       `prompt agent ${subject.agentId} to resume, or record ticket ${subject.ticket} as stalled with the reason, when it is stalled`,
       `leave ticket ${subject.ticket} alone when its agent is working`,
     ]),
+  gateCapPassed: (subject: Subject, cap: number, running: number) =>
+    message("Gate cap passed", subject, `${running} ticket agents run against a cap of ${cap} concurrent gates`, [
+      `hold every ready ticket after ticket ${subject.ticket} in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than ${cap} running`,
+      `leave ticket ${subject.ticket} running: agent ${subject.agentId} is already created`,
+    ]),
   archived: (subject: Subject) =>
     message("Agent archived", subject, undefined, [
       `finish step 8's clean-up of ticket ${subject.ticket} when you archived agent ${subject.agentId}`,
