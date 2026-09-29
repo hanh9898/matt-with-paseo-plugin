@@ -12,7 +12,7 @@ function ticketAgent(n: number): HostAgent {
   return { ...orchestrator, id: `tkt-${n}`, workspaceId: `w${n}`, parentAgentId: "stream-1", title: `[Wave 1] ${String(n).padStart(2, "0")}` };
 }
 
-/** A host with the handler registered for a machine of `processors`, and `count` ticket agents labelled and, but the last, running. */
+/** A host with the handler registered for a machine of `processors`, and eight ticket agents labelled. */
 function machine(processors: number, env: Record<string, string> = {}): FakeHost {
   const host = new FakeHost();
   registerGateCap(host, { processors, env });
@@ -59,6 +59,7 @@ test("an agent that is not running does not count, and an archived one leaves th
   host.setRunning("tkt-2", true);
   await host.emitArchived({ agent: ticketAgent(1) });
   host.setRunning("tkt-1", false);
+  host.setRunning("tkt-3", false);
   await start(host, 4);
   assert.deepEqual(host.sent, [], "the archived agent no longer counts");
 });
