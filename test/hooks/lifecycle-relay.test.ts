@@ -196,8 +196,7 @@ test("a message the user typed in a ticket agent's chat reaches its orchestrator
   assert.match(text, /Human words/);
   assert.ok(text.includes("c-1") && text.includes("tkt-7") && text.includes("07"));
   assert.ok(text.indexOf("Human words") < text.indexOf("Turn ended"), "the words come first");
-  assert.equal(text.split("
-").filter((line) => line.startsWith("Next:")).length, 1);
+  assert.equal(text.split("\n").filter((line) => line.startsWith("Next:")).length, 1);
   assert.doesNotMatch(text, /other table/, "the text of the message stays out (T6)");
   assert.deepEqual(host.failures, []);
 });
@@ -229,7 +228,7 @@ test("a message typed in an agent that is not a ticket agent is left alone (T3)"
   assert.deepEqual(host.sent, []);
 });
 
-test("a ticket agent with no orchestrator has nobody to tell, and its words are not marked as told", async () => {
+test("a ticket agent with no orchestrator has nobody to tell", async () => {
   const host = relayed();
   const alone: HostAgent = { ...ticketAgent, parentAgentId: null };
   await host.emitTurnEnded({ agent: alone, outcome: completed, timeline: [typed("c-1")] });
@@ -244,8 +243,7 @@ test("the words wait with the turn end while the orchestrator runs, and go out w
   host.setRunning("orch-1", false);
   await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [] });
   assert.equal(host.sent.length, 1);
-  const lines = (host.sent[0]?.text ?? "").split("
-");
+  const lines = (host.sent[0]?.text ?? "").split("\n");
   assert.match(host.sent[0]?.text ?? "", /Human words/);
   assert.equal(lines.filter((line) => line.startsWith("Next:")).length, 1);
   assert.ok(lines.at(-1)?.startsWith("Next: "));

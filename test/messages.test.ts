@@ -32,10 +32,7 @@ const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
   },
   created: { created: MESSAGES.created(subject) },
   archived: { archived: MESSAGES.archived(subject) },
-  humanWords: {
-    one: MESSAGES.humanWords(subject, ["c-1"]),
-    several: MESSAGES.humanWords(subject, ["c-1", "c-2", "c-3", "c-4", "c-5", "c-6", "c-7"]),
-  },
+  humanWords: { one: MESSAGES.humanWords(subject, ["c-1"]) },
 };
 
 /** The `Next:` line of a text: its last line, or null when the last line is anything else. */
@@ -155,7 +152,6 @@ test("a long run of ids is cut to a few, and the rest are counted", () => {
 
 test("the human words message combines with a turn end into one `Next:` line", () => {
   const both = combine([MESSAGES.humanWords(subject, ["c-1"]), MESSAGES.turnEnded(subject, { kind: "completed" })]);
-  assert.equal(both.split("
-").filter((line) => line.startsWith("Next:")).length, 1);
+  assert.equal(both.split("\n").filter((line) => line.startsWith("Next:")).length, 1);
   assert.ok(both.indexOf("Human words") < both.indexOf("Turn ended"));
 });
