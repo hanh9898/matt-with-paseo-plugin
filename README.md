@@ -131,6 +131,14 @@ A checkpoint is Paseo's own `AskUserQuestion` prompt (ADR 0001), so the plugin d
 
 The count travels over the `waiting.count` RPC (`shared/waiting.ts`), served through the port's `serveWaitingCount`. `client/waiting-pill.ts` puts a pill on each agent that has a workspace, those listed when the plugin starts and those that appear later, and reads its count again when an agent updates or goes away, every 30 seconds, and when the pill is pressed; a failed read leaves the pill as it was. Every text the pill shows is in `client/pill-text.ts`, and a check fails when another client file writes one. The client imports no Paseo SDK beyond `index.client.ts`'s context type and the RPC contract, so `test/host-port.test.ts` names those two files beside the adapter.
 
+### Plain words on screen
+
+The skills' words blocks (`hanh9898/matt-with-paseo`: **Wave**, **Checkpoint**, **Brief**, **Stream**, **Hold** and the rest) are precise words for agents, and internal words confused people when they reached a screen. `client/pill-text.ts` holds `PLAIN_LABELS`, one plain label for each of those terms, and a text the pill shows takes its wording from there; the pill's own words today ("Waiting for you", the count) use no precise term. `test/plain-words.test.ts` fails when a text the pill shows, or a literal in any other client file, uses a precise term without its plain label beside it, when a term has no label, or when a label uses a precise term.
+
+The precise terms stay where agents read them: the messages in `server/messages.ts` and this Development section keep them, and a check fails when a server or shared module imports the pill's words. The skills themselves are in `hanh9898/matt-with-paseo` and are not touched here; the plain wording of a checkpoint question is the skills' brief wording, since the question is the orchestrator's own `AskUserQuestion` text (ADR 0001).
+
+The first release draws no custom checkpoint card, and no report card exists in this repository yet, so the pill is the one screen the check covers. A card file added to `client/` is covered by the same check as soon as it exists.
+
 ### The git guard
 
 A ticket agent runs in a worktree with broad permissions, and the orchestrator ships its branch. The guard keeps the ticket agent's git to its own branch: with the ticket marker set, a shell tool call that runs `git push`, `git checkout`, `git switch`, `git rebase`, `git merge`, `git pull`, `git reset --hard`, `git clean -f`, `git branch -D` or `git restore .` is refused with a message that says the orchestrator runs it. `git commit`, `git add`, `git status`, `git diff`, `git log` and every other command pass. Where the marker is not set, nothing is refused, so the orchestrator pushes and cleans up as before.
