@@ -14,6 +14,7 @@ const FILES = [
   ".claude-plugin/plugin.json",
   ".claude-plugin/marketplace.json",
   "shared/contract.ts",
+  "docs/contract.md",
 ];
 
 /** Copies the files the check reads into a scratch folder, lets `edit` break one, and returns what the check says. */
@@ -56,6 +57,15 @@ function setContract(dir: string, value: string): void {
   writeFileSync(file, changed);
 }
 
+/** Rewrites the `Contract version:` line of the scratch contract document. */
+function setContractDoc(dir: string, line: string): void {
+  const file = join(dir, "docs/contract.md");
+  const text = readFileSync(file, "utf8");
+  const changed = text.replace(/^Contract version: .*$/m, line);
+  assert.notEqual(changed, text, "the scratch contract document was edited");
+  writeFileSync(file, changed);
+}
+
 test("the repository holds one version token and one plugin id", () => {
   assert.deepEqual(problemsIn(repoRoot), []);
 });
@@ -68,8 +78,11 @@ test("the check reads every place the version and the id are spelled, so none is
       "package.json version",
       ".claude-plugin/plugin.json version",
       ".claude-plugin/marketplace.json plugins[0].version",
-      "shared/contract.ts CONTRACT_VERSION",
     ],
+  );
+  assert.deepEqual(
+    read.contract.map((r) => `${r.file} ${r.field}`),
+    ["docs/contract.md Contract version", "shared/contract.ts CONTRACT_VERSION"],
   );
   assert.deepEqual(
     read.id.map((r) => `${r.file} ${r.field}`),
@@ -103,10 +116,16 @@ const DISAGREEMENTS: { name: string; edit: (dir: string) => void; offender: stri
     home: "package.json",
   },
   {
-    name: "the contract version against package.json",
-    edit: (dir) => setContract(dir, "9.9.9"),
+    name: "the contract constant against the contract document",
+    edit: (dir) => setContract(dir, "9"),
     offender: "shared/contract.ts",
-    home: "package.json",
+    home: "docs/contract.md",
+  },
+  {
+    name: "the contract document against the contract constant",
+    edit: (dir) => setContractDoc(dir, "Contract version: 9"),
+    offender: "shared/contract.ts",
+    home: "docs/contract.md",
   },
   {
     name: "package.json name against paseo-plugin.json",
@@ -150,10 +169,10 @@ test("a message carries both values, so the reader sees which to change", () => 
   assert.ok(problem?.includes('"0.0.0"'));
 });
 
-test("a change to the token alone leaves every other spelling naming package.json", () => {
+test("a change to the token alone leaves every other spelling naming package.json, and the contract version alone", () => {
   const problems = inScratchRoot((dir) => setJson(dir, "package.json", ["version"], "1.2.3"));
-  assert.equal(problems.length, 3, problems.join("\n"));
-  for (const offender of [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "shared/contract.ts"]) {
+  assert.equal(problems.length, 2, problems.join("\n"));
+  for (const offender of [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"]) {
     assert.ok(
       problems.some((p) => p.includes(offender) && p.includes("package.json")),
       `a problem names ${offender} and package.json`,
@@ -190,7 +209,6 @@ test("a token that is not a version is refused, even when every spelling matches
     setJson(dir, "package.json", ["version"], "latest");
     setJson(dir, ".claude-plugin/plugin.json", ["version"], "latest");
     setJson(dir, ".claude-plugin/marketplace.json", ["plugins", 0, "version"], "latest");
-    setContract(dir, "latest");
   });
   assert.equal(problems.length, 1, problems.join("\n"));
   assert.ok(problems[0]?.includes("package.json"));
@@ -222,6 +240,23 @@ test("a contract module without the constant stops the check and names the modul
     () => inScratchRoot((dir) => writeFileSync(join(dir, "shared/contract.ts"), "export {};\n")),
     /shared\/contract\.ts/,
   );
+});
+
+test("the contract version is an integer, not the plugin's semver: 0.0.0 in both places is refused", () => {
+  const problems = inScratchRoot((dir) => {
+    setContract(dir, "0.0.0");
+    setContractDoc(dir, "Contract version: 0.0.0");
+  });
+  assert.equal(problems.length, 1, problems.join("\n"));
+  assert.ok(problems[0]?.includes("docs/contract.md"));
+});
+
+test("a contract document with no `Contract version:` line stops the check and names the document", () => {
+  assert.throws(() => inScratchRoot((dir) => setContractDoc(dir, "Contract release: 1")), /docs\/contract\.md/);
+});
+
+test("a missing contract document stops the check and names it", () => {
+  assert.throws(() => inScratchRoot((dir) => rmSync(join(dir, "docs/contract.md"))), /docs\/contract\.md/);
 });
 
 test("a marketplace that lists another plugin stops the check: this repository is one plugin", () => {
