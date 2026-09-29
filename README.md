@@ -12,7 +12,7 @@ A [Paseo](https://paseo.sh) plugin for [matt-with-paseo](https://github.com/hanh
 
 The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step.
 
-Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin.json`](paseo-plugin.json)), tested on Paseo `0.10.1`. The [smoke test](test/smoke/README.md) targets that version.
+Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin.json`](paseo-plugin.json)), tested on Paseo `0.10.1`. The [smoke test](test/smoke/README.md) targets that version. When Paseo cuts a new minor, the [release checklist](docs/agents/release-checklist.md) widens the range after the smoke test passes on it.
 
 | Path | Holds |
 |---|---|
