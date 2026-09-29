@@ -1,0 +1,28 @@
+# Contributing
+
+Issues and pull requests are welcome. By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Before you start
+
+- Work is tracked in [GitHub Issues](https://github.com/hanh9898/matt-with-paseo-plugin/issues). Pick a ticket labelled `ready-for-agent` or `help wanted`, or open one with the [ticket form](.github/ISSUE_TEMPLATE/ticket.md).
+- Read the [ADRs](docs/adr/) that touch the area. A change that contradicts one says so in its pull request.
+- For a vulnerability, do not open an issue: follow [SECURITY.md](SECURITY.md).
+
+## Rules
+
+| Topic | Where it lives |
+|---|---|
+| How code and agent documents are written | [`CODING_STANDARDS.md`](CODING_STANDARDS.md) |
+| How a change is proven to work, and when tests and review run | [`docs/agents/evidence-standards.md`](docs/agents/evidence-standards.md) |
+| How ticket comments are written | [`docs/agents/comment-template.md`](docs/agents/comment-template.md) |
+| How a stream of work ships | [`docs/agents/ship-rules.md`](docs/agents/ship-rules.md) |
+
+## Pull requests
+
+1. Branch from `main`.
+2. Write commits as [Conventional Commits](https://www.conventionalcommits.org/) (rule C1 of the coding standards).
+3. Fill in the [pull request template](.github/pull_request_template.md): Summary, Evidence, Merge Danger.
+4. Add a line under `## [Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md) for any change a user can see.
+5. When a fix comes from a real incident, describe the symptom you saw.
+
+The maintainer merges. Do not merge your own pull request.
