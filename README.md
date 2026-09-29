@@ -28,6 +28,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/host.ts` | The host port: the events a handler receives, the actions it may take, where it registers |
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
 | `server/hooks/` | The hook handlers, one module per handler |
+| `server/hooks/gate-cap.ts` | The gate cap handler: tells the orchestrator when ticket agents run past the cap |
 | `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
 | `server/hooks/waiting-count.ts` | The handler that counts what waits for the user, per chat |
 | `server/hooks/ticket-marker.ts` | The handler that sets the ticket marker in a ticket agent's environment |
@@ -42,6 +43,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `shared/role-marker.ts` | The name and value of the ticket marker: the one place that names it |
 | `shared/role-labels.ts` | The role labels: what marks an agent as a ticket agent or the stream agent |
 | `shared/contract.ts` | The contract version between the skills and the plugin: `CONTRACT_VERSION` |
+| `shared/gate-cap.ts` | The gate cap: the default share, the setting that adjusts it and the count it gives |
 | `server/harness.ts` | The loader of the descriptors |
 | `harness/` | One descriptor per agent, `<agent>.json`: data, not code |
 | `guard/git-guard.mjs` | The git guard: a standalone Node script a `PreToolUse` hook runs |
@@ -230,6 +232,27 @@ What it does not do:
 - No eval case is written: `claude plugin eval` runs a Claude Code plugin's prompts, and this repository's Claude Code plugin holds one `PreToolUse` hook and no skill, so no eval prompt can reach the sensor, which lives in the Paseo plugin. The proof that a stalled agent is still caught is `test/hooks/stall-sensor.test.ts`, on the fake host, and the smoke test on a real one.
 
 The checks are `test/sensor.test.ts`, `test/hooks/stall-sensor.test.ts` and `test/sensor-docs.test.ts`. `sensor/` is listed in `files` in `package.json`, and `loadConditions` reads it at run time from `new URL("../sensor/conditions.json", import.meta.url)`; whether that resolves in the daemon's compiled bundle is not verified yet (the same open point as `harness/`).
+
+### The gate cap
+
+Many worktrees running tests at once can starve one machine. The cap is a share of the machine's processors: how many gates (test runs and setup commands) may run at once. The default is half of them (`0.5`), rounded down and at least one, so eight processors give a cap of four. The setting is the environment variable `MWP_GATE_SHARE`, read from the daemon's environment when the plugin starts: a number above 0 and at most 1 (`0.25` on eight processors gives two). Any other value falls back to the default, so a typo never stops a wave. The default and the setting's name live in `shared/gate-cap.ts`, and `gateCap` there gives the count.
+
+A ticket agent runs its own gates, so the ticket agents that run at once bound the gates that run at once. When a ticket agent is created and, with it, more ticket agents of one orchestrator run than the cap allows, the plugin sends that orchestrator a `Gate cap passed:` message (`MESSAGES.gateCapPassed`), ending with its `Next:` line: queue the ready tickets past the cap and spawn the next only when a ticket agent's turn end or archive shows fewer running. A message for an orchestrator that is mid-turn is held and goes out when its turn ends. Agents are counted by their labels (`wave` and `ticket`), and a host that cannot say who runs counts that agent as not running.
+
+Which part is whose:
+
+| Part | Where |
+|---|---|
+| The cap, its default, its setting, and the message that carries it to the orchestrator | This repository: `shared/gate-cap.ts`, `server/hooks/gate-cap.ts`, `MESSAGES.gateCapPassed` |
+| Holding the ready tickets past the cap in a queue instead of spawning them (the wave skill's quota does this for its own limit) | The skills' part, in `hanh9898/matt-with-paseo`: the wave skill reads the message, or the cap, and spawns the next ticket only under it |
+
+What it does not do:
+
+- It does not stop a spawn, and it does not stop a ticket agent's shell command. The message reaches the orchestrator after the agent is created, and the plugin's only path to a shell command is the git guard's hook, which refuses git and holds no count across processes. A hook that gates test and setup commands needs a slot count shared between the agents' processes, with an expiry for a slot a crashed command never freed; that is a separate change.
+- It counts ticket agents, not the commands they run: an agent idle in a turn counts as running, and one running two gates counts once.
+- The setting is read once, at start: a change takes effect when the daemon restarts the plugin. The plugin adds no settings screen: the variable is the setting.
+
+The checks are `test/gate-cap.test.ts`, `test/hooks/gate-cap.test.ts` and `test/gate-cap-docs.test.ts`; the smoke test ("Gate cap") runs it on Paseo `0.10.1`.
 
 ### One version token
 
