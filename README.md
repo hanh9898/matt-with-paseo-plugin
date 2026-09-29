@@ -43,6 +43,8 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `shared/role-marker.ts` | The name and value of the ticket marker: the one place that names it |
 | `shared/role-labels.ts` | The role labels: what marks an agent as a ticket agent or the stream agent |
 | `shared/contract.ts` | The contract version between the skills and the plugin: `CONTRACT_VERSION` |
+| `shared/state-location.ts` | Where the plugin keeps its state (a per-user directory, one setting) and the one marked block it may write in a repository |
+| `server/state.ts` | The one module that writes a file: under the state directory, or into the marked block |
 | `shared/gate-cap.ts` | The gate cap: the default share, the setting that adjusts it and the count it gives |
 | `server/harness.ts` | The loader of the descriptors |
 | `harness/` | One descriptor per agent, `<agent>.json`: data, not code |
@@ -253,6 +255,27 @@ What it does not do:
 - The setting is read once, at start: a change takes effect when the daemon restarts the plugin. The plugin adds no settings screen: the variable is the setting.
 
 The checks are `test/gate-cap.test.ts`, `test/hooks/gate-cap.test.ts` and `test/gate-cap-docs.test.ts`; the smoke test ("Gate cap") runs it on Paseo `0.10.1`.
+
+### State outside the repository
+
+A public plugin should not litter the repositories it works in. The plugin keeps whatever must outlive a process in a per-user directory, and writes into a target repository at most one marked block. Both are named in one module, `shared/state-location.ts`: the directory is `matt-with-paseo` (`STATE_DIR_NAME`) under the platform's per-user data folder (`$XDG_DATA_HOME` or `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows), and the environment variable `MWP_STATE_DIR` set to an absolute path moves it. The one block is the text between `<!-- matt-with-paseo:begin -->` and `<!-- matt-with-paseo:end -->` in the repository's `AGENTS.md` (`MARKED_BLOCK`); `withMarkedBlock` replaces it in place, and refuses a file whose markers do not make exactly one block.
+
+`server/state.ts` is the one module that writes a file: `writeStateFile` and `readStateFile` take a name inside the state directory and refuse one that leaves it, and `writeMarkedBlock` sets the block. Nothing calls them yet, because nothing the plugin holds needs to persist:
+
+| Holder | What it keeps | Where |
+|---|---|---|
+| `server/hooks/gate-cap.ts` | Which ticket agents run, per orchestrator, and the messages held for a busy one | In memory |
+| `server/hooks/lifecycle-relay.ts` | The agents seen, the messages held for a busy orchestrator, what each was told | In memory |
+| `server/hooks/stall-sensor.ts` | Each agent's last turn, its streaks per condition, the messages held | In memory |
+| `server/hooks/waiting-count.ts` | The requests open in each agent's chat | In memory |
+| `client/waiting-pill.ts` | The pill registered for each agent | In memory |
+| `server/harness.ts`, `server/sensor.ts` | Nothing: they read the plugin's own `harness/` and `sensor/` files | Read only |
+
+A restart of the plugin forgets what those hold and starts from the next event, as it did before; the holders that would need to survive one (a gate queue across a daemon restart, say) add their row here and write through `server/state.ts`.
+
+`test/state-outside-repo.test.ts` fails when any module of the plugin other than `server/state.ts` imports a file-writing API of `node:fs` (only reads pass) or `node:child_process`, however the import is spelled, and when another module names where the state lives. It reads the imports, so it does not see a write made by a program the plugin starts through some other route; `node:child_process` is refused for that reason. The check runs at the milestone run; the smoke test ("State outside the repository") reads a real host's state directory and a repository's diff on Paseo `0.10.1`.
+
+Where the wave files (`wave<N>-common-rules.md`) stay, in the integration branch's checkout as the wave skill writes them or outside the repository, is decided separately (#12's second criterion); the plugin writes none of them.
 
 ### One version token
 
