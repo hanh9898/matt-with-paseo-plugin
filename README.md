@@ -321,6 +321,10 @@ The plugin's version, id and Claude Code name are spelled in several files, and 
 
 The Claude Code plugin and its marketplace are both named `matt-with-paseo-plugin`, not `matt-with-paseo`: the skills repository's plugin and marketplace have that name, ticket agents enable both plugins, and a user registers one marketplace per name. The plugin installs as `matt-with-paseo-plugin@matt-with-paseo-plugin`. The Paseo id stays `matt-with-paseo`.
 
+### CI on three systems
+
+`.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck` and `npm test` on `ubuntu-latest`, `macos-latest` and `windows-latest`. It starts only on a push to a `release/v*` branch and on a pull request from one into `main`, so it runs at the milestone run and on no stream's ship pull request, as the [evidence standards](docs/agents/evidence-standards.md) require. There is no pre-commit hook: a hook that runs typecheck and tests on every commit would break that rule. Whether to add one waits for a decision after milestone `v0.5.0`. `test/ci-workflow.test.ts` reads the workflow and fails when a system, a command or a trigger differs.
+
 ## Contributing
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md). Every contributor follows the [Code of Conduct](CODE_OF_CONDUCT.md). Report a vulnerability as [SECURITY.md](SECURITY.md) says. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
