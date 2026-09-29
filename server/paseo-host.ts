@@ -27,6 +27,10 @@ function hostFor(paseo: PluginHookContext["paseo"]): Host {
       const found = await paseo.agents.ref(agentId).refresh();
       return found ? { ...found.agent.labels } : {};
     },
+    async isRunning(agentId) {
+      const found = await paseo.agents.ref(agentId).refresh();
+      return found?.agent.status === "running";
+    },
     send: (agentId, text) => paseo.agents.ref(agentId).send(text),
     respondToPermission: (agentId, requestId, answer) =>
       paseo.agents.ref(agentId).respondToPermission({ requestId, response: answer }),
