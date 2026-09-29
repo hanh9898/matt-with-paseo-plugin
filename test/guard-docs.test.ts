@@ -81,3 +81,24 @@ test("the smoke test has written steps for the guard, on the three systems and t
   }
   assert.ok(smoke.indexOf("\n## Results") > start, "Results stays the last section");
 });
+
+test("the README says a resumed ticket agent is re-marked at session open, and where that fails open", () => {
+  const text = guardSubsection();
+  assert.match(text, /beforeSessionOpen/);
+  assert.match(text, /agent\.session_open/);
+  assert.match(text, /fails? open/i);
+  assert.doesNotMatch(text, /is not re-marked/i);
+});
+
+test("smoke Git guard part C step 4 reads: the resumed agent prints ticket", () => {
+  const smoke = read("test/smoke/README.md");
+  const start = smoke.indexOf("\n## Git guard");
+  const rest = smoke.slice(start + 1);
+  const next = rest.indexOf("\n## ", 1);
+  const section = next === -1 ? rest : rest.slice(0, next);
+  const step = section.split("\n").find((line) => line.startsWith("4. Restart the daemon"));
+  assert.ok(step, "part C has a step 4 about the resume");
+  assert.match(step, /the resumed agent prints `ticket`/);
+  assert.doesNotMatch(step, /record what is seen/i);
+  assert.doesNotMatch(step, /known gap/i);
+});

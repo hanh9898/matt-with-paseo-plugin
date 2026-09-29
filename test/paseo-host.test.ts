@@ -28,7 +28,7 @@ function stubServer() {
 }
 
 /** The slice of the SDK's `paseo` the adapter calls, recording each call. */
-function stubPaseo(labels: Record<string, string> = {}) {
+function stubPaseo(labels: Record<string, string> = {}, title: string | null = null) {
   const calls: { agentId: string; method: string; args: unknown[] }[] = [];
   const paseo = {
     agents: {
@@ -37,7 +37,7 @@ function stubPaseo(labels: Record<string, string> = {}) {
           send: async (...args: unknown[]) => void calls.push({ agentId, method: "send", args }),
           respondToPermission: async (...args: unknown[]) =>
             void calls.push({ agentId, method: "respondToPermission", args }),
-          refresh: async () => ({ agent: { labels } }),
+          refresh: async () => ({ agent: { labels, title } }),
           timeline: { append: async (...args: unknown[]) => void calls.push({ agentId, method: "append", args }) },
         };
       },
@@ -226,6 +226,71 @@ test("the waiting-count query is served over the plugin's RPC and answers zero w
     assert.deepEqual(await fire("rpc:waiting.count", { agentId: "broken" }, { paseo }), { count: 0 });
     assert.deepEqual(asked, ["orchestrator", "broken"]);
     assert.match(String(log.mock.calls[0]?.arguments[0]), /waiting\.count/);
+  } finally {
+    log.mock.restore();
+  }
+});
+
+const openRequest = { agentId: "worker", workspaceId: "w", provider: "claude", cwd: "/repo", reason: "resume", purpose: "interactive", env: { KEPT: "yes" } };
+
+test("beforeSessionOpen registers the agent.session_open hook and returns the request with the handler's environment", async () => {
+  const { server, fire, listeners } = stubServer();
+  const { paseo } = stubPaseo();
+  connectPaseo(server).beforeSessionOpen(({ env }) => ({ env: { ...env, MWP_ROLE: "ticket" } }));
+  assert.deepEqual([...listeners.keys()], ["before:agent.session_open"]);
+  const changed = await fire("before:agent.session_open", { request: openRequest }, { paseo });
+  assert.deepEqual(changed, { ...openRequest, env: { KEPT: "yes", MWP_ROLE: "ticket" } });
+});
+
+test("beforeSessionOpen hands the handler the agent id, the reason, the environment, and the title and labels Paseo holds", async () => {
+  const { server, fire } = stubServer();
+  const { paseo } = stubPaseo({ wave: "2", ticket: "35" }, "[Wave 2] 35 x");
+  const seen: unknown[] = [];
+  connectPaseo(server).beforeSessionOpen((request) => {
+    seen.push(request);
+  });
+  await fire("before:agent.session_open", { request: openRequest }, { paseo });
+  assert.deepEqual(seen, [
+    { agentId: "worker", reason: "resume", env: { KEPT: "yes" }, title: "[Wave 2] 35 x", labels: { wave: "2", ticket: "35" } },
+  ]);
+});
+
+test("beforeSessionOpen hands null and no labels when Paseo cannot read the agent yet, and when reading throws", async () => {
+  const { server, fire } = stubServer();
+  const seen: unknown[] = [];
+  connectPaseo(server).beforeSessionOpen((request) => {
+    seen.push(request);
+  });
+  const unknown = { agents: { ref: () => ({ refresh: async () => null }) } };
+  const broken = {
+    agents: {
+      ref: () => ({
+        refresh: async () => {
+          throw new Error("not registered");
+        },
+      }),
+    },
+  };
+  await fire("before:agent.session_open", { request: openRequest }, { paseo: unknown });
+  await fire("before:agent.session_open", { request: openRequest }, { paseo: broken });
+  const unread = { agentId: "worker", reason: "resume", env: { KEPT: "yes" }, title: null, labels: {} };
+  assert.deepEqual(seen, [unread, unread]);
+});
+
+test("beforeSessionOpen leaves the request alone when the handler changes nothing or throws (T4)", async () => {
+  const { server, fire } = stubServer();
+  const { paseo } = stubPaseo();
+  const log = mock.method(console, "error", () => {});
+  try {
+    const hooks = connectPaseo(server);
+    hooks.beforeSessionOpen(() => {});
+    assert.equal(await fire("before:agent.session_open", { request: openRequest }, { paseo }), undefined);
+    hooks.beforeSessionOpen(() => {
+      throw new Error("boom");
+    });
+    assert.equal(await fire("before:agent.session_open", { request: openRequest }, { paseo }), undefined);
+    assert.match(String(log.mock.calls[0]?.arguments[0]), /agent\.session_open/);
+    assert.match(String(log.mock.calls[0]?.arguments[0]), /worker/);
   } finally {
     log.mock.restore();
   }
