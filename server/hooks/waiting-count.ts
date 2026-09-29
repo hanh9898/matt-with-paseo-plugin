@@ -1,3 +1,4 @@
+import { isStreamAgent, isTicketAgent } from "../../shared/role-labels.ts";
 import type { HostAgent, HostHooks } from "../host.ts";
 
 /**
@@ -14,8 +15,8 @@ export function registerWaitingCount(hooks: HostHooks): void {
   const open = new Map<string, Map<string, string | null>>();
 
   function ownerOf(agent: HostAgent, labels: Record<string, string>): string | null {
-    if (labels["wave"] !== undefined && labels["ticket"] !== undefined) return agent.parentAgentId;
-    if (labels["stream"] !== undefined && labels["wave"] === undefined) return agent.id;
+    if (isTicketAgent(labels)) return agent.parentAgentId;
+    if (isStreamAgent(labels)) return agent.id;
     return null;
   }
 

@@ -1,3 +1,4 @@
+import { ticketOf } from "../../shared/role-labels.ts";
 import type { Host, HostAgent, HostHooks } from "../host.ts";
 import { combine, MESSAGES, type Subject } from "../messages.ts";
 
@@ -18,9 +19,9 @@ export function registerLifecycleRelay(hooks: HostHooks): void {
 
   async function subjectOf(agent: HostAgent, host: Host): Promise<Subject | null> {
     const labels = await host.labelsOf(agent.id);
-    const { wave, ticket } = labels;
-    if (wave !== undefined && ticket !== undefined) {
-      const subject = { agentId: agent.id, wave, ticket };
+    const found = ticketOf(labels);
+    if (found !== null) {
+      const subject = { agentId: agent.id, ...found };
       seen.set(agent.id, subject);
       return subject;
     }
