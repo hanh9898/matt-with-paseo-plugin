@@ -16,6 +16,7 @@ Issues and pull requests are welcome. By taking part you agree to the [Code of C
 | How a change is proven to work: tests and review run only at the end of a stream | [`docs/agents/evidence-standards.md`](docs/agents/evidence-standards.md) |
 | How ticket comments are written | [`docs/agents/comment-template.md`](docs/agents/comment-template.md) |
 | How a stream of work ships | [`docs/agents/ship-rules.md`](docs/agents/ship-rules.md) |
+| What to run when Paseo cuts a new minor: read its changelog, run the smoke test, widen the host range | [`docs/agents/release-checklist.md`](docs/agents/release-checklist.md) |
 
 ## Pull requests
 
