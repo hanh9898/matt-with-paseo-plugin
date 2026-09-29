@@ -11,7 +11,8 @@
     "index.server.tsx",
     "client/",
     "server/",
-    "shared/"
+    "shared/",
+    "harness/"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
