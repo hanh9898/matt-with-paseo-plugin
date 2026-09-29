@@ -46,7 +46,8 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `shared/waiting.ts` | The `waiting.count` RPC the pill reads |
 | `shared/role-marker.ts` | The name and value of the ticket marker: the one place that names it |
 | `shared/role-labels.ts` | The role labels: what marks an agent as a ticket agent or the stream agent |
-| `shared/contract.ts` | The contract version between the skills and the plugin: `CONTRACT_VERSION` |
+| `shared/contract.ts` | The contract version between the skills and the plugin: `CONTRACT_VERSION`, and the report card row's shape |
+| `docs/contract.md` | Contract v1: what the plugin sends, reads and promises to the skills |
 | `shared/state-location.ts` | Where the plugin keeps its state (a per-user directory, one setting) and the one marked block it may write in a repository |
 | `server/state.ts` | The one module that writes a file: under the state directory, or into the marked block |
 | `shared/gate-cap.ts` | The gate cap: the default share, the setting that adjusts it and the count it gives |
@@ -319,13 +320,14 @@ The plugin's version, id and Claude Code name are spelled in several files, and 
 
 | Identifier | Spelled in | Checked against |
 |---|---|---|
-| Version | `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `plugins[0].version`, `shared/contract.ts` `CONTRACT_VERSION` | `package.json` `version` |
+| Version | `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `plugins[0].version` | `package.json` `version` |
+| Contract version (a whole number) | `shared/contract.ts` `CONTRACT_VERSION` | `docs/contract.md` `Contract version:` line |
 | Paseo id (`matt-with-paseo`) | `package.json` `name` | `paseo-plugin.json` `id` |
 | Claude Code name (`matt-with-paseo-plugin`) | `.claude-plugin/marketplace.json` `plugins[0].name` | `.claude-plugin/plugin.json` `name` |
 
-`paseo-plugin.json` carries no version: Paseo's manifest schema takes `id`, `description`, `requirements` and `build` and no other key (read in `@getpaseo/server` `0.10.1`), so the file takes part through its id. The contract version between the skills and the plugin is the version token itself, read by the skills from the plugin's version.
+`paseo-plugin.json` carries no version: Paseo's manifest schema takes `id`, `description`, `requirements` and `build` and no other key (read in `@getpaseo/server` `0.10.1`), so the file takes part through its id. The contract version between the skills and the plugin is not the version token: it is the whole number on the `Contract version:` line of `docs/contract.md` (ADR 0003), and the two move independently.
 
-`test/version-token.test.ts` runs the check (`test/support/version-token.ts`) and fails with one line per spelling that differs, naming that file and the one that holds the token. To release, change `version` in `package.json`, then in the three other places; `npm test` names any that lags.
+`test/version-token.test.ts` runs the check (`test/support/version-token.ts`) and fails with one line per spelling that differs, naming that file and the one that holds the token. To release, change `version` in `package.json`, then in the two other places; `npm test` names any that lags.
 
 The Claude Code plugin and its marketplace are both named `matt-with-paseo-plugin`, not `matt-with-paseo`: the skills repository's plugin and marketplace have that name, ticket agents enable both plugins, and a user registers one marketplace per name. The plugin installs as `matt-with-paseo-plugin@matt-with-paseo-plugin`. The Paseo id stays `matt-with-paseo`.
 
