@@ -22,7 +22,7 @@ function read(path: string): string {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-/** `import ... from "@getpaseo/..."`, `import "@getpaseo/..."` and `import("@getpaseo/...")`, type imports included. */
+/** A static import, a bare import or a dynamic import of any Paseo SDK package (the `@getpaseo` scope), type imports included. */
 function importsSdk(text: string): boolean {
   return /(?:\bfrom\s*|\bimport\s*\(?\s*)["']@getpaseo\//.test(text);
 }
