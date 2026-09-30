@@ -14,32 +14,37 @@ A skill tells the plugin is present when `paseo plugin ls` lists the Paseo id `m
 
 Every text the plugin sends to an orchestrator is built in `server/messages.ts`. A text is one body line, then one last line starting `Next: ` that names the moves open to its reader, separated by `; ` and closed by a full stop. The moves are the plugin's suggestion: the judgement stays with the skills. A text carries ids and kinds, never a request's input or an error's message. When an orchestrator's own turn runs, the messages held for it arrive as one, the bodies in order, then one `Next:` line with each message's moves, a move two messages share written once.
 
-Placeholders below are the values a message names: `<ticket>` and `<wave>` from the agent's `ticket` and `wave` labels, `<agent>` its id, `<request>` and `<name>` a pending request's id and tool name, `<code>` the error code of a failed turn (a failed turn without a code reads `outcome failed`), `<reason>` a cancel's reason, `<n>` the count of the user's messages and `<ids>` their ids (up to five, then `and N more`; one reads `1 message`), `<says>` the sensor's flagged conditions joined by `; `, `<cap>` the concurrent gates allowed and `<running>` the ticket agents running. A permission request of a kind other than `question` or `tool` (`plan`, `mode`, `other`) names that kind in its body and takes the `tool` moves.
+Placeholders below are the values a message names: `<ticket>` and `<wave>` from the agent's `ticket` and `wave` labels, `<stream>` from a stream agent's `stream` label, `<agent>` its id, `<request>` and `<name>` a pending request's id and tool name, `<code>` the error code of a failed turn (a failed turn without a code reads `outcome failed`), `<reason>` a cancel's reason, `<n>` the count of the user's messages and `<ids>` their ids (up to five, then `and N more`; one reads `1 message`), `<says>` the sensor's flagged conditions joined by `; `, `<cap>` the concurrent gates allowed and `<running>` the ticket agents running. A permission request of a kind other than `question` or `tool` (`plan`, `mode`, `other`) names that kind in its body and takes the `tool` moves.
 
-The relay covers the `wave`/`ticket` agents and, from v1, the stream agent too ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895097885)). The stream agent's messages are the same types with `stream <stream>` in place of the `ticket <ticket> of wave <wave>` clause; the module builds none yet, and the ticket that extends the relay adds their rows here with it. Two types come with the delegation tickets, which add their rows: appetite passed (#40) and question budget spent (#39).
+The relay covers the `wave`/`ticket` agents and, from v1, the stream agent too ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895097885)). The stream agent's turn end, pending permission and archive are the same types with `stream <stream>` in place of the `ticket <ticket> of wave <wave>` clause, each as a `stream` case below; an agent carrying the ticket labels is relayed as a ticket agent even when it carries `stream` too. Agent created, human words, stall suspected and gate cap passed stay ticket-agent only. Two types come with the delegation tickets, which add their rows: appetite passed (#40) and question budget spent (#39).
 
 ### Turn ended
 
 Type: `turnEnded`
 Lead: `Turn ended`
-Fields: `ticket`, `wave`, `agent`, `code`, `reason`
+Fields: `ticket`, `wave`, `agent`, `code`, `reason`, `stream`
 
 | Case | Body | Next line |
 |---|---|---|
 | completed | `Turn ended: ticket <ticket> of wave <wave>, agent <agent>, outcome completed.` | `Next: check ticket <ticket>'s report with get_agent_activity and its artifacts (commits on its branch, ticket status); prompt agent <agent> when the report is incomplete.` |
 | failed | `Turn ended: ticket <ticket> of wave <wave>, agent <agent>, outcome failed (<code>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or record ticket <ticket> as failed with the reason.` |
 | canceled | `Turn ended: ticket <ticket> of wave <wave>, agent <agent>, outcome canceled (<reason>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or leave ticket <ticket> stopped when the cancel was deliberate.` |
+| stream completed | `Turn ended: stream <stream>, agent <agent>, outcome completed.` | `Next: check stream <stream>'s report with get_agent_activity and its artifacts (commits on its branch, its pull request); prompt agent <agent> when the report is incomplete.` |
+| stream failed | `Turn ended: stream <stream>, agent <agent>, outcome failed (<code>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or record stream <stream> as failed with the reason.` |
+| stream canceled | `Turn ended: stream <stream>, agent <agent>, outcome canceled (<reason>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or leave stream <stream> stopped when the cancel was deliberate.` |
 
 ### Permission pending
 
 Type: `permissionRequested`
 Lead: `Permission pending`
-Fields: `ticket`, `wave`, `agent`, `request`, `name`
+Fields: `ticket`, `wave`, `agent`, `request`, `name`, `stream`
 
 | Case | Body | Next line |
 |---|---|---|
 | question | `Permission pending: ticket <ticket> of wave <wave>, agent <agent>, request <request>, <name> (question).` | `Next: read ticket <ticket>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; leave the checkpoint to the user, who answers it in agent <agent>'s chat, or answer it with respond_to_permission when the delegation table lets you decide.` |
 | tool | `Permission pending: ticket <ticket> of wave <wave>, agent <agent>, request <request>, <name> (tool).` | `Next: read ticket <ticket>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; answer request <request> with respond_to_permission, or leave it to the user when the decision is theirs.` |
+| stream question | `Permission pending: stream <stream>, agent <agent>, request <request>, <name> (question).` | `Next: read stream <stream>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; leave the checkpoint to the user, who answers it in agent <agent>'s chat, or answer it with respond_to_permission when the delegation table lets you decide.` |
+| stream tool | `Permission pending: stream <stream>, agent <agent>, request <request>, <name> (tool).` | `Next: read stream <stream>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; answer request <request> with respond_to_permission, or leave it to the user when the decision is theirs.` |
 
 ### Agent created
 
@@ -55,11 +60,12 @@ Fields: `ticket`, `wave`, `agent`
 
 Type: `archived`
 Lead: `Agent archived`
-Fields: `ticket`, `wave`, `agent`
+Fields: `ticket`, `wave`, `agent`, `stream`
 
 | Case | Body | Next line |
 |---|---|---|
 | archived | `Agent archived: ticket <ticket> of wave <wave>, agent <agent>.` | `Next: finish step 8's clean-up of ticket <ticket> when you archived agent <agent>; check ticket <ticket>'s status before counting its work done when someone else archived agent <agent>.` |
+| stream archived | `Agent archived: stream <stream>, agent <agent>.` | `Next: finish the clean-up of stream <stream> when you archived agent <agent>; check stream <stream>'s status before counting its work done when someone else archived agent <agent>.` |
 
 ### Human words
 
@@ -158,4 +164,4 @@ The skills declare the contract version they require as a whole number, in a lin
 
 - Until `v0.1.0` is tagged, the contract is v1 in draft, and any `v0.1.0` ticket that adds or changes a message, a mark or a card field edits it in the same change.
 - From the tag on, removing or changing a message, label, mark or field raises the version; adding a message type or an optional field does not.
-- What v1 leaves out: buttons on the card, a custom checkpoint card, and the stream agent's message rows (see Message types).
+- What v1 leaves out: buttons on the card, a custom checkpoint card, and a stream variant of agent created, human words, stall suspected and gate cap passed.
