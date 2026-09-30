@@ -10,7 +10,7 @@ Where matt-with-paseo-plugin is going: five milestones, `v0.1.0` to `v0.5.0`, in
   2. one milestone-wide code review, on both axes;
   3. one fix pass;
   4. the eval, when there is a plugin to eval.
-- Every new ticket's `Resolved:` reads `Tests: deferred to the milestone` and `Code review: deferred to the milestone`.
+- Every new ticket's `Resolved:` carries a `Test run:` line (its own test files, red on the base, then green) and reads `Code review: deferred to the milestone`. CI runs `npm run check` on every pull request into `main`.
 - The plugin pairs with the skills repo by contract version only. The release numbers of the two repos are independent.
 - The stream that ships a milestone updates this file in its pull request.
 

@@ -18,7 +18,14 @@ The stream agent loads the `/paseo-plugin` skill when it plans work that designs
 
 ## Evidence standards
 
-How this repo proves a change works: `docs/agents/evidence-standards.md`. Tests and review run only at a milestone (a release `v0.x.0` in `docs/roadmap.md`, up to `v0.5.0`), once every stream of it has merged: one full test run with the smoke steps, one milestone-wide code review on both axes, one fix pass, then the eval when there is a plugin to eval. No ticket runs any test, an eval or a code review, and no merge runs the suite or the checks.
+How this repo proves a change works: `docs/agents/evidence-standards.md`.
+
+- **A ticket** runs its own new or changed test files once each: red on the base, then green after the change. It records both in its `Resolved:`. It runs no suite, no code review and no eval.
+- **A merge** runs only the conflict-marker search.
+- **CI** runs `npm run check` on every pull request into `main`, on three systems. A red pull request is never merged: the stream agent fixes the cause and cuts the ship branch again.
+- **A milestone** (a release `v0.x.0` in `docs/roadmap.md`, up to `v0.5.0`) runs the smoke steps, one milestone-wide code review on both axes, one fix pass, then the eval when there is a plugin to eval.
+- **A check** reads structure (links, files, table columns, pinned lines), never a sentence of prose.
+- **Files** are written with the Edit and Write tools, never through shell heredocs: the shell drops backslashes.
 
 ## Ship rules
 

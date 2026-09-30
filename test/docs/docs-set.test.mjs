@@ -176,7 +176,7 @@ test("the roadmap states the rules for every milestone", () => {
   const rules = section(read(ROADMAP), "## Rules for every milestone");
   has(rules, "Each milestone is one release");
   has(rules, "The user tags it after its `release/v0.x.0` pull request merges");
-  has(rules, "Tests: deferred to the milestone");
+  has(rules, "`Test run:`");
   has(rules, "Code review: deferred to the milestone");
   has(rules, "contract version only");
   has(rules, "updates this file in its pull request");
