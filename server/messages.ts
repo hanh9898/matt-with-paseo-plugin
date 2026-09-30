@@ -97,6 +97,23 @@ const AFTER_TURN: Record<TurnOutcome["kind"], (subject: TicketSubject) => string
 };
 
 /**
+ * The moves open after the sensor flags a ticket agent's turn end. The agent may still be inside a call, and a
+ * prompt only queues behind a stuck call, so the moves name the wave skill's hung-agent table, never the prompt.
+ */
+const AFTER_QUIET_TURN = (s: TicketSubject): string[] => [
+  `judge whether ${named(s)} is stalled: read agent ${s.agentId}'s recent activity with get_agent_activity`,
+  `decide by the wave skill's hung-agent table, which says whether agent ${s.agentId} is replaced within the restart budget or prompted to resume, or record ${named(s)} as stalled with the reason`,
+  `leave ${named(s)} alone when its agent is working`,
+];
+
+/** The moves open after a running stream agent has been quiet too long: it may be hung in a call, so it is replaced, never prompted. */
+const WHILE_RUNNING = (s: StreamSubject): string[] => [
+  `judge whether stream ${s.stream} is stalled: read agent ${s.agentId}'s recent activity with get_agent_activity`,
+  `when agent ${s.agentId} is hung on a shell command or on no tool call, replace it under the stream skill's restart budget, and never prompt it, since a prompt queues behind the stuck call`,
+  `leave stream ${s.stream} alone when agent ${s.agentId} runs a subagent or another long tool`,
+];
+
+/**
  * The moves open while a request waits. A question is a checkpoint (ADR 0001): the user answers it in the asking
  * agent's chat, or the plugin does under the delegation table; the orchestrator reads it and leaves it to them.
  */
@@ -143,12 +160,8 @@ export const MESSAGES = {
       `read what the user typed to agent ${subject.agentId} with get_agent_activity`,
       `record in ${named(subject)}'s report that the user spoke to it, and whether it changed the plan`,
     ]),
-  stallSuspected: (subject: TicketSubject, says: readonly string[]) =>
-    message("Stall suspected", subject, `the sensor flagged: ${says.join("; ")}`, [
-      `judge whether ${named(subject)} is stalled: read agent ${subject.agentId}'s recent activity with get_agent_activity`,
-      `prompt agent ${subject.agentId} to resume, or record ${named(subject)} as stalled with the reason, when it is stalled`,
-      `leave ${named(subject)} alone when its agent is working`,
-    ]),
+  stallSuspected: (subject: Relayed, says: readonly string[]) =>
+    message("Stall suspected", subject, `the sensor flagged: ${says.join("; ")}`, isStream(subject) ? WHILE_RUNNING(subject) : AFTER_QUIET_TURN(subject)),
   gateCapPassed: (subject: TicketSubject, cap: number, running: number) =>
     message("Gate cap passed", subject, `${running} ticket agents run against a cap of ${cap} concurrent gates`, [
       `hold every ready ticket after ${named(subject)} in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than ${cap} running`,

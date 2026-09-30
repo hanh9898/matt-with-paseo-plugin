@@ -88,7 +88,11 @@ export const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
   created: { created: MESSAGES.created(SUBJECT), bundle: MESSAGES.created(BUNDLE) },
   archived: { archived: MESSAGES.archived(SUBJECT), "bundle archived": MESSAGES.archived(BUNDLE), "stream archived": MESSAGES.archived(STREAM) },
   humanWords: { humanWords: MESSAGES.humanWords(SUBJECT, ["zz-m1", "zz-m2"]), bundle: MESSAGES.humanWords(BUNDLE, ["zz-m1", "zz-m2"]) },
-  stallSuspected: { stallSuspected: MESSAGES.stallSuspected(SUBJECT, ["zz-says"]), bundle: MESSAGES.stallSuspected(BUNDLE, ["zz-says"]) },
+  stallSuspected: {
+    stallSuspected: MESSAGES.stallSuspected(SUBJECT, ["zz-says"]),
+    bundle: MESSAGES.stallSuspected(BUNDLE, ["zz-says"]),
+    "stream running": MESSAGES.stallSuspected(STREAM, ["zz-says"]),
+  },
   gateCapPassed: { gateCapPassed: MESSAGES.gateCapPassed(SUBJECT, 77, 99), bundle: MESSAGES.gateCapPassed(BUNDLE, 77, 99) },
   appetitePassed: {
     passed: MESSAGES.appetitePassed("zz-stream", 123.45, 100, false),

@@ -134,9 +134,44 @@ test("the contract holds the stream agent's row of each of the three types, with
   for (const type of ["turnEnded", "permissionRequested", "archived"]) {
     assert.ok(doc.messages.find((message) => message.type === type)?.fields.includes("stream"), `${type} lists the stream field`);
   }
-  for (const type of ["created", "humanWords", "stallSuspected", "gateCapPassed"]) {
+  for (const type of ["created", "humanWords", "gateCapPassed"]) {
     assert.deepEqual(cases(type).filter((name) => name.startsWith("stream")), [], `${type} has no stream row`);
   }
+});
+
+test("the contract holds the stream agent's running Stall suspected row, with the `stream` field (#48)", () => {
+  const stall = parseContract(contract).messages.find((message) => message.type === "stallSuspected");
+  assert.deepEqual([...(stall?.cases.keys() ?? [])].filter((name) => name.startsWith("stream")), ["stream running"]);
+  assert.ok(stall?.fields.includes("stream"), "stallSuspected lists the stream field");
+  assert.equal(stall?.cases.get("stream running")?.body, "Stall suspected: stream <stream>, agent <agent>, the sensor flagged: <says>.");
+  assert.doesNotMatch(stall?.cases.get("stream running")?.next ?? "", /prompt agent/);
+});
+
+test("no Stall suspected row of the contract tells the orchestrator to prompt an agent (#48)", () => {
+  const stall = parseContract(contract).messages.find((message) => message.type === "stallSuspected");
+  assert.ok((stall?.cases.size ?? 0) >= 3, "the ticket, bundle and stream rows");
+  for (const [name, row] of stall?.cases ?? []) assert.doesNotMatch(row.next, /prompt agent/, `row ${name}`);
+});
+
+test("the contract's relay paragraph and its v1 leaves-out no longer keep stall suspected ticket-agent only (#48)", () => {
+  const relay = /^The relay covers .*$/m.exec(contract)?.[0] ?? "";
+  assert.ok(relay !== "", "the relay paragraph is there");
+  assert.doesNotMatch(relay, /stall suspected and gate cap passed stay/i);
+  assert.match(relay, /stall/i, "it says where the stream agent's stall comes from");
+  assert.match(relay, /tick/, "the stream agent's stall comes from the tick, not a turn end");
+  const leavesOut = /^- What v1 leaves out:.*$/m.exec(contract)?.[0] ?? "";
+  assert.ok(leavesOut !== "", "the versioning list names what v1 leaves out");
+  assert.doesNotMatch(leavesOut, /stall suspected/i);
+  assert.match(contract, /^Contract version: 1$/m);
+});
+
+test("ADR 0003 holds the stream agent's running stall and the reworded Next lines under what v1 holds, and cites #48 (#48)", () => {
+  const adr = read("docs/adr/0003-the-contract-between-the-plugin-and-the-skills.md");
+  const holds = /^- **What v1 holds:**.*$/m.exec(adr)?.[0] ?? "";
+  assert.match(holds, /Stall suspected/);
+  assert.match(holds, /tick/);
+  assert.match(holds, /hung-agent table/);
+  assert.match(holds, /#48/);
 });
 
 test("the contract no longer says the module builds no stream-agent message", () => {

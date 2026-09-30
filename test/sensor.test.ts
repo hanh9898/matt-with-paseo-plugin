@@ -106,3 +106,49 @@ test("the package ships the data folder", () => {
   assert.ok(manifest.files?.includes("sensor/"), "package.json files lists sensor/");
   assert.equal(manifest.files?.at(-1), ".claude-plugin/", "and the Claude Code folder stays last");
 });
+
+const quietRunning = { id: "q", says: "x", check: "code", on: "running", fact: "quietMinutes", atLeast: 30, times: 1 };
+
+test("the shipped data holds quiet-running, a running condition on quietMinutes, with a role-neutral says (#48)", () => {
+  const found = shipped.find((condition) => condition.id === "quiet-running");
+  assert.ok(found !== undefined && found.check === "code", "quiet-running is a code condition");
+  assert.equal(found.on, "running");
+  assert.equal(found.fact, "quietMinutes");
+  assert.equal(found.atLeast, 30);
+  assert.equal(found.times, 1);
+  assert.equal(found.says, "its turn has run 30 minutes with no new activity");
+  assert.doesNotMatch(found.says, /ticket|stream/i, "a ticket agent's tick reuses it (#49)");
+});
+
+test("turn-end checks never evaluate a running condition, and a tick checks only running conditions (#48)", () => {
+  const running: Condition[] = [{ id: "q", says: "x", check: "code", on: "running", fact: "quietMinutes", atLeast: 30, times: 1 }];
+  const turnEnd: Condition[] = [{ id: "t", says: "y", check: "code", fact: "newItems", atMost: 99, times: 1 }];
+  const both = [...running, ...turnEnd];
+  const turn = { outcome: "completed", newItems: 1, newToolCalls: 1, tailRepeats: 0 };
+  assert.deepEqual(flagged(both, turn, new Map()).map((c) => c.id), ["t"], "a turn end skips the running condition");
+  assert.deepEqual(flagged(both, { quietMinutes: 45 }, new Map(), "running").map((c) => c.id), ["q"], "a tick checks the running condition only");
+  assert.deepEqual(flagged(both, { quietMinutes: 29 }, new Map(), "running"), [], "below the threshold it holds no flag");
+});
+
+test("loadConditions refuses a running condition that names another fact, and a turn-end one that names quietMinutes (#48)", () => {
+  const cases: [string, RegExp][] = [
+    [JSON.stringify({ conditions: [{ ...quietRunning, fact: "newItems" }] }), /running condition[^;]*quietMinutes/],
+    [JSON.stringify({ conditions: [{ ...quietRunning, on: undefined }] }), /quietMinutes/],
+    [JSON.stringify({ conditions: [{ ...quietRunning, on: "turn-end" }] }), /quietMinutes/],
+    [JSON.stringify({ conditions: [{ ...quietRunning, on: "sometimes" }] }), /turn-end or running/],
+  ];
+  for (const [text, message] of cases) {
+    const temp = inTempFile(text);
+    try {
+      assert.throws(() => loadConditions(temp.file), message);
+    } finally {
+      temp.done();
+    }
+  }
+  const fine = inTempFile(JSON.stringify({ conditions: [quietRunning] }));
+  try {
+    assert.equal(loadConditions(fine.file).length, 1, "a running condition on quietMinutes loads");
+  } finally {
+    fine.done();
+  }
+});

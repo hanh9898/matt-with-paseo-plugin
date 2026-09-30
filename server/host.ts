@@ -8,7 +8,7 @@
  *
  * Interface, beyond the types:
  * - A handler takes `HostHooks` to register and receives `(event, host)`; it reaches Paseo only through
- *   that `host`, which is valid for the one call.
+ *   that `host`, which is valid for the one call. A tick's handler receives a `host` valid for that tick.
  * - A handler never throws into Paseo (T4): the adapter catches what it throws or rejects, logs it with the
  *   event and the agent's id, and Paseo carries on its default path. A `beforeCreate` handler that returns
  *   nothing or throws leaves the create request as it was.
@@ -87,6 +87,10 @@ export interface Host {
    * ended; null when it reports none.
    */
   lastTurnCostUsd(agentId: string): Promise<number | null>;
+  /** The ISO time of the agent's `lastActivityAt`, which does not move while a tool call is stuck; null when Paseo reports none. */
+  lastActivityAt(agentId: string): Promise<string | null>;
+  /** The id of the agent that created this one; null when a person started it, or Paseo reports none. */
+  parentOf(agentId: string): Promise<string | null>;
   /** Sends a message to an agent as a prompt. */
   send(agentId: string, text: string): Promise<void>;
   respondToPermission(agentId: string, requestId: string, answer: PermissionAnswer): Promise<void>;
@@ -102,6 +106,11 @@ export interface HostHooks {
   onTurnEnded(handler: Handler<TurnEndedEvent>): void;
   onPermissionRequested(handler: Handler<PermissionRequestedEvent>): void;
   onPermissionResolved(handler: Handler<PermissionResolvedEvent>): void;
+  /**
+   * Runs the handler every 5 minutes, with a host built from the latest hook call's session. A tick before any hook
+   * call has run is skipped, and a handler that throws is logged and skipped (T4), so the next tick still runs.
+   */
+  onTick(handler: (host: Host) => void | Promise<void>): void;
   /** Serves the composer pill's question, "how many things wait for the user in this agent's chat"; a handler that throws answers zero (T4). */
   serveWaitingCount(handler: (agentId: string) => number | Promise<number>): void;
   /** Serves whether the day's question budget is spent, for the pill's read of one agent's chat; a handler that throws answers false (T4). */

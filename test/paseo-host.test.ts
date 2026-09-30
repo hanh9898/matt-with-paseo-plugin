@@ -332,3 +332,157 @@ test("lastTurnCostUsd reads the agent's lastUsage.totalCostUsd after a refresh, 
   await fire("agent.created", { agent }, { paseo });
   assert.deepEqual(costs, [0.25, null, null, null]);
 });
+
+/** Lets the async work a fired timer started run to its end; `setImmediate` is not among the mocked timers. */
+const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+const FIVE_MINUTES = 5 * 60 * 1000;
+
+test("a tick runs the handler every 5 minutes with a host built from the latest hook call's paseo (#48)", async () => {
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    const { server, fire } = stubServer();
+    const first = stubPaseo();
+    const second = stubPaseo();
+    const hooks = connectPaseo(server);
+    hooks.onCreated(() => {});
+    hooks.onTick(async (host) => {
+      await host.send("orchestrator", "ticked");
+    });
+    await fire("agent.created", { agent }, { paseo: first.paseo });
+    await fire("agent.created", { agent }, { paseo: second.paseo });
+    mock.timers.tick(FIVE_MINUTES - 1);
+    await settle();
+    assert.deepEqual(second.calls, [], "nothing before 5 minutes");
+    mock.timers.tick(1);
+    await settle();
+    assert.deepEqual(second.calls, [{ agentId: "orchestrator", method: "send", args: ["ticked"] }], "the latest call's paseo serves the tick");
+    assert.deepEqual(first.calls, []);
+    mock.timers.tick(FIVE_MINUTES);
+    await settle();
+    assert.equal(second.calls.length, 2, "and again 5 minutes later");
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("a tick before any hook call has run is skipped, and the clock goes on (#48)", async () => {
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    const { server, fire } = stubServer();
+    const { paseo } = stubPaseo();
+    const hooks = connectPaseo(server);
+    hooks.onCreated(() => {});
+    let ticks = 0;
+    hooks.onTick(() => {
+      ticks += 1;
+    });
+    mock.timers.tick(FIVE_MINUTES);
+    await settle();
+    assert.equal(ticks, 0, "no paseo to build a host from");
+    await fire("agent.created", { agent }, { paseo });
+    mock.timers.tick(FIVE_MINUTES);
+    await settle();
+    assert.equal(ticks, 1);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("a tick that throws is logged with the event, never a payload, and skipped; the next tick runs (T4) (#48)", async () => {
+  mock.timers.enable({ apis: ["setInterval"] });
+  const log = mock.method(console, "error", () => {});
+  try {
+    const { server, fire } = stubServer();
+    const { paseo } = stubPaseo();
+    const hooks = connectPaseo(server);
+    hooks.onCreated(() => {});
+    let ticks = 0;
+    hooks.onTick(() => {
+      ticks += 1;
+      if (ticks === 1) throw new Error("boom");
+    });
+    await fire("agent.created", { agent }, { paseo });
+    mock.timers.tick(FIVE_MINUTES);
+    await settle();
+    assert.match(String(log.mock.calls[0]?.arguments[0]), /tick/);
+    assert.match(String(log.mock.calls[0]?.arguments[0]), /boom/);
+    mock.timers.tick(FIVE_MINUTES);
+    await settle();
+    assert.equal(ticks, 2);
+  } finally {
+    log.mock.restore();
+    mock.timers.reset();
+  }
+});
+
+test("stop clears the timer: no tick runs after it (#48)", async () => {
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    const { server, fire } = stubServer();
+    const { paseo } = stubPaseo();
+    const hooks = connectPaseo(server);
+    hooks.onCreated(() => {});
+    let ticks = 0;
+    hooks.onTick(() => {
+      ticks += 1;
+    });
+    await fire("agent.created", { agent }, { paseo });
+    mock.timers.tick(FIVE_MINUTES);
+    await settle();
+    assert.equal(ticks, 1);
+    hooks.stop();
+    mock.timers.tick(FIVE_MINUTES * 3);
+    await settle();
+    assert.equal(ticks, 1);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("connectPaseo starts no timer until a handler asks for the clock, and stop is safe then (#48)", () => {
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    const { server } = stubServer();
+    const hooks = connectPaseo(server);
+    assert.doesNotThrow(() => hooks.stop());
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("lastActivityAt reads the agent's lastActivityAt after a refresh, and null when there is none (#48)", async () => {
+  const { server, fire } = stubServer();
+  const stamps: Record<string, unknown> = { active: "2026-01-01T00:00:00.000Z", blank: undefined, odd: 12 };
+  const paseo = {
+    agents: {
+      ref: (agentId: string) => ({
+        refresh: async () => (agentId === "gone" ? null : { agent: { labels: {}, title: null, lastActivityAt: stamps[agentId] } }),
+      }),
+    },
+  };
+  const seen: (string | null)[] = [];
+  connectPaseo(server).onCreated(async (_event, host) => {
+    for (const id of ["active", "blank", "odd", "gone"]) seen.push(await host.lastActivityAt(id));
+  });
+  await fire("agent.created", { agent }, { paseo });
+  assert.deepEqual(seen, ["2026-01-01T00:00:00.000Z", null, null, null]);
+});
+
+test("parentOf reads the agent's parentAgentId after a refresh, and null when there is none (#48)", async () => {
+  const { server, fire } = stubServer();
+  const parents: Record<string, unknown> = { child: "stream-1", root: null };
+  const paseo = {
+    agents: {
+      ref: (agentId: string) => ({
+        refresh: async () => (agentId === "gone" ? null : { agent: { labels: {}, title: null, parentAgentId: parents[agentId] } }),
+      }),
+    },
+  };
+  const seen: (string | null)[] = [];
+  connectPaseo(server).onCreated(async (_event, host) => {
+    for (const id of ["child", "root", "gone"]) seen.push(await host.parentOf(id));
+  });
+  await fire("agent.created", { agent }, { paseo });
+  assert.deepEqual(seen, ["stream-1", null, null]);
+});

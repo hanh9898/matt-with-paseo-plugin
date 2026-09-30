@@ -178,6 +178,7 @@ const STREAM_SAMPLES = {
     tool: MESSAGES.permissionRequested(stream, { id: "req-4", name: "Bash", kind: "tool" }),
   },
   archived: { archived: MESSAGES.archived(stream) },
+  stallSuspected: { running: MESSAGES.stallSuspected(stream, ["its turn has run 30 minutes with no new activity"]) },
 };
 
 test("a stream agent's text names the stream and the agent in place of the ticket and the wave", () => {
@@ -295,4 +296,39 @@ test("combine joins a bundle agent's message with a ticket agent's, one `Next:` 
 Next: ").length, 2);
   assert.match(text, /bundle 70's report/);
   assert.match(text, /ticket 07's report/);
+});
+
+const QUIET = "its turn has run 30 minutes with no new activity";
+
+test("a stream agent's Stall suspected names the stream and its agent, and reads the running case's words (#48)", () => {
+  assert.equal(
+    MESSAGES.stallSuspected(stream, [QUIET]),
+    "Stall suspected: stream demo, agent strm-3, the sensor flagged: its turn has run 30 minutes with no new activity.\n" +
+      "Next: judge whether stream demo is stalled: read agent strm-3's recent activity with get_agent_activity; " +
+      "when agent strm-3 is hung on a shell command or on no tool call, replace it under the stream skill's restart budget, and never prompt it, since a prompt queues behind the stuck call; " +
+      "leave stream demo alone when agent strm-3 runs a subagent or another long tool.",
+  );
+});
+
+test("the turn-end Stall suspected line names the hung-agent table for a ticket and for a bundle (#48)", () => {
+  assert.equal(
+    MESSAGES.stallSuspected(subject, ["the turn ended in failure"]),
+    "Stall suspected: ticket 07 of wave 1, agent tkt-7, the sensor flagged: the turn ended in failure.\n" +
+      "Next: judge whether ticket 07 is stalled: read agent tkt-7's recent activity with get_agent_activity; " +
+      "decide by the wave skill's hung-agent table, which says whether agent tkt-7 is replaced within the restart budget or prompted to resume, or record ticket 07 as stalled with the reason; " +
+      "leave ticket 07 alone when its agent is working.",
+  );
+  assert.equal(
+    MESSAGES.stallSuspected(bundle, ["the turn ended in failure"]),
+    "Stall suspected: bundle 70 (tickets 70,71) of wave 1, agent bnd-7, the sensor flagged: the turn ended in failure.\n" +
+      "Next: judge whether bundle 70 is stalled: read agent bnd-7's recent activity with get_agent_activity; " +
+      "decide by the wave skill's hung-agent table, which says whether agent bnd-7 is replaced within the restart budget or prompted to resume, or record bundle 70 as stalled with the reason; " +
+      "leave bundle 70 alone when its agent is working.",
+  );
+});
+
+test("no Stall suspected line tells the orchestrator to prompt an agent that may still be in a call (#48)", () => {
+  for (const text of [MESSAGES.stallSuspected(subject, ["x"]), MESSAGES.stallSuspected(bundle, ["x"]), MESSAGES.stallSuspected(stream, ["x"])]) {
+    assert.doesNotMatch(nextLineOf(text) ?? "", /prompt agent/, text);
+  }
 });
