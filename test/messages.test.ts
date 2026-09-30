@@ -265,8 +265,7 @@ test("a bundle agent's text names the bundle, its tickets, the wave and the agen
       assert.match(text, /: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7[,.]/, `${type} (${name}) has the bundle clause`);
       assert.doesNotMatch(text, /ticket 7[01]/, `${type} (${name}) names no single ticket`);
       assert.doesNotMatch(text, /stream/i, `${type} (${name}) is no stream text`);
-      const moves = text.split("
-").at(-1) ?? "";
+      const moves = text.split("\n").at(-1) ?? "";
       assert.ok(moves.startsWith("Next: ") && moves.endsWith("."), `${type} (${name}) ends with a Next line`);
       assert.match(moves, /bundle 70/, `${type} (${name}) names the bundle in its moves`);
     }
@@ -280,20 +279,17 @@ test("a bundle agent's text names the bundle, its tickets, the wave and the agen
 test("a ticket agent's text is unchanged by the bundle case", () => {
   assert.equal(
     MESSAGES.turnEnded(subject, { kind: "completed" }),
-    "Turn ended: ticket 07 of wave 1, agent tkt-7, outcome completed.
-Next: check ticket 07's report with get_agent_activity and its artifacts (commits on its branch, ticket status); prompt agent tkt-7 when the report is incomplete.",
+    "Turn ended: ticket 07 of wave 1, agent tkt-7, outcome completed.\nNext: check ticket 07's report with get_agent_activity and its artifacts (commits on its branch, ticket status); prompt agent tkt-7 when the report is incomplete.",
   );
   assert.equal(
     MESSAGES.created(subject),
-    "Agent created: ticket 07 of wave 1, agent tkt-7.
-Next: carry on with the wave while ticket 07's turn end and any pending permission reach you as messages.",
+    "Agent created: ticket 07 of wave 1, agent tkt-7.\nNext: carry on with the wave while ticket 07's turn end and any pending permission reach you as messages.",
   );
 });
 
 test("combine joins a bundle agent's message with a ticket agent's, one `Next:` line holding both sets of moves", () => {
   const text = combine([MESSAGES.turnEnded(bundle, { kind: "completed" }), MESSAGES.turnEnded(subject, { kind: "completed" })]);
-  assert.equal(text.split("
-Next: ").length, 2);
+  assert.equal(text.split("\nNext: ").length, 2);
   assert.match(text, /bundle 70's report/);
   assert.match(text, /ticket 07's report/);
 });
@@ -330,5 +326,41 @@ test("the turn-end Stall suspected line names the hung-agent table for a ticket 
 test("no Stall suspected line tells the orchestrator to prompt an agent that may still be in a call (#48)", () => {
   for (const text of [MESSAGES.stallSuspected(subject, ["x"]), MESSAGES.stallSuspected(bundle, ["x"]), MESSAGES.stallSuspected(stream, ["x"])]) {
     assert.doesNotMatch(nextLineOf(text) ?? "", /prompt agent/, text);
+  }
+});
+
+test("a running ticket agent's Stall suspected names the ticket and its agent and never offers a prompt (#49)", () => {
+  assert.equal(
+    MESSAGES.stallSuspected(subject, [QUIET], "running"),
+    "Stall suspected: ticket 07 of wave 1, agent tkt-7, the sensor flagged: its turn has run 30 minutes with no new activity.\n" +
+      "Next: judge whether ticket 07 is stalled: read agent tkt-7's recent activity with get_agent_activity; " +
+      "when agent tkt-7 is hung on a shell command or on no tool call, replace it within the restart budget under the wave skill's hung-agent table, and never prompt it, since a prompt queues behind the stuck call; " +
+      "leave ticket 07 alone when agent tkt-7 runs a subagent or another long tool.",
+  );
+});
+
+test("a running bundle agent's Stall suspected names the bundle, its tickets and its agent, and never offers a prompt (#49)", () => {
+  assert.equal(
+    MESSAGES.stallSuspected(bundle, [QUIET], "running"),
+    "Stall suspected: bundle 70 (tickets 70,71) of wave 1, agent bnd-7, the sensor flagged: its turn has run 30 minutes with no new activity.\n" +
+      "Next: judge whether bundle 70 is stalled: read agent bnd-7's recent activity with get_agent_activity; " +
+      "when agent bnd-7 is hung on a shell command or on no tool call, replace it within the restart budget under the wave skill's hung-agent table, and never prompt it, since a prompt queues behind the stuck call; " +
+      "leave bundle 70 alone when agent bnd-7 runs a subagent or another long tool.",
+  );
+});
+
+test("a ticket or bundle Stall suspected with no `on` stays the turn-end text, and `turn end` says the same (#49)", () => {
+  for (const who of [subject, bundle]) {
+    assert.equal(MESSAGES.stallSuspected(who, ["x"], "turn end"), MESSAGES.stallSuspected(who, ["x"]));
+    assert.notEqual(MESSAGES.stallSuspected(who, ["x"], "running"), MESSAGES.stallSuspected(who, ["x"]));
+  }
+  assert.equal(MESSAGES.stallSuspected(stream, ["x"], "running"), MESSAGES.stallSuspected(stream, ["x"]));
+});
+
+test("every running Stall suspected move names its agent and its ticket or bundle, and none offers a prompt (#49)", () => {
+  for (const [who, name] of [[subject, /ticket 07/], [bundle, /bundle 70/]] as const) {
+    const text = MESSAGES.stallSuspected(who, ["x"], "running");
+    assert.doesNotMatch(nextLineOf(text) ?? "", /prompt agent|prompted/);
+    for (const move of movesOf(text)) assert.match(move, new RegExp(`${name.source}|${who.agentId}`), `"${move}" names the ticket or bundle, or the agent`);
   }
 });

@@ -106,6 +106,13 @@ const AFTER_QUIET_TURN = (s: TicketSubject): string[] => [
   `leave ${named(s)} alone when its agent is working`,
 ];
 
+/** The moves open after a running ticket or bundle agent has been quiet too long: it may be hung in a call, so it is replaced, never prompted. */
+const WHILE_TICKET_RUNS = (s: TicketSubject): string[] => [
+  `judge whether ${named(s)} is stalled: read agent ${s.agentId}'s recent activity with get_agent_activity`,
+  `when agent ${s.agentId} is hung on a shell command or on no tool call, replace it within the restart budget under the wave skill's hung-agent table, and never prompt it, since a prompt queues behind the stuck call`,
+  `leave ${named(s)} alone when agent ${s.agentId} runs a subagent or another long tool`,
+];
+
 /** The moves open after a running stream agent has been quiet too long: it may be hung in a call, so it is replaced, never prompted. */
 const WHILE_RUNNING = (s: StreamSubject): string[] => [
   `judge whether stream ${s.stream} is stalled: read agent ${s.agentId}'s recent activity with get_agent_activity`,
@@ -160,8 +167,13 @@ export const MESSAGES = {
       `read what the user typed to agent ${subject.agentId} with get_agent_activity`,
       `record in ${named(subject)}'s report that the user spoke to it, and whether it changed the plan`,
     ]),
-  stallSuspected: (subject: Relayed, says: readonly string[]) =>
-    message("Stall suspected", subject, `the sensor flagged: ${says.join("; ")}`, isStream(subject) ? WHILE_RUNNING(subject) : AFTER_QUIET_TURN(subject)),
+  stallSuspected: (subject: Relayed, says: readonly string[], on?: "turn end" | "running") =>
+    message(
+      "Stall suspected",
+      subject,
+      `the sensor flagged: ${says.join("; ")}`,
+      isStream(subject) ? WHILE_RUNNING(subject) : on === "running" ? WHILE_TICKET_RUNS(subject) : AFTER_QUIET_TURN(subject),
+    ),
   gateCapPassed: (subject: TicketSubject, cap: number, running: number) =>
     message("Gate cap passed", subject, `${running} ticket agents run against a cap of ${cap} concurrent gates`, [
       `hold every ready ticket after ${named(subject)} in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than ${cap} running`,

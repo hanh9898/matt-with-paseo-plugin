@@ -91,6 +91,8 @@ export const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
   stallSuspected: {
     stallSuspected: MESSAGES.stallSuspected(SUBJECT, ["zz-says"]),
     bundle: MESSAGES.stallSuspected(BUNDLE, ["zz-says"]),
+    "ticket running": MESSAGES.stallSuspected(SUBJECT, ["zz-says"], "running"),
+    "bundle running": MESSAGES.stallSuspected(BUNDLE, ["zz-says"], "running"),
     "stream running": MESSAGES.stallSuspected(STREAM, ["zz-says"]),
   },
   gateCapPassed: { gateCapPassed: MESSAGES.gateCapPassed(SUBJECT, 77, 99), bundle: MESSAGES.gateCapPassed(BUNDLE, 77, 99) },

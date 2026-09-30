@@ -147,6 +147,36 @@ test("the contract holds the stream agent's running Stall suspected row, with th
   assert.doesNotMatch(stall?.cases.get("stream running")?.next ?? "", /prompt agent/);
 });
 
+test("the contract holds the ticket and bundle running Stall suspected rows, named in the stream row's style (#49)", () => {
+  const stall = parseContract(contract).messages.find((message) => message.type === "stallSuspected");
+  assert.deepEqual([...(stall?.cases.keys() ?? [])].sort(), ["bundle", "bundle running", "stallSuspected", "stream running", "ticket running"]);
+  assert.equal(stall?.cases.get("ticket running")?.body, "Stall suspected: ticket <ticket> of wave <wave>, agent <agent>, the sensor flagged: <says>.");
+  assert.equal(
+    stall?.cases.get("bundle running")?.body,
+    "Stall suspected: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, the sensor flagged: <says>.",
+  );
+  for (const name of ["ticket running", "bundle running"]) {
+    const next = stall?.cases.get(name)?.next ?? "";
+    assert.match(next, /never prompt it, since a prompt queues behind the stuck call/, name);
+    assert.match(next, /within the restart budget under the wave skill's hung-agent table/, name);
+    assert.doesNotMatch(next, /prompt agent/, name);
+  }
+  assert.match(contract, /^Contract version: 1$/m);
+});
+
+test("the contract's relay paragraph says a ticket agent's stall comes from its turn end or from the tick (#49)", () => {
+  const relay = /^The relay covers .*$/m.exec(contract)?.[0] ?? "";
+  assert.match(relay, /ticket agent's stall[^.]*turn end[^.]*tick|ticket agent's stall[^.]*tick[^.]*turn end/i);
+  assert.match(/^The ticket and bundle rows come from .*$/m.exec(contract)?.[0] ?? "", /tick/);
+});
+
+test("ADR 0003 holds the running ticket-agent stall under what v1 holds, and cites #49 (#49)", () => {
+  const adr = read("docs/adr/0003-the-contract-between-the-plugin-and-the-skills.md");
+  const holds = /^- \*\*What v1 holds:\*\*.*$/m.exec(adr)?.[0] ?? "";
+  assert.match(holds, /ticket agent's running[^.]*Stall suspected|running ticket agent/i);
+  assert.match(holds, /#49/);
+});
+
 test("no Stall suspected row of the contract tells the orchestrator to prompt an agent (#48)", () => {
   const stall = parseContract(contract).messages.find((message) => message.type === "stallSuspected");
   assert.ok((stall?.cases.size ?? 0) >= 3, "the ticket, bundle and stream rows");
@@ -167,7 +197,7 @@ test("the contract's relay paragraph and its v1 leaves-out no longer keep stall 
 
 test("ADR 0003 holds the stream agent's running stall and the reworded Next lines under what v1 holds, and cites #48 (#48)", () => {
   const adr = read("docs/adr/0003-the-contract-between-the-plugin-and-the-skills.md");
-  const holds = /^- **What v1 holds:**.*$/m.exec(adr)?.[0] ?? "";
+  const holds = /^- \*\*What v1 holds:\*\*.*$/m.exec(adr)?.[0] ?? "";
   assert.match(holds, /Stall suspected/);
   assert.match(holds, /tick/);
   assert.match(holds, /hung-agent table/);
@@ -194,7 +224,8 @@ test("the contract holds the bundle agent's rows of each of the seven ticket-age
   assert.deepEqual(cases("turnEnded"), ["bundle canceled", "bundle completed", "bundle failed"]);
   assert.deepEqual(cases("permissionRequested"), ["bundle question", "bundle tool"]);
   assert.deepEqual(cases("archived"), ["bundle archived"]);
-  for (const type of ["created", "humanWords", "stallSuspected", "gateCapPassed"]) assert.deepEqual(cases(type), ["bundle"], `${type} has a bundle row`);
+  for (const type of ["created", "humanWords", "gateCapPassed"]) assert.deepEqual(cases(type), ["bundle"], `${type} has a bundle row`);
+  assert.deepEqual(cases("stallSuspected"), ["bundle", "bundle running"], "stallSuspected has a bundle row and a bundle running row (#49)");
   for (const type of ["turnEnded", "permissionRequested", "created", "archived", "humanWords", "stallSuspected", "gateCapPassed"]) {
     const fields = doc.messages.find((message) => message.type === type)?.fields ?? [];
     assert.ok(fields.includes("bundle") && fields.includes("tickets"), `${type} lists the bundle and tickets fields`);

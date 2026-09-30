@@ -9,11 +9,11 @@ import { type Condition, factsOf, flagged, loadConditions, quietMinutesOf, type 
  * only when one is flagged. A turn that flags nothing sends nothing; the orchestrator's stall judgement, in the
  * wave skill, reads a transcript only for the case it is sent.
  *
- * A stream agent stuck in a call has no turn end, so the host port's clock covers it: the sensor records each stream
- * agent that has a parent when a hook fires for it, or for an agent whose parent is a stream agent, and forgets it at
- * its archive. At each tick it checks the `"running"` conditions for every recorded agent the host reports running,
- * and flags an idle stretch once: the `lastActivityAt` it flagged is kept, and the same value is not flagged again.
- * The recorded agents sit in one map keyed by agent id, so a later ticket can add ticket agents without a second clock.
+ * A stream, ticket or bundle agent stuck in a call has no turn end, so the host port's clock covers it: the sensor
+ * records each such agent that has a parent when a hook fires for it, or for an agent whose parent is a stream agent,
+ * and forgets it at its archive. At each tick it checks the `"running"` conditions for every recorded agent the host
+ * reports running, and flags an idle stretch once: the `lastActivityAt` it flagged is kept, and the same value is not
+ * flagged again. The recorded agents sit in one map keyed by agent id, so the one clock serves all three roles.
  *
  * A ticket agent is recognised by its labels, `wave` and `ticket`, a bundle agent by `wave`, `bundle` and
  * `tickets`; any other agent is left alone (T3), and one with no `parentAgentId` has nobody to tell. The sensor fails open (T4): conditions that cannot be loaded, or a
@@ -67,13 +67,18 @@ export function registerStallSensor(hooks: HostHooks, conditions?: readonly Cond
     return isStreamAgent(labels) && stream !== undefined ? { agentId, stream } : null;
   }
 
-  /** Records the stream agent a hook fires for, or whose child it fires for; it fails open (T4), so a hook's own work goes on. */
+  /** A ticket agent, bundle agents included, or a stream agent: the agents the tick watches. */
+  async function watchedSubjectOf(agentId: string, host: Host): Promise<Relayed | null> {
+    return (await subjectOf(agentId, host)) ?? (await streamSubjectOf(agentId, host));
+  }
+
+  /** Records the ticket, bundle or stream agent a hook fires for, or the stream agent whose child it fires for; it fails open (T4), so a hook's own work goes on. */
   async function watch(agent: HostAgent, host: Host): Promise<void> {
     try {
       const parent = agent.parentAgentId;
       if (parent === null) return;
       if (!watched.has(agent.id)) {
-        const subject = await streamSubjectOf(agent.id, host);
+        const subject = await watchedSubjectOf(agent.id, host);
         if (subject !== null) watched.set(agent.id, { subject, orchestrator: parent });
       }
       if (!watched.has(parent)) {
@@ -102,7 +107,7 @@ export function registerStallSensor(hooks: HostHooks, conditions?: readonly Cond
         tickStreaks.set(agentId, agentStreaks);
         const flags = flagged(checks, { quietMinutes }, agentStreaks, "running");
         if (flags.length === 0) continue;
-        await tell(orchestrator, MESSAGES.stallSuspected(subject, flags.map((condition) => condition.says)), host);
+        await tell(orchestrator, MESSAGES.stallSuspected(subject, flags.map((condition) => condition.says), "running"), host);
         flaggedAt.set(agentId, lastActivityAt);
       } catch {
         // A host that cannot answer for this agent skips it for this tick (T4).
