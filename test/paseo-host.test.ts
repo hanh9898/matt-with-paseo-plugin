@@ -231,6 +231,25 @@ test("the waiting-count query is served over the plugin's RPC and answers zero w
   }
 });
 
+test("the waiting-count query carries the budget's state when one is served, and false when its handler throws (T4)", async () => {
+  const { server, fire } = stubServer();
+  const { paseo } = stubPaseo();
+  const log = mock.method(console, "error", () => {});
+  try {
+    const hooks = connectPaseo(server);
+    hooks.serveWaitingCount(() => 2);
+    hooks.serveBudgetSpent((agentId) => {
+      if (agentId === "broken") throw new Error("boom");
+      return true;
+    });
+    assert.deepEqual(await fire("rpc:waiting.count", { agentId: "orchestrator" }, { paseo }), { count: 2, budgetSpent: true });
+    assert.deepEqual(await fire("rpc:waiting.count", { agentId: "broken" }, { paseo }), { count: 2, budgetSpent: false });
+    assert.match(String(log.mock.calls[0]?.arguments[0]), /waiting\.count/);
+  } finally {
+    log.mock.restore();
+  }
+});
+
 const openRequest = { agentId: "worker", workspaceId: "w", provider: "claude", cwd: "/repo", reason: "resume", purpose: "interactive", env: { KEPT: "yes" } };
 
 test("beforeSessionOpen registers the agent.session_open hook and returns the request with the handler's environment", async () => {

@@ -72,6 +72,7 @@ export const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
   humanWords: { humanWords: MESSAGES.humanWords(SUBJECT, ["zz-m1", "zz-m2"]) },
   stallSuspected: { stallSuspected: MESSAGES.stallSuspected(SUBJECT, ["zz-says"]) },
   gateCapPassed: { gateCapPassed: MESSAGES.gateCapPassed(SUBJECT, 77, 99) },
+  questionBudgetSpent: { questionBudgetSpent: MESSAGES.questionBudgetSpent(88, 66) },
 };
 
 const PLACEHOLDERS: readonly (readonly [RegExp, string])[] = [
@@ -87,6 +88,8 @@ const PLACEHOLDERS: readonly (readonly [RegExp, string])[] = [
   [/\b2 messages\b/g, "<n> messages"],
   [/\b77\b/g, "<cap>"],
   [/\b99\b/g, "<running>"],
+  [/\b88 questions\b/g, "<count> questions"],
+  [/\b66\b/g, "<budget>"],
 ];
 
 /** A text the messages module built, split into its body and its `Next:` line, with its ids written as placeholders. */

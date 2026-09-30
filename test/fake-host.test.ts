@@ -171,3 +171,16 @@ test("with no beforeSessionOpen handler the environment is unchanged", async () 
   const host = new FakeHost();
   assert.deepEqual((await host.openSession({ agentId: "worker", env: { A: "b" } })).env, { A: "b" });
 });
+
+test("the fake serves the budget's state to the pill's read, false when none is served or the handler throws (T4)", async () => {
+  const host = new FakeHost();
+  assert.deepEqual(await host.pill("a"), { count: 0, budgetSpent: false });
+  host.serveWaitingCount(() => 3);
+  host.serveBudgetSpent(() => true);
+  assert.deepEqual(await host.pill("a"), { count: 3, budgetSpent: true });
+  host.serveBudgetSpent(() => {
+    throw new Error("boom");
+  });
+  assert.deepEqual(await host.pill("a"), { count: 3, budgetSpent: false });
+  assert.equal(host.failures.length, 1);
+});
