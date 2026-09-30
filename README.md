@@ -257,7 +257,7 @@ What it does not do:
 - The `tool_call` item type and the `text` and `name` fields it reads are those of Paseo `0.10.1`'s timeline as read, not run; the smoke test ("Cheap sensor") confirms them.
 - No eval case is written: `claude plugin eval` runs a Claude Code plugin's prompts, and this repository's Claude Code plugin holds one `PreToolUse` hook and no skill, so no eval prompt can reach the sensor, which lives in the Paseo plugin. The proof that a stalled agent is still caught is `test/hooks/stall-sensor.test.ts`, on the fake host, and the smoke test on a real one.
 
-The checks are `test/sensor.test.ts`, `test/hooks/stall-sensor.test.ts` and `test/sensor-docs.test.ts`. `sensor/` is listed in `files` in `package.json`, and `loadConditions` reads it at run time from `new URL("../sensor/conditions.json", import.meta.url)`; whether that resolves in the daemon's compiled bundle is not verified yet (the same open point as `harness/`).
+The checks are `test/sensor.test.ts`, `test/hooks/stall-sensor.test.ts` and `test/sensor-docs.test.ts`. `sensor/` is listed in `files` in `package.json`, and `loadConditions` reads the copy in `server/data/conditions.json`, which the daemon builds into the plugin (it builds only files under `client/`, `server/` and `shared/`, and `import.meta.url` is `undefined` in its server bundle); `test/sensor.test.ts` keeps the copy equal to `sensor/conditions.json`, as `test/cost-levels.test.ts` and `test/harness.test.ts` do for `presets/` and `harness/`.
 
 ### The gate cap
 
