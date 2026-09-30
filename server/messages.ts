@@ -15,7 +15,7 @@ export type Subject = { agentId: string; wave: string; ticket: string };
 type RequestHead = Pick<PermissionRequest, "id" | "name" | "kind">;
 
 const NEXT = "\nNext: ";
-/** Separates the moves on a `Next:` line, so a move never holds it. Each move names its ticket: `combine` may join several messages' moves. */
+/** Separates the moves on a `Next:` line, so a move never holds it. Each move of a ticket message names its ticket: `combine` may join several messages' moves. */
 const MOVES = "; ";
 
 /** One message: the words that lead, then the ticket agent it speaks of, then the detail when there is one, then the moves. */

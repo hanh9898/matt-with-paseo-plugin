@@ -101,19 +101,29 @@ export function registerQuestionBudget(hooks: HostHooks, options: BudgetOptions 
     const budget = budgetOf(env);
     const owner = budget !== null && record.count >= budget && !record.notified ? ownerOf(agent, labels) : null;
     if (owner !== null) record.notified = true;
-    try {
-      store.save(record);
-    } catch (error) {
-      console.error(`[matt-with-paseo] question budget not saved for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    save(record, agent.id);
     if (owner === null || budget === null) return;
 
     const text = MESSAGES.questionBudgetSpent(record.count, budget);
-    if (await host.isRunning(owner)) {
-      held.set(owner, [...(held.get(owner) ?? []), text]);
-      return;
+    try {
+      // A host that cannot say who runs counts the orchestrator as idle, so the message goes out.
+      const running = await host.isRunning(owner).catch(() => false);
+      if (running) held.set(owner, [...(held.get(owner) ?? []), text]);
+      else await host.send(owner, text);
+    } catch (error) {
+      // Untold: the next question tries again, rather than losing the message for the day.
+      record.notified = false;
+      save(record, agent.id);
+      throw error;
     }
-    await host.send(owner, text);
+  }
+
+  function save(record: BudgetRecord, agentId: string): void {
+    try {
+      store.save(record);
+    } catch (error) {
+      console.error(`[matt-with-paseo] question budget not saved for agent ${agentId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   hooks.onTurnEnded(async ({ agent }, host) => {

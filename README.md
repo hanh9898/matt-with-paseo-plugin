@@ -82,7 +82,7 @@ npm run check
 
 Only `server/paseo-host.ts` imports `@getpaseo/plugin`; a handler imports `server/host.ts` and nothing from the SDK.
 
-A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onPermissionResolved`, `hooks.onCreated`, `hooks.onArchived`, `hooks.beforeCreate` or `hooks.beforeSessionOpen`, and each callback receives `(event, host)`. `hooks.serveWaitingCount` answers the composer pill's question. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
+A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onPermissionResolved`, `hooks.onCreated`, `hooks.onArchived`, `hooks.beforeCreate` or `hooks.beforeSessionOpen`, and each callback receives `(event, host)`. `hooks.serveWaitingCount` answers the composer pill's question, and `hooks.serveBudgetSpent` adds whether the day's question budget is spent. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
 
 ```ts
 // server/hooks/relay.ts
