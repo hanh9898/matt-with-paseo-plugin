@@ -4,9 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, URL } from "node:url";
+import * as sensorModule from "../server/sensor.ts";
 import { factsOf, flagged, loadConditions, modelSlots, type Condition, type Streaks } from "../server/sensor.ts";
 
 const shipped = loadConditions();
+
+test("the default conditions are embedded in the module, equal the file, and no path to the file is exported (#52)", () => {
+  assert.equal("CONDITIONS_FILE" in sensorModule, false, "no exported path built from import.meta.url");
+  const onDisk = JSON.parse(readFileSync(fileURLToPath(new URL("../sensor/conditions.json", import.meta.url)), "utf8"));
+  assert.deepEqual(shipped, onDisk.conditions);
+});
 
 function inTempFile(text: string): { file: string; done(): void } {
   const dir = mkdtempSync(join(tmpdir(), "mwp-sensor-"));
