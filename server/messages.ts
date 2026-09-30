@@ -25,7 +25,7 @@ function isStream(subject: Relayed): subject is StreamSubject {
 type RequestHead = Pick<PermissionRequest, "id" | "name" | "kind">;
 
 const NEXT = "\nNext: ";
-/** Separates the moves on a `Next:` line, so a move never holds it. Each move names its ticket or stream: `combine` may join several messages' moves. */
+/** Separates the moves on a `Next:` line, so a move never holds it. Each move of a ticket or stream message names its ticket or stream: `combine` may join several messages' moves. */
 const MOVES = "; ";
 
 /** One message: the words that lead, then the agent it speaks of, then the detail when there is one, then the moves. */
@@ -147,6 +147,11 @@ export const MESSAGES = {
     ];
     return `${body}${NEXT}${moves.join(MOVES)}.`;
   },
+  questionBudgetSpent: (count: number, budget: number) =>
+    `Question budget spent: ${count} question${count === 1 ? "" : "s"} reached the user today against a budget of ${budget}.${NEXT}${[
+      "keep asking the questions only the user can answer: the plugin still leaves each one to them",
+      "decide nothing extra on the budget's account: the delegation table alone says what you may decide",
+    ].join(MOVES)}.`,
   archived: (subject: Relayed) =>
     message(
       "Agent archived",

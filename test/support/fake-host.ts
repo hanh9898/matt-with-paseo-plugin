@@ -41,6 +41,7 @@ export class FakeHost implements Host, HostHooks {
   private readonly beforeCreates: BeforeCreate[] = [];
   private readonly beforeSessionOpens: BeforeSessionOpen[] = [];
   private waitingCounter: ((agentId: string) => number | Promise<number>) | null = null;
+  private budgetSpentServer: ((agentId: string) => boolean | Promise<boolean>) | null = null;
 
   /** Sets the labels `labelsOf` reports for an agent. */
   setLabels(agentId: string, labels: Record<string, string>): void {
@@ -87,6 +88,10 @@ export class FakeHost implements Host, HostHooks {
     this.waitingCounter = handler;
   }
 
+  serveBudgetSpent(handler: (agentId: string) => boolean | Promise<boolean>): void {
+    this.budgetSpentServer = handler;
+  }
+
   beforeCreate(handler: BeforeCreate): void {
     this.beforeCreates.push(handler);
   }
@@ -123,6 +128,18 @@ export class FakeHost implements Host, HostHooks {
     } catch (error) {
       this.failures.push({ hook: "waiting.count", error });
       return 0;
+    }
+  }
+
+  /** What the composer pill would read: the served count and whether the budget is spent; false when none is served or its handler throws (T4). */
+  async pill(agentId: string): Promise<{ count: number; budgetSpent: boolean }> {
+    const count = await this.waitingCount(agentId);
+    if (this.budgetSpentServer === null) return { count, budgetSpent: false };
+    try {
+      return { count, budgetSpent: await this.budgetSpentServer(agentId) };
+    } catch (error) {
+      this.failures.push({ hook: "waiting.count", error });
+      return { count, budgetSpent: false };
     }
   }
 

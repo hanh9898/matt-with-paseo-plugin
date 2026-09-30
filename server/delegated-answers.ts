@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isStreamAgent, isTicketAgent } from "../shared/role-labels.ts";
 import { type DecidableDoor, type Delegation, readDelegation } from "../shared/delegation.ts";
-import type { HostHooks } from "./host.ts";
+import type { Host, HostAgent, HostHooks, PermissionRequest } from "./host.ts";
 import { readStateFile, writeStateFile } from "./state.ts";
 
 /** The mark the skills put on the first option (`docs/contract.md`, "Checkpoint marks"). */
@@ -69,6 +69,8 @@ export type Reader = {
   /** Whether a stream is past its appetite; the appetite handler (`server/appetite.ts`) supplies it, and none is past when it is left out. */
   pastAppetite?: (stream: string) => boolean;
   now?: () => string;
+  /** Told of each question this handler leaves to the user, once, after the agent's role is known; the question budget (#39) counts them. It never changes what the handler answers. */
+  left?: (left: { agent: HostAgent; request: PermissionRequest; labels: Record<string, string> }, host: Host) => void | Promise<void>;
 };
 
 const RECORD_FILE = "delegated-answers.jsonl";
@@ -102,6 +104,7 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
   const record = reader.record ?? appendRecord;
   const pastAppetite = reader.pastAppetite ?? (() => false);
   const now = reader.now ?? (() => new Date().toISOString());
+  const left = reader.left;
   /** The requests settled per agent: resolved by anyone, or answered here. */
   const settled = new Map<string, Set<string>>();
 
@@ -117,14 +120,29 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
 
   hooks.onPermissionRequested(async ({ agent, request }, host) => {
     if (request.kind !== "question" || request.name !== "AskUserQuestion") return;
+    /** The labels of a recognised agent, once known: a question that stays the user's is told to `left` from then on. */
+    let known: Record<string, string> | null = null;
+    /** Tells `left` that the question stays the user's, unless the request is settled meanwhile; `left` never throws into the answer. */
+    async function leave(): Promise<void> {
+      if (left === undefined || known === null || settled.get(agent.id)?.has(request.id)) return;
+      try {
+        await left({ agent, request, labels: known }, host);
+      } catch (error) {
+        console.error(`[matt-with-paseo] question left to the user not told for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     try {
       const labels = await host.labelsOf(agent.id);
       if (!isTicketAgent(labels) && !isStreamAgent(labels)) return;
+      known = labels;
       if (settled.get(agent.id)?.has(request.id)) return;
       const stream = labels["stream"] ?? "";
       const text = await readTable(agent.cwd);
       const decision = decideAnswers(text === null ? null : readDelegation(text), request.input, { pastAppetite: pastAppetite(stream) });
-      if (!("answers" in decision)) return;
+      if (!("answers" in decision)) {
+        await leave();
+        return;
+      }
       if (settled.get(agent.id)?.has(request.id)) return;
       settle(agent.id, request.id);
       await host.respondToPermission(agent.id, request.id, {
@@ -140,6 +158,7 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
     } catch (error) {
       const cause = error instanceof Error ? error.message : String(error);
       console.error(`[matt-with-paseo] delegated answer left to the user for agent ${agent.id}: ${cause}`);
+      await leave();
     }
   });
 }

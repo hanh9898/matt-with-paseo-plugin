@@ -82,6 +82,7 @@ export const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
     passed: MESSAGES.appetitePassed("zz-stream", 123.45, 100, false),
     partial: MESSAGES.appetitePassed("zz-stream", 123.45, 100, true),
   },
+  questionBudgetSpent: { questionBudgetSpent: MESSAGES.questionBudgetSpent(88, 66) },
 };
 
 const PLACEHOLDERS: readonly (readonly [RegExp, string])[] = [
@@ -101,6 +102,8 @@ const PLACEHOLDERS: readonly (readonly [RegExp, string])[] = [
   [/zz-stream/g, "<stream>"],
   [/123\.45/g, "<spent>"],
   [/100\.00/g, "<appetite>"],
+  [/\b88 questions\b/g, "<count> questions"],
+  [/\b66\b/g, "<budget>"],
 ];
 
 /** A text the messages module built, split into its body and its `Next:` line, with its ids written as placeholders. */

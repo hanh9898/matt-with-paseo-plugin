@@ -21,9 +21,13 @@ export const PLAIN_LABELS: Record<string, string> = {
   "ship rules": "publishing settings",
 };
 
+/** Said beside the count once the day's question budget is spent; the questions still come. */
+const BUDGET_SPENT = "daily question limit reached";
+
 export const PILL = {
   id: "waiting",
   title: "Waiting for you",
   icon: "Hourglass",
-  label: (count: number): string => `${count} waiting`,
+  label: (count: number, budgetSpent = false): string =>
+    budgetSpent ? `${count} waiting, ${BUDGET_SPENT}` : `${count} waiting`,
 };

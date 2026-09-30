@@ -22,7 +22,7 @@ export interface PillClient {
       subscribe(handler: (update: PillUpdate) => void): () => void;
     };
   };
-  rpc(contract: typeof waitingCount, input: { agentId: string }): Promise<{ count: number }>;
+  rpc(contract: typeof waitingCount, input: { agentId: string }): Promise<{ count: number; budgetSpent?: boolean }>;
   addComposerPill(contribution: {
     id: string;
     workspaceId: string;
@@ -40,7 +40,7 @@ export interface PillClient {
 /**
  * The composer pill: a button in each agent's composer that counts what waits for the user in that chat. It
  * stays hidden at zero, so an agent with nothing pending looks as Paseo made it (T3). The count comes from the
- * daemon (`waiting.count`) and is read again whenever an agent changes, on a timer, and when the pill is pressed.
+ * daemon (`waiting.count`), with whether the day's question budget is spent, and is read again whenever an agent changes, on a timer, and when the pill is pressed.
  */
 export function contributeWaitingPill(client: PillClient): () => void {
   const pills = new Map<string, { registration: PillRegistration; reads: number }>();
@@ -51,10 +51,10 @@ export function contributeWaitingPill(client: PillClient): () => void {
     pill.reads += 1;
     const read = pill.reads;
     try {
-      const { count } = await client.rpc(waitingCount, { agentId });
+      const { count, budgetSpent } = await client.rpc(waitingCount, { agentId });
       // A newer read, or a removed pill, makes this reply stale.
       if (pills.get(agentId) !== pill || pill.reads !== read) return;
-      pill.registration.update({ label: PILL.label(count), visible: count > 0 });
+      pill.registration.update({ label: PILL.label(count, budgetSpent === true), visible: count > 0 });
     } catch (error) {
       const cause = error instanceof Error ? error.message : String(error);
       console.error(`[matt-with-paseo] pill read failed for agent ${agentId}: ${cause}`);

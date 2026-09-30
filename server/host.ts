@@ -104,6 +104,8 @@ export interface HostHooks {
   onPermissionResolved(handler: Handler<PermissionResolvedEvent>): void;
   /** Serves the composer pill's question, "how many things wait for the user in this agent's chat"; a handler that throws answers zero (T4). */
   serveWaitingCount(handler: (agentId: string) => number | Promise<number>): void;
+  /** Serves whether the day's question budget is spent, for the pill's read of one agent's chat; a handler that throws answers false (T4). */
+  serveBudgetSpent(handler: (agentId: string) => boolean | Promise<boolean>): void;
   beforeCreate(
     handler: (request: CreateRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>,
   ): void;
