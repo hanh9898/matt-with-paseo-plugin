@@ -38,6 +38,8 @@ const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
   stallSuspected: { one: MESSAGES.stallSuspected(subject, ["the turn ended in failure"]) },
   gateCapPassed: { one: MESSAGES.gateCapPassed(subject, 4, 5) },
   questionBudgetSpent: { one: MESSAGES.questionBudgetSpent(4, 4) },
+  // The partial case differs from this one in its body only, and no two cases share a `Next:` line.
+  appetitePassed: { passed: MESSAGES.appetitePassed("demo", 6, 5, false) },
 };
 
 /** The `Next:` line of a text: its last line, or null when the last line is anything else. */
@@ -60,8 +62,8 @@ test("every message type ends with one `Next:` line that names the moves open to
       assert.equal(text.split("\n").filter((line) => line.startsWith("Next:")).length, 1, `${type} (${name}) has one`);
       assert.ok(next.length > "Next: .".length, `${type} (${name}) names a move`);
       assert.ok(next.endsWith("."), `${type} (${name}) ends its line with a full stop`);
-      // The budget is the machine's, not one ticket's: its moves name no ticket.
-      assert.ok(type === "questionBudgetSpent" || next.includes("07"), `${type} (${name}) names the ticket its moves are about`);
+      // The budget is the machine's and the appetite the stream's, not one ticket's: their moves name no ticket.
+      assert.ok(type === "questionBudgetSpent" || type === "appetitePassed" || next.includes("07"), `${type} (${name}) names the ticket its moves are about`);
     }
   }
 });
