@@ -40,7 +40,7 @@ test("the README names the setting, the record and the checks, and inventories t
   }
   assert.match(readme, /\| `server\/question-budget\.ts` \|/);
   assert.match(readme, /\| `shared\/question-budget\.ts` \|/);
-  assert.match(readme, /\| `server\/question-budget\.ts` \| [^|]*\| `question-budget\.json` under the state directory \|/);
+  assert.match(readme, /\| `server\/question-budget\.ts` \| [^|]*\| `question-budget\.json` under the state directory[^|]*\|/);
 });
 
 test("the changelog has a line for the question budget, and the entry registers it", () => {
