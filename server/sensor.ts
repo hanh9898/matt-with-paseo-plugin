@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import shippedConditions from "../sensor/conditions.json" with { type: "json" };
+import shippedConditions from "./data/conditions.json" with { type: "json" };
 
 /**
  * The cheap sensor in front of the orchestrator's stall judgement: conditions kept as data
@@ -85,8 +85,9 @@ function problemsOf(raw: unknown): string[] {
 }
 
 /**
- * The conditions in `file`, or with no `file` the shipped `sensor/conditions.json`, embedded when the daemon builds the
- * plugin (`import.meta.url` is `undefined` in its server bundle, so no path to the data can be built).
+ * The conditions in `file`, or with no `file` the shipped conditions, embedded when the daemon builds the
+ * plugin from `server/data/conditions.json`, a copy of `sensor/conditions.json` that `test/sensor.test.ts` keeps equal
+ * (the daemon builds only files under `client/`, `server/` and `shared/`, and `import.meta.url` is `undefined` there).
  * A file that is not JSON or breaks the shape throws, naming what is wrong.
  */
 export function loadConditions(file?: string): readonly Condition[] {

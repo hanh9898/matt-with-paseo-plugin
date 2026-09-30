@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
-import shippedPresets from "../presets/cost-levels.json" with { type: "json" };
+import shippedPresets from "./data/cost-levels.json" with { type: "json" };
 import { isCostLevels, problemsOf, type CostLevels } from "../shared/cost-levels.ts";
 
 /**
- * The presets in `file`, or with no `file` the shipped `presets/cost-levels.json`, embedded when the daemon builds the
- * plugin (`import.meta.url` is `undefined` in its server bundle, so no path to the data can be built).
+ * The presets in `file`, or with no `file` the shipped presets, embedded when the daemon builds the
+ * plugin from `server/data/cost-levels.json`, a copy of `presets/cost-levels.json` that `test/cost-levels.test.ts` keeps equal
+ * (the daemon builds only files under `client/`, `server/` and `shared/`, and `import.meta.url` is `undefined` there).
  * A file that is not JSON or breaks the shape throws, naming the file and the fields.
  */
 export function loadCostLevels(file?: string): CostLevels {

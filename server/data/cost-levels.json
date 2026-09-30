@@ -1,0 +1,32 @@
+{
+  "default": "balanced",
+  "levels": [
+    {
+      "id": "cheap",
+      "says": "the least each role can do its work on: a small model everywhere",
+      "roles": {
+        "stream": { "agent": "claude", "model": "claude-haiku-4-5-20251001" },
+        "wave": { "agent": "claude", "model": "claude-haiku-4-5-20251001" },
+        "ticket": { "agent": "claude", "model": "claude-haiku-4-5-20251001" }
+      }
+    },
+    {
+      "id": "balanced",
+      "says": "a strong model where the plan is made, a mid model where the tickets are worked",
+      "roles": {
+        "stream": { "agent": "claude", "model": "claude-opus-5-5" },
+        "wave": { "agent": "claude", "model": "claude-opus-5-5" },
+        "ticket": { "agent": "claude", "model": "claude-sonnet-5-5" }
+      }
+    },
+    {
+      "id": "max",
+      "says": "the strongest model in every role",
+      "roles": {
+        "stream": { "agent": "claude", "model": "claude-fable-5-1" },
+        "wave": { "agent": "claude", "model": "claude-fable-5-1" },
+        "ticket": { "agent": "claude", "model": "claude-opus-5-5" }
+      }
+    }
+  ]
+}

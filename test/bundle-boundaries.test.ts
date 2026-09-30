@@ -122,6 +122,31 @@ test("the scan covers the server entry, the server folder and the shared folder"
   assert.ok(files.some((file) => file.startsWith("shared/")), "a file under shared/ is scanned");
 });
 
+/** Every relative import in the server bundle's files that lands outside `client/`, `server/` and `shared/`: the daemon refuses it. */
+function outsideModulesIn(file: string, text: string): string[] {
+  return specifiersIn(text)
+    .filter((spec) => spec.startsWith("."))
+    .filter((spec) => {
+      const target = posix(relative(root, join(root, dirname(file), spec)));
+      return !["client", "server", "shared"].includes(target.split("/")[0] ?? "");
+    })
+    .map((spec) => `${file} imports ${spec}, outside client/, server/ and shared/`);
+}
+
+test("the outside-module check sees a data file beside the entry and lets one under server/ through", () => {
+  assert.deepEqual(outsideModulesIn("server/a.ts", 'import d from "../sensor/conditions.json" with { type: "json" };'), [
+    "server/a.ts imports ../sensor/conditions.json, outside client/, server/ and shared/",
+  ]);
+  assert.deepEqual(outsideModulesIn("server/a.ts", 'import d from "./data/conditions.json" with { type: "json" };'), []);
+  assert.deepEqual(outsideModulesIn("server/hooks/a.ts", 'import { x } from "../sensor.ts";'), []);
+});
+
+test("every module the server bundle imports is under client/, server/ or shared/: the daemon's build refuses the rest", () => {
+  const outside = serverBundleFiles()
+    .flatMap((file) => outsideModulesIn(file, readFileSync(join(root, file), "utf8")));
+  assert.deepEqual(outside, []);
+});
+
 test("no module the plugin ships uses import.meta.url: the daemon's server bundle has none", () => {
   const uses = serverBundleFiles().filter((file) => IMPORT_META_URL.test(withoutComments(readFileSync(join(root, file), "utf8"))));
   assert.deepEqual(uses, []);

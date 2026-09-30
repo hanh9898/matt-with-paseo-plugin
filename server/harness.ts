@@ -1,12 +1,13 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import claude from "../harness/claude.json" with { type: "json" };
+import claude from "./data/harness/claude.json" with { type: "json" };
 import { isDescriptor, problemsOf, type HarnessDescriptor } from "../shared/harness.ts";
 
 /**
- * The shipped descriptors, one entry per file of `harness/`, embedded when the daemon builds the plugin
- * (`import.meta.url` is `undefined` in its server bundle, so the folder cannot be listed). A file added to `harness/`
- * is added here too; `test/harness.test.ts` fails when the two differ.
+ * The shipped descriptors, one entry per file of `harness/`, embedded when the daemon builds the plugin from
+ * `server/data/harness/`, a copy of `harness/` (the daemon builds only files under `client/`, `server/` and `shared/`,
+ * and `import.meta.url` is `undefined` there, so the folder cannot be listed). A file added to `harness/` is copied and
+ * listed here too; `test/harness.test.ts` fails when the two differ.
  */
 const SHIPPED: Readonly<Record<string, unknown>> = { claude };
 
