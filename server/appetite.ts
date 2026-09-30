@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { addTurn, isPast, parseAppetite, type Spend } from "../shared/appetite.ts";
 import { readDelegation } from "../shared/delegation.ts";
 import { isStreamAgent, isTicketAgent } from "../shared/role-labels.ts";
-import type { Host, HostHooks } from "./host.ts";
+import type { Host, HostAgent, HostHooks } from "./host.ts";
 import { MESSAGES } from "./messages.ts";
 import { readStateFile, writeStateFile } from "./state.ts";
 
@@ -18,6 +18,8 @@ export type Reader = {
   /** The text of the repository's `AGENTS.md` under `cwd`, or null when there is none. */
   readTable?: (cwd: string) => Promise<string | null>;
   store?: Store;
+  /** Told after each turn end of a ticket agent or the stream agent whose cost was summed and kept, so the report card (#41) reads the new total without depending on the order handlers run in. */
+  updated?: (who: { agent: HostAgent; labels: Record<string, string> }, host: Host) => void | Promise<void>;
 };
 
 const RECORD_FILE = "stream-spend.json";
@@ -111,6 +113,11 @@ export function registerAppetite(
     if (tell) spend = { ...spend, notified: true };
     known[stream] = spend;
     store.write(known);
+    try {
+      await reader.updated?.({ agent, labels }, host);
+    } catch (error) {
+      console.error(`[matt-with-paseo] spend update not told for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
+    }
     if (!tell || spend.appetiteUsd === null) return;
 
     const text = MESSAGES.appetitePassed(stream, spend.totalUsd, spend.appetiteUsd, spend.partial);

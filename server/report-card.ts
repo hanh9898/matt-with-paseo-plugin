@@ -1,7 +1,7 @@
 import type { Spend } from "../shared/appetite.ts";
 import { REPORT_CARD } from "../shared/contract.ts";
 import type { Entry } from "./delegated-answers.ts";
-import type { Host, HostAgent, HostHooks, TimelineRow } from "./host.ts";
+import type { Host, HostAgent, TimelineRow } from "./host.ts";
 import { ownerOf } from "./question-budget.ts";
 
 /** What the card shows for one stream: the three records it reads, as the modules keep them. */
@@ -43,14 +43,14 @@ export type ReportCard = {
  * behalf, the stream's spend against its appetite, and the day's question count against the budget. It is
  * appended under one row id, so each change replaces it and the chat holds one card, kept current.
  *
- * The card reads the three records through the modules that keep them and writes none. It refreshes when a
- * delegated answer is recorded (`refresh`, from the delegated answers' `answered`), when a question is left
- * to the user (`refresh`, from `left`), and at each turn end of a ticket agent or the stream agent; register it
- * after the appetite handler so a turn's cost is summed first. It has no buttons: the round trip is unproven
- * (ADR 0001). An agent with no role labels is left alone (T3), and a host that refuses the row logs one line
- * with the agent's id, never a question or an answer (T4, T6).
+ * The card reads the three records through the modules that keep them and writes none. It is refreshed by the
+ * modules that change a record, each through a hook of its own: the delegated answers' `answered` when an
+ * answer is recorded, their `left` when a question is left to the user, and the appetite's `updated` when a turn's
+ * cost is summed, so no refresh depends on the order handlers run in. It has no buttons: the round trip is
+ * unproven (ADR 0001). An agent with no role labels is left alone (T3), and a host that refuses the row logs
+ * one line with the agent's id, never a question or an answer (T4, T6).
  */
-export function registerReportCard(hooks: HostHooks, sources: Sources): ReportCard {
+export function createReportCard(sources: Sources): ReportCard {
   async function refresh({ agent, labels }: { agent: HostAgent; labels: Record<string, string> }, host: Host): Promise<void> {
     try {
       const stream = labels["stream"];
@@ -64,17 +64,6 @@ export function registerReportCard(hooks: HostHooks, sources: Sources): ReportCa
       console.error(`[matt-with-paseo] report card not appended for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-
-  hooks.onTurnEnded(async ({ agent }, host) => {
-    let labels: Record<string, string>;
-    try {
-      labels = await host.labelsOf(agent.id);
-    } catch (error) {
-      console.error(`[matt-with-paseo] report card labels not read for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
-      return;
-    }
-    await refresh({ agent, labels }, host);
-  });
 
   return { refresh };
 }

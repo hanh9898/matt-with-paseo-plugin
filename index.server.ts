@@ -7,7 +7,7 @@ import { registerTicketMarker } from "./server/hooks/ticket-marker.ts";
 import { registerWaitingCount } from "./server/hooks/waiting-count.ts";
 import { connectPaseo, type PaseoServer } from "./server/paseo-host.ts";
 import { registerQuestionBudget } from "./server/question-budget.ts";
-import { registerReportCard } from "./server/report-card.ts";
+import { createReportCard } from "./server/report-card.ts";
 import { budgetOf } from "./shared/question-budget.ts";
 
 export default function contribute(server: PaseoServer) {
@@ -17,9 +17,9 @@ export default function contribute(server: PaseoServer) {
   registerTicketMarker(hooks);
   registerStallSensor(hooks);
   registerGateCap(hooks);
-  const appetite = registerAppetite(hooks);
+  const appetite = registerAppetite(hooks, { updated: (who, host) => card.refresh(who, host) });
   const budget = registerQuestionBudget(hooks);
-  const card = registerReportCard(hooks, {
+  const card = createReportCard({
     decided: readDelegatedAnswers,
     spend: appetite.spendOf,
     questions: () => ({ count: budget.count(), budget: budgetOf(process.env) }),
