@@ -1,6 +1,6 @@
 import { ticketOf } from "../../shared/role-labels.ts";
 import type { Host, HostHooks } from "../host.ts";
-import { combine, MESSAGES, type Subject } from "../messages.ts";
+import { combine, MESSAGES, type TicketSubject } from "../messages.ts";
 import { type Condition, factsOf, flagged, loadConditions, type Seen, type Streaks } from "../sensor.ts";
 
 /**
@@ -9,8 +9,8 @@ import { type Condition, factsOf, flagged, loadConditions, type Seen, type Strea
  * only when one is flagged. A turn that flags nothing sends nothing; the orchestrator's stall judgement, in the
  * wave skill, reads a transcript only for the case it is sent.
  *
- * A ticket agent is recognised by its labels, `wave` and `ticket`; any other agent is left alone (T3), and one
- * with no `parentAgentId` has nobody to tell. The sensor fails open (T4): conditions that cannot be loaded, or a
+ * A ticket agent is recognised by its labels, `wave` and `ticket`, a bundle agent by `wave`, `bundle` and
+ * `tickets`; any other agent is left alone (T3), and one with no `parentAgentId` has nobody to tell. The sensor fails open (T4): conditions that cannot be loaded, or a
  * host that cannot say whether the orchestrator is busy, never stop Paseo's own path; the orchestrator then
  * judges by its own rounds, as it did before the sensor. A message for an orchestrator that is mid-turn is held
  * and goes out, as one, when that orchestrator's turn ends.
@@ -36,7 +36,7 @@ export function registerStallSensor(hooks: HostHooks, conditions?: readonly Cond
     }
   }
 
-  async function subjectOf(agentId: string, host: Host): Promise<Subject | null> {
+  async function subjectOf(agentId: string, host: Host): Promise<TicketSubject | null> {
     const found = ticketOf(await host.labelsOf(agentId));
     return found === null ? null : { agentId, ...found };
   }
