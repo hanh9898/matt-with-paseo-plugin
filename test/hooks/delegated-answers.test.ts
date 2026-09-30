@@ -21,19 +21,29 @@ const questions = (...doors: string[]) => ({
 const ask = (id: string, input: unknown = questions("two-way")): PermissionRequest => ({ id, name: "AskUserQuestion", kind: "question", input });
 
 /** A host with the handler registered, reading `table` for every repository; `read` records the folders asked about. */
-function host(table: string | null | Error = TABLE): { host: FakeHost; read: string[] } {
+type Entry = { stream: string; agent: string; header: string; answer: string; at: string };
+
+/** A host with the handler registered, reading `table` for every repository; `read` records the folders asked about, `recorded` the entries kept. */
+function host(table: string | null | Error = TABLE, options: { pastAppetite?: boolean; record?: () => void } = {}): { host: FakeHost; read: string[]; recorded: Entry[] } {
   const fake = new FakeHost();
   const read: string[] = [];
+  const recorded: Entry[] = [];
   registerDelegatedAnswers(fake, {
     readTable: async (cwd) => {
       read.push(cwd);
       if (table instanceof Error) throw table;
       return table;
     },
+    record: (entry) => {
+      options.record?.();
+      recorded.push(entry);
+    },
+    pastAppetite: () => options.pastAppetite ?? false,
+    now: () => "2026-09-30T10:00:00.000Z",
   });
   fake.setLabels("stream-1", { stream: "demo" });
   fake.setLabels("tkt-7", { stream: "demo", wave: "1", ticket: "07" });
-  return { host: fake, read };
+  return { host: fake, read, recorded };
 }
 
 test("a ticket agent's decidable question is answered with its recommendation, keyed by header", async () => {
@@ -114,4 +124,62 @@ test("the handler logs no question text or answer (T6)", async () => {
     console.error = original;
   }
   assert.ok(lines.every((line) => !line.includes("Which?") && !line.includes("Yes (Recommended)")), lines.join("\n"));
+});
+
+test("each delegated answer is recorded with the stream, the agent, the header, the answer and the time", async () => {
+  const { host: fake, recorded } = host();
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1", questions("two-way", "two-way")) });
+  assert.deepEqual(recorded, [
+    { stream: "demo", agent: "tkt-7", header: "Q0", answer: "Yes (Recommended)", at: "2026-09-30T10:00:00.000Z" },
+    { stream: "demo", agent: "tkt-7", header: "Q1", answer: "Yes (Recommended)", at: "2026-09-30T10:00:00.000Z" },
+  ]);
+});
+
+test("a question left to the user is not recorded", async () => {
+  const { host: fake, recorded } = host();
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1", questions("costly")) });
+  assert.deepEqual(recorded, []);
+});
+
+test("a stream past its appetite is left to the user", async () => {
+  const { host: fake, recorded } = host(TABLE, { pastAppetite: true });
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.deepEqual(fake.answers, []);
+  assert.deepEqual(recorded, []);
+});
+
+test("a request already resolved is settled and not answered", async () => {
+  const { host: fake, recorded } = host();
+  await fake.emitPermissionResolved({ agent: ticket, requestId: "r1" });
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.deepEqual(fake.answers, []);
+  assert.deepEqual(recorded, []);
+});
+
+test("the same request seen twice is answered once", async () => {
+  const { host: fake, recorded } = host();
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.equal(fake.answers.length, 1);
+  assert.equal(recorded.length, 1);
+});
+
+test("an answer Paseo refuses is not recorded", async () => {
+  const { host: fake, recorded } = host();
+  fake.respondToPermission = async () => {
+    throw new Error("request no longer pending");
+  };
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.deepEqual(recorded, []);
+});
+
+test("a record that fails does not throw into Paseo (T4)", async () => {
+  const { host: fake } = host(TABLE, {
+    record: () => {
+      throw new Error("disk full");
+    },
+  });
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.equal(fake.answers.length, 1);
+  assert.deepEqual(fake.failures, []);
 });

@@ -64,3 +64,13 @@ for (const { name, delegation, input: given, answers } of CASES) {
     }
   });
 }
+
+test("decideAnswers: a stream past its appetite is left, whatever the table lets it decide", () => {
+  const decision = decideAnswers(on, input(ask("Colour", ["Door: two-way"])), { pastAppetite: true });
+  assert.ok("leave" in decision);
+});
+
+test("decideAnswers: a stream within its appetite is answered", () => {
+  const decision = decideAnswers(on, input(ask("Colour", ["Door: two-way"])), { pastAppetite: false });
+  assert.deepEqual("answers" in decision && decision.answers, { Colour: "Red (Recommended)" });
+});
