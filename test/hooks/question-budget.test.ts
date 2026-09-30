@@ -220,3 +220,33 @@ test("a request Paseo resolved before the plugin decided is not counted", async 
   await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
   assert.equal(budget.count(), 0);
 });
+
+test("a host that cannot say who runs still delivers the one message (T4)", async () => {
+  const { fake } = wired({ [BUDGET_ENV]: "1" });
+  fake.isRunning = async () => {
+    throw new Error("host down");
+  };
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.equal(budgetMessages(fake).length, 1);
+});
+
+test("a send that fails leaves the orchestrator untold, so the next question tries again", async () => {
+  const errors = mock.method(console, "error", () => {});
+  try {
+    const { fake } = wired({ [BUDGET_ENV]: "1" });
+    const send = fake.send.bind(fake);
+    let failing = true;
+    fake.send = async (agentId, text) => {
+      if (failing) throw new Error("send refused");
+      await send(agentId, text);
+    };
+    await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+    assert.deepEqual(budgetMessages(fake), []);
+    failing = false;
+    await fake.emitPermissionRequested({ agent: ticket, request: ask("r2") });
+    assert.equal(budgetMessages(fake).length, 1);
+    assert.match(budgetMessages(fake)[0]?.text ?? "", /^Question budget spent: 2 questions/);
+  } finally {
+    errors.mock.restore();
+  }
+});
