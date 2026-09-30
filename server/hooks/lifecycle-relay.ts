@@ -1,7 +1,7 @@
-import { ticketOf } from "../../shared/role-labels.ts";
+import { isStreamAgent, ticketOf } from "../../shared/role-labels.ts";
 import type { Host, HostAgent, HostHooks } from "../host.ts";
 import { humanMessageIds } from "../human-words.ts";
-import { combine, MESSAGES, type Subject } from "../messages.ts";
+import { combine, MESSAGES, type Relayed } from "../messages.ts";
 
 /**
  * The lifecycle relay: what a ticket agent does (its turn ends, a permission waits, it is created, it is
@@ -12,23 +12,31 @@ import { combine, MESSAGES, type Subject } from "../messages.ts";
  * message as the turn end.
  *
  * A ticket agent is recognised by its labels, `wave` and `ticket`, which the wave skill puts on every ticket
- * agent it starts; any other agent is left alone (T3). Its orchestrator is its `parentAgentId`; an agent with
+ * agent it starts; a stream agent by `stream` and no `wave`, and its turn end, pending permission and archive
+ * are relayed too (creation and human words stay ticket-agent only). An agent with the ticket labels is a ticket
+ * agent even when it carries `stream` as well; any other agent is left alone (T3). Its orchestrator is its `parentAgentId`; an agent with
  * none has nobody to tell. A message for an orchestrator that is mid-turn is held and goes out, as one message,
  * when that orchestrator's turn ends.
  */
 export function registerLifecycleRelay(hooks: HostHooks): void {
-  /** The ticket labels last seen per agent: Paseo may no longer report them once the agent is archived. */
-  const seen = new Map<string, Subject>();
+  /** The role labels last seen per agent: Paseo may no longer report them once the agent is archived. */
+  const seen = new Map<string, Relayed>();
   /** The texts held per orchestrator, in the order they arrived. */
   const held = new Map<string, string[]>();
   /** The ids of the user's messages already told per agent: the timeline is the whole history, so they come back at every turn end. */
   const told = new Map<string, Set<string>>();
 
-  async function subjectOf(agent: HostAgent, host: Host): Promise<Subject | null> {
+  async function subjectOf(agent: HostAgent, host: Host): Promise<Relayed | null> {
     const labels = await host.labelsOf(agent.id);
     const found = ticketOf(labels);
-    if (found !== null) {
-      const subject = { agentId: agent.id, ...found };
+    const stream = labels["stream"];
+    const subject: Relayed | null =
+      found !== null
+        ? { agentId: agent.id, ...found }
+        : isStreamAgent(labels) && stream !== undefined
+          ? { agentId: agent.id, stream }
+          : null;
+    if (subject !== null) {
       seen.set(agent.id, subject);
       return subject;
     }
@@ -62,12 +70,16 @@ export function registerLifecycleRelay(hooks: HostHooks): void {
     await host.send(agentId, combine(texts));
   }
 
-  async function tell(agent: HostAgent, host: Host, compose: (subject: Subject) => string): Promise<void> {
+  async function tell(agent: HostAgent, host: Host, compose: (subject: Relayed) => string | null): Promise<void> {
     const subject = await subjectOf(agent, host);
-    if (subject !== null) await deliver(agent, compose(subject), host);
+    if (subject === null) return;
+    const text = compose(subject);
+    if (text !== null) await deliver(agent, text, host);
   }
 
-  hooks.onCreated(({ agent }, host) => tell(agent, host, MESSAGES.created));
+  hooks.onCreated(({ agent }, host) =>
+    tell(agent, host, (subject) => ("stream" in subject ? null : MESSAGES.created(subject))),
+  );
 
   hooks.onPermissionRequested(({ agent, request }, host) =>
     tell(agent, host, (subject) => MESSAGES.permissionRequested(subject, request)),
@@ -80,6 +92,7 @@ export function registerLifecycleRelay(hooks: HostHooks): void {
       let fresh: string[] = [];
       await tell(agent, host, (subject) => {
         const ended = MESSAGES.turnEnded(subject, outcome);
+        if ("stream" in subject) return ended;
         fresh = humanMessageIds(timeline).filter((id) => !told.get(agent.id)?.has(id));
         return fresh.length === 0 ? ended : combine([MESSAGES.humanWords(subject, fresh), ended]);
       });
