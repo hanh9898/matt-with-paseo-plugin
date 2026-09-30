@@ -54,6 +54,7 @@ export const TITLE = "[Wave N] <NN> <ticket name>";
 
 /** Stand-ins for the values a message names; the check builds each message with them and writes them back as placeholders. */
 const SUBJECT = { agentId: "zz-agent", wave: "zz-wave", ticket: "zz-ticket" };
+const STREAM = { agentId: "zz-agent", stream: "zz-stream" };
 const REQUEST = { id: "zz-request", name: "zz-name" } as const;
 
 /** Every message type with each case whose text differs: the key is the type's name in `MESSAGES`, the case is the name the contract gives it. */
@@ -62,13 +63,18 @@ export const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
     completed: MESSAGES.turnEnded(SUBJECT, { kind: "completed" }),
     failed: MESSAGES.turnEnded(SUBJECT, { kind: "failed", error: { message: "zz-message", code: "zz-code" } }),
     canceled: MESSAGES.turnEnded(SUBJECT, { kind: "canceled", reason: "zz-reason" }),
+    "stream completed": MESSAGES.turnEnded(STREAM, { kind: "completed" }),
+    "stream failed": MESSAGES.turnEnded(STREAM, { kind: "failed", error: { message: "zz-message", code: "zz-code" } }),
+    "stream canceled": MESSAGES.turnEnded(STREAM, { kind: "canceled", reason: "zz-reason" }),
   },
   permissionRequested: {
     question: MESSAGES.permissionRequested(SUBJECT, { ...REQUEST, kind: "question" }),
     tool: MESSAGES.permissionRequested(SUBJECT, { ...REQUEST, kind: "tool" }),
+    "stream question": MESSAGES.permissionRequested(STREAM, { ...REQUEST, kind: "question" }),
+    "stream tool": MESSAGES.permissionRequested(STREAM, { ...REQUEST, kind: "tool" }),
   },
   created: { created: MESSAGES.created(SUBJECT) },
-  archived: { archived: MESSAGES.archived(SUBJECT) },
+  archived: { archived: MESSAGES.archived(SUBJECT), "stream archived": MESSAGES.archived(STREAM) },
   humanWords: { humanWords: MESSAGES.humanWords(SUBJECT, ["zz-m1", "zz-m2"]) },
   stallSuspected: { stallSuspected: MESSAGES.stallSuspected(SUBJECT, ["zz-says"]) },
   gateCapPassed: { gateCapPassed: MESSAGES.gateCapPassed(SUBJECT, 77, 99) },
@@ -77,6 +83,7 @@ export const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
 const PLACEHOLDERS: readonly (readonly [RegExp, string])[] = [
   [/zz-ticket/g, "<ticket>"],
   [/zz-wave/g, "<wave>"],
+  [/zz-stream/g, "<stream>"],
   [/zz-agent/g, "<agent>"],
   [/zz-request/g, "<request>"],
   [/zz-name/g, "<name>"],
