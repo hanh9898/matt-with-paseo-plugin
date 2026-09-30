@@ -133,6 +133,14 @@ The repository's `## Delegation` table is written by the skills, and its prose f
 | Questions the orchestrator may decide | Whether the plugin answers a question with its recommendation |
 | Appetite | The spend past which a stream sends its questions to the user |
 
+The table sits under a `## Delegation` heading in the `AGENTS.md` at the root of the asking agent's folder, as rows of two cells, a rule and its value. The plugin reads three rules by name, ignoring case, and the first row of a name wins:
+
+- `Switch`: `on` or `off`. A table with no `Switch` row is on; any value but `on` is off. With no table, or the switch off, the plugin answers nothing.
+- `Questions the orchestrator may decide`: the door classes the orchestrator may decide, separated by `,` or `;`. Only `two-way` and `costly` count; `one-way` and any other word are dropped, so a `Door: one-way` question is never answered.
+- `Appetite`: the spend as the table writes it; the appetite ticket (#40) reads its meaning.
+
+The plugin answers an `AskUserQuestion` from a ticket agent or the stream agent only when every question in it carries a `Door:` line the table lets the orchestrator decide, no `Yours:` line and a first option marked ` (Recommended)`; the answer is that option's label, keyed by the question's `header`. One question that fails leaves the whole request to the user. A table the plugin cannot read leaves the question to the user, as does a stream past its appetite (no stream is, until #40), and a request already resolved is settled and not answered. Each delegated answer is kept outside the repository, one line per question with the stream, agent, header, answer and time, in `delegated-answers.jsonl` under the plugin's state directory.
+
 The daily question budget is not in the table: it is a per-machine setting, read from the environment variable `MWP_QUESTION_BUDGET` (a whole number of questions a day) like the plugin's other machine settings ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895102916)).
 
 ## The report card

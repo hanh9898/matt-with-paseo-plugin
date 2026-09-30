@@ -161,6 +161,20 @@ Written, not run. Targets Paseo `0.10.1`. Run it with `mwp-smoke` installed. It 
 4. Repeat step 3 with `MWP_COST_LEVEL=nope` and `MWP_COST_TICKET=big`. Expected: every role prints the balanced level's choice with `"from":"level"`, and nothing throws.
 5. From an orchestrator titled `[mwp-smoke] orchestrator`, create a ticket agent titled `[mwp-smoke] ticket` with the provider and model step 3 printed for the ticket role. Expected: the agent starts on that model; the chosen `modeId` and `thinkingOptionId` come from the profile the orchestrator copied, not from the preset. Archive every `[mwp-smoke]` agent.
 
+## Delegated answers
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Waiting pill", with `mwp-smoke` installed, in a scratch repository whose `AGENTS.md` holds a `## Delegation` table with the rows `Switch | on` and `Questions the orchestrator may decide | two-way, costly`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Create a ticket agent titled `[mwp-smoke] ticket` (labels `wave=1`, `ticket=99`) in that repository whose prompt asks one `AskUserQuestion`, header `Colour`, text ending in a line `Door: two-way`, first option `Red (Recommended)`. Expected: within 30 seconds the question is answered with `Red (Recommended)` and the agent carries on with it; the plugin's log shows no question text.
+2. Repeat with `Door: costly` and then with the table row reduced to `two-way`. Expected: answered in the first run, left to the user in the second (the pill counts it).
+3. Repeat with a text that also holds `Yours: spend`. Expected: left to the user.
+4. Repeat with `Door: one-way`, with the table row listing `one-way`. Expected: left to the user.
+5. Repeat with the first option `Red` (no mark). Expected: left to the user.
+6. Set the row `Switch | off`, then delete the table. Expected: the step 1 question is left to the user both times.
+7. Ask two questions in one call, one answerable and one with `Yours: merge`. Expected: neither is answered.
+8. Ask the step 1 question from an agent with no labels. Expected: left to the user, and the daemon log names no read of `AGENTS.md`.
+9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
 ## Results
 
 None yet.
