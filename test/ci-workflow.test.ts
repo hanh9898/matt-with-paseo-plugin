@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 
 const DIR = ".github/workflows";
 
@@ -47,12 +48,12 @@ test("a failure on one system does not cancel the other two", () => {
   assert.match(workflow(), /fail-fast:\s*false/);
 });
 
-test("the workflow runs npm ci, npm run typecheck and npm test, in that order", () => {
+test("the workflow runs npm ci, then npm run check", () => {
   const runs = workflow()
     .split("\n")
     .map((line) => /^\s*-?\s*run:\s*(.+)$/.exec(line)?.[1].trim())
     .filter((command): command is string => command !== undefined);
-  assert.deepEqual(runs, ["npm ci", "npm run typecheck", "npm test"]);
+  assert.deepEqual(runs, ["npm ci", "npm run check"]);
 });
 
 test("the workflow starts only on a push to release/v* and a pull request into main", () => {
