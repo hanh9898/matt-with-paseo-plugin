@@ -12,27 +12,43 @@ import type { PermissionRequest, TurnOutcome } from "./host.ts";
 /** The ticket agent a message speaks of: its id, and the `wave` and `ticket` labels it carries. */
 export type Subject = { agentId: string; wave: string; ticket: string };
 
+/**
+ * The bundle agent a message speaks of: its id, and the `wave`, `bundle` (its first ticket) and `tickets` labels it
+ * carries. It works a bundle of tickets, one turn per ticket, so a message names the bundle and never one ticket.
+ */
+export type BundleSubject = { agentId: string; wave: string; bundle: string; tickets: string };
+
 /** The stream agent a message speaks of: its id, and the `stream` label it carries (it carries no `wave`). */
 export type StreamSubject = { agentId: string; stream: string };
 
-/** Who a relayed message speaks of: a ticket agent or a stream agent. */
-export type Relayed = Subject | StreamSubject;
+/** A ticket agent, whether it works one ticket or a bundle. */
+export type TicketSubject = Subject | BundleSubject;
+
+/** Who a relayed message speaks of: a ticket agent (of one ticket or a bundle) or a stream agent. */
+export type Relayed = TicketSubject | StreamSubject;
 
 function isStream(subject: Relayed): subject is StreamSubject {
   return "stream" in subject;
 }
 
+/** What a ticket agent's moves call it: `ticket <ticket>`, or `bundle <bundle>` for a bundle agent. */
+function named(subject: TicketSubject): string {
+  return "bundle" in subject ? `bundle ${subject.bundle}` : `ticket ${subject.ticket}`;
+}
+
 type RequestHead = Pick<PermissionRequest, "id" | "name" | "kind">;
 
 const NEXT = "\nNext: ";
-/** Separates the moves on a `Next:` line, so a move never holds it. Each move of a ticket or stream message names its ticket or stream: `combine` may join several messages' moves. */
+/** Separates the moves on a `Next:` line, so a move never holds it. Each move of a ticket, bundle or stream message names its ticket, bundle or stream: `combine` may join several messages' moves. */
 const MOVES = "; ";
 
 /** One message: the words that lead, then the agent it speaks of, then the detail when there is one, then the moves. */
 function message(lead: string, subject: Relayed, detail: string | undefined, moves: readonly string[]): string {
   const who = isStream(subject)
     ? `stream ${subject.stream}, agent ${subject.agentId}`
-    : `ticket ${subject.ticket} of wave ${subject.wave}, agent ${subject.agentId}`;
+    : "bundle" in subject
+      ? `bundle ${subject.bundle} (tickets ${subject.tickets}) of wave ${subject.wave}, agent ${subject.agentId}`
+      : `ticket ${subject.ticket} of wave ${subject.wave}, agent ${subject.agentId}`;
   const body = detail === undefined ? `${lead}: ${who}.` : `${lead}: ${who}, ${detail}.`;
   return `${body}${NEXT}${moves.join(MOVES)}.`;
 }
@@ -65,18 +81,18 @@ const AFTER_STREAM_TURN: Record<TurnOutcome["kind"], (subject: StreamSubject) =>
 };
 
 /** The moves open after a ticket agent's turn ends, by how it ended. */
-const AFTER_TURN: Record<TurnOutcome["kind"], (subject: Subject) => string[]> = {
+const AFTER_TURN: Record<TurnOutcome["kind"], (subject: TicketSubject) => string[]> = {
   completed: (s) => [
-    `check ticket ${s.ticket}'s report with get_agent_activity and its artifacts (commits on its branch, ticket status)`,
+    `check ${named(s)}'s report with get_agent_activity and its artifacts (commits on its branch, ticket status)`,
     `prompt agent ${s.agentId} when the report is incomplete`,
   ],
   failed: (s) => [
     `read agent ${s.agentId}'s last activity with get_agent_activity`,
-    `prompt agent ${s.agentId} to resume, or record ticket ${s.ticket} as failed with the reason`,
+    `prompt agent ${s.agentId} to resume, or record ${named(s)} as failed with the reason`,
   ],
   canceled: (s) => [
     `read agent ${s.agentId}'s last activity with get_agent_activity`,
-    `prompt agent ${s.agentId} to resume, or leave ticket ${s.ticket} stopped when the cancel was deliberate`,
+    `prompt agent ${s.agentId} to resume, or leave ${named(s)} stopped when the cancel was deliberate`,
   ],
 };
 
@@ -85,7 +101,7 @@ const AFTER_TURN: Record<TurnOutcome["kind"], (subject: Subject) => string[]> = 
  * agent's chat, or the plugin does under the delegation table; the orchestrator reads it and leaves it to them.
  */
 function afterRequest(subject: Relayed, request: RequestHead): string[] {
-  const of = isStream(subject) ? `stream ${subject.stream}` : `ticket ${subject.ticket}`;
+  const of = isStream(subject) ? `stream ${subject.stream}` : named(subject);
   const read = `read ${of}'s request ${request.id} with list_pending_permissions, and treat it as settled when it is no longer listed`;
   return request.kind === "question"
     ? [
@@ -118,25 +134,25 @@ export const MESSAGES = {
     ),
   permissionRequested: (subject: Relayed, request: RequestHead) =>
     message("Permission pending", subject, `request ${request.id}, ${request.name} (${request.kind})`, afterRequest(subject, request)),
-  created: (subject: Subject) =>
+  created: (subject: TicketSubject) =>
     message("Agent created", subject, undefined, [
-      `carry on with the wave while ticket ${subject.ticket}'s turn end and any pending permission reach you as messages`,
+      `carry on with the wave while ${named(subject)}'s turn end and any pending permission reach you as messages`,
     ]),
-  humanWords: (subject: Subject, ids: readonly string[]) =>
+  humanWords: (subject: TicketSubject, ids: readonly string[]) =>
     message("Human words", subject, humanWordsDetail(ids), [
       `read what the user typed to agent ${subject.agentId} with get_agent_activity`,
-      `record in ticket ${subject.ticket}'s report that the user spoke to it, and whether it changed the plan`,
+      `record in ${named(subject)}'s report that the user spoke to it, and whether it changed the plan`,
     ]),
-  stallSuspected: (subject: Subject, says: readonly string[]) =>
+  stallSuspected: (subject: TicketSubject, says: readonly string[]) =>
     message("Stall suspected", subject, `the sensor flagged: ${says.join("; ")}`, [
-      `judge whether ticket ${subject.ticket} is stalled: read agent ${subject.agentId}'s recent activity with get_agent_activity`,
-      `prompt agent ${subject.agentId} to resume, or record ticket ${subject.ticket} as stalled with the reason, when it is stalled`,
-      `leave ticket ${subject.ticket} alone when its agent is working`,
+      `judge whether ${named(subject)} is stalled: read agent ${subject.agentId}'s recent activity with get_agent_activity`,
+      `prompt agent ${subject.agentId} to resume, or record ${named(subject)} as stalled with the reason, when it is stalled`,
+      `leave ${named(subject)} alone when its agent is working`,
     ]),
-  gateCapPassed: (subject: Subject, cap: number, running: number) =>
+  gateCapPassed: (subject: TicketSubject, cap: number, running: number) =>
     message("Gate cap passed", subject, `${running} ticket agents run against a cap of ${cap} concurrent gates`, [
-      `hold every ready ticket after ticket ${subject.ticket} in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than ${cap} running`,
-      `leave ticket ${subject.ticket} running: agent ${subject.agentId} is already created`,
+      `hold every ready ticket after ${named(subject)} in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than ${cap} running`,
+      `leave ${named(subject)} running: agent ${subject.agentId} is already created`,
     ]),
   appetitePassed: (stream: string, spentUsd: number, appetiteUsd: number, partial: boolean) => {
     const spent = `spent ${spentUsd.toFixed(2)} USD against an appetite of ${appetiteUsd.toFixed(2)} USD`;
@@ -163,8 +179,8 @@ export const MESSAGES = {
             `check stream ${subject.stream}'s status before counting its work done when someone else archived agent ${subject.agentId}`,
           ]
         : [
-            `finish step 8's clean-up of ticket ${subject.ticket} when you archived agent ${subject.agentId}`,
-            `check ticket ${subject.ticket}'s status before counting its work done when someone else archived agent ${subject.agentId}`,
+            `finish step 8's clean-up of ${named(subject)} when you archived agent ${subject.agentId}`,
+            `check ${named(subject)}'s status before counting its work done when someone else archived agent ${subject.agentId}`,
           ],
     ),
 };
