@@ -14,7 +14,7 @@ Single-context; the vocabulary is the words blocks of the `matt-with-paseo` and 
 
 ## Designing plugin work
 
-Any work that designs or changes the Paseo plugin itself (its manifest, lifecycle hooks, agent-create transforms, permissions, surfaces, panels, pills, timeline items, RPCs, or how it is installed and reloaded) loads the `/paseo-plugin` skill first, before planning or writing code, and follows the Paseo plugin API it describes. `/matt-with-paseo` runs the waves; it does not teach the plugin API. A stream agent that plans such a ticket names `/paseo-plugin` in that ticket agent's prompt and in the wave's common rules.
+The stream agent loads the `/paseo-plugin` skill when it plans work that designs or changes the Paseo plugin itself (its manifest, lifecycle hooks, agent-create transforms, permissions, surfaces, panels, pills, timeline items, RPCs, or how it is installed and reloaded): before it builds the graph, cuts bundles and writes the wave's common rules, so the design choices land in those rules and in each ticket agent's prompt. `/matt-with-paseo` runs the waves; it does not teach the plugin API. Ticket agents do not load `/paseo-plugin`: they work from the ticket, the common rules and the prompt.
 
 ## Evidence standards
 
