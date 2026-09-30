@@ -40,7 +40,7 @@ test("the README names where state lives, the one marked block and the check (cr
 
 test("the README inventories every holder of state, so a new one is a row to add", () => {
   const words = stateSubsection();
-  for (const holder of ["server/hooks/gate-cap.ts", "server/hooks/lifecycle-relay.ts", "server/hooks/stall-sensor.ts", "server/hooks/waiting-count.ts", "client/waiting-pill.ts", "server/harness.ts", "server/sensor.ts"]) {
+  for (const holder of ["server/hooks/gate-cap.ts", "server/hooks/lifecycle-relay.ts", "server/hooks/stall-sensor.ts", "server/hooks/waiting-count.ts", "client/waiting-pill.ts", "server/harness.ts", "server/sensor.ts", "server/decision-log.ts"]) {
     assert.ok(words.includes(holder), `the inventory names ${holder}`);
   }
   assert.ok(words.includes("in memory"), "the inventory says what is held in memory");

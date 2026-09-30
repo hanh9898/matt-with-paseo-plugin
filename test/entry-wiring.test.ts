@@ -63,8 +63,15 @@ test("the entry hands the report card to the modules that change a record, so no
   const entry = readFileSync(new URL("../index.server.ts", import.meta.url), "utf8");
   assert.match(entry, /createReportCard\(/);
   assert.match(entry, /updated: \(who, host\) => card\.refresh\(who, host\)/);
-  assert.match(entry, /answered: card\.refresh/);
+  assert.match(entry, /await card\.refresh\(answered, host\)/);
   assert.match(entry, /await card\.refresh\(question, host\)/);
+});
+
+test("the entry tells the decision log of each answer and each leave, before the budget and the card", () => {
+  const entry = readFileSync(new URL("../index.server.ts", import.meta.url), "utf8");
+  assert.match(entry, /createDecisionLog\(\)/);
+  assert.ok(entry.indexOf("log.answered(answered)") < entry.indexOf("card.refresh(answered, host)"));
+  assert.ok(entry.indexOf("log.left(question)") < entry.indexOf("budget.left(question, host)"));
 });
 
 test("the client entry default-exports a contribution that starts the waiting pill and hands back its cleanup", () => {

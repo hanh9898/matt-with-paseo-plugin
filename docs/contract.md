@@ -188,11 +188,41 @@ The table sits under a `## Delegation` heading in the `AGENTS.md` at the root of
 - `Questions the orchestrator may decide`: the door classes the orchestrator may decide, separated by `,` or `;`. Only `two-way` and `costly` count; `one-way` and any other word are dropped, so a `Door: one-way` question is never answered.
 - `Appetite`: the spend as the table writes it, read as a dollar amount (`20 USD`, `$20`, `USD 20` or `20`). Any other value is no appetite, and a stream with none is never past it.
 
-The plugin answers an `AskUserQuestion` from a ticket agent or the stream agent only when every question in it carries a `Door:` line the table lets the orchestrator decide, no `Yours:` line and a first option marked ` (Recommended)`; the answer is that option's label, keyed by the question's `header`. One question that fails leaves the whole request to the user. A table the plugin cannot read leaves the question to the user, as does a stream past its appetite, and a request already resolved is settled and not answered. Each delegated answer is kept outside the repository, one line per question with the stream, agent, header, answer and time, in `delegated-answers.jsonl` under the plugin's state directory.
+The plugin answers an `AskUserQuestion` from a ticket agent or the stream agent only when every question in it carries a `Door:` line the table lets the orchestrator decide, no `Yours:` line and a first option marked ` (Recommended)`; the answer is that option's label, keyed by the question's `header`. One question that fails leaves the whole request to the user. A table the plugin cannot read leaves the question to the user, as does a stream past its appetite, and a request already resolved is settled and not answered. Each delegated answer is kept outside the repository, one line per question with the stream, agent, header, answer and time, in `delegated-answers.jsonl` under the plugin's state directory, and once per request in the decision log (see "The decision log").
 
 The plugin sums the spend at each turn end: the agent's `lastUsage.totalCostUsd` is added to the total of its `stream` label, for a ticket agent and the stream agent alike, and the totals are kept in `stream-spend.json` under the plugin's state directory. A turn with no cost adds nothing and marks the total partial, which the report card reads. When a total passes the appetite, the orchestrator gets one "Appetite passed" message (see Message types) and the plugin answers no question of that stream any more, so every one reaches the user. The plugin cancels nothing and stops no agent: any Hold is the skills' decision.
 
 The daily question budget is not in the table: it is a per-machine setting, read from the environment variable `MWP_QUESTION_BUDGET` (a whole number of questions a day) like the plugin's other machine settings ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895102916), [Decision on #39](https://github.com/hanh9898/matt-with-paseo-plugin/issues/39#issuecomment-5902707853)). What the plugin does with it is the "Question budget spent" message.
+
+## The decision log
+
+The plugin writes one Markdown file the owner reads, in the shape of the control folder's `decisions.md`. Its place and shape are part of contract v1; the skills read it, and it never lives in a target repository.
+
+| File under the state directory | What it is |
+|---|---|
+| `decision-log.jsonl` | The record: one JSON line per entry, `{ n, at, stream, kind, gate, asked, answer, grounds, agent, requestId, withoutEvidence, what }`. The next `n` is the highest `n` in it plus one; a torn or foreign line is skipped and never counts |
+| `decision-log.md` | The file the owner reads, rendered whole from the record after each entry, oldest first |
+
+The rendered file has `# Decisions`, then `## Decided without evidence`, then `## Log`. There is no `## Pending for the user` section: nothing waits on the owner.
+
+```
+<a id="d<n>"></a>
+### D<n> — <YYYY-MM-DD HH:MM> [<stream>] <gate>
+Asked: <each question: header, its text with newlines folded to " / ", options offered by label>
+Answer: <exactly what was sent>
+Grounds: <the rule that decided it>
+```
+
+The time is the daemon's local time. `<stream>` is the agent's `stream` label. A field of several lines puts one question per line, the later lines indented. The log is the one place the plugin writes question text: only a question's `header`, its text and its option labels, never an error message, an environment value or a tool input other than an `AskUserQuestion`.
+
+`## Decided without evidence` is a reading list, one line per entry whose record has `withoutEvidence`, oldest first: `D<n>: <what> (smaller option taken)`, linking to `#d<n>`. That entry's `Grounds:` reads `no evidence; smaller option taken`. With no such entry the section reads `None.`. No kind below sets it: the plugin answers only under a table rule with a recommendation. The list blocks and queues nothing.
+
+| Kind (the `gate`) | `Answer:` | `Grounds:` |
+|---|---|---|
+| `delegated answer` | each `<header>: <label>` as sent in `updatedInput.answers` | the `## Delegation` table in `<cwd>/AGENTS.md` lets the orchestrator decide each question's `Door:`; the first option was marked `(Recommended)` |
+| `left to the user` | `none: left to the user, who answers it in agent <id>'s chat` | the reason the question stays the user's (`one of the user's five`, `no Door line`, `the stream is past its appetite`, `no delegation table`, …), or `the delegation table could not be read` when the handler failed open |
+
+One entry per request, numbered across restarts: one `AskUserQuestion` with several questions is one `D<n>`, and a request already in the record (the same `agent` and `requestId`) is not written again. A log that cannot be written changes nothing the handler answers or leaves; it logs one line with the agent's id and the kind, never the question (T4, T6).
 
 ## The report card
 

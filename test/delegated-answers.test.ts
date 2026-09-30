@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decideAnswers } from "../server/delegated-answers.ts";
+import { decideAnswers, doorOf } from "../server/delegated-answers.ts";
 import type { Delegation } from "../shared/delegation.ts";
 
 const on: Delegation = { on: true, decide: ["two-way", "costly"], appetite: null };
@@ -73,4 +73,11 @@ test("decideAnswers: a stream past its appetite is left, whatever the table lets
 test("decideAnswers: a stream within its appetite is answered", () => {
   const decision = decideAnswers(on, input(ask("Colour", ["Door: two-way"])), { pastAppetite: false });
   assert.deepEqual("answers" in decision && decision.answers, { Colour: "Red (Recommended)" });
+});
+
+test("doorOf: reads the first line that starts with the mark, and nothing from a mark inside a line", () => {
+  assert.equal(doorOf("Which?\nDoor: two-way\nDoor: costly"), "two-way");
+  assert.equal(doorOf("Which?\r\nDoor:  costly "), "costly");
+  assert.equal(doorOf("I think Door: two-way applies"), undefined);
+  assert.equal(doorOf(""), undefined);
 });
