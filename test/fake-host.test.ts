@@ -21,7 +21,7 @@ function registerRelay(hooks: HostHooks): void {
   });
   hooks.onPermissionRequested(async ({ agent, request }, host) => {
     await host.respondToPermission(agent.id, request.id, { behavior: "deny", message: "held" });
-    await host.appendTimelineRow(agent.id, { kind: "held", version: 1, data: { request: request.id } });
+    await host.appendTimelineRow(agent.id, { id: "held", kind: "held", version: 1, data: { request: request.id } });
   });
 }
 
@@ -38,7 +38,7 @@ test("the fake records answers and timeline rows without a daemon", async () => 
   const event: PermissionRequestedEvent = { agent: worker, request: { id: "r1", name: "Bash", kind: "tool" } };
   await host.emitPermissionRequested(event);
   assert.deepEqual(host.answers, [{ agentId: "worker", requestId: "r1", answer: { behavior: "deny", message: "held" } }]);
-  assert.deepEqual(host.rows, [{ agentId: "worker", row: { kind: "held", version: 1, data: { request: "r1" } } }]);
+  assert.deepEqual(host.rows, [{ agentId: "worker", row: { id: "held", kind: "held", version: 1, data: { request: "r1" } } }]);
 });
 
 test("a handler that throws does not reach the caller and is recorded (T4)", async () => {
@@ -185,15 +185,15 @@ test("the fake serves the budget's state to the pill's read, false when none is 
   assert.equal(host.failures.length, 1);
 });
 
-test("a row appended again under the same id replaces the earlier one, and a row with no id stays beside it", async () => {
+test("a row appended again under the same id replaces the earlier one, and a row of another id stays beside it", async () => {
   const host = new FakeHost();
   await host.appendTimelineRow("worker", { id: "card", kind: "report", version: 1, data: { decided: 1 } });
-  await host.appendTimelineRow("worker", { kind: "note", version: 1, data: {} });
+  await host.appendTimelineRow("worker", { id: "note", kind: "note", version: 1, data: {} });
   await host.appendTimelineRow("worker", { id: "card", kind: "report", version: 1, data: { decided: 2 } });
   await host.appendTimelineRow("other", { id: "card", kind: "report", version: 1, data: { decided: 9 } });
   assert.deepEqual(host.timeline("worker"), [
     { id: "card", kind: "report", version: 1, data: { decided: 2 } },
-    { kind: "note", version: 1, data: {} },
+    { id: "note", kind: "note", version: 1, data: {} },
   ]);
   assert.deepEqual(host.timeline("other"), [{ id: "card", kind: "report", version: 1, data: { decided: 9 } }]);
   assert.deepEqual(host.timeline("nobody"), []);

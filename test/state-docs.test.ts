@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { MARKED_BLOCK, STATE_DIR_ENV, STATE_DIR_NAME } from "../shared/state-location.ts";
 
 function read(name: string): string {

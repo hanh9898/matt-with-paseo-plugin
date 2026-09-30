@@ -13,7 +13,7 @@ const keys = (value: unknown) => Object.keys(value as object).sort();
 const sorted = (list: readonly string[]) => [...list].sort();
 
 test("the row has the kind, version and row id the contract fixes, and exactly the contract's fields", () => {
-  const row = reportCardRow({ decided, spend: { totalUsd: 1.25, appetiteUsd: 5, partial: false }, questions: { count: 3, budget: 10 } });
+  const row = reportCardRow({ decided, spend: { totalUsd: 1.25, appetiteUsd: 5, partial: false, notified: false }, questions: { count: 3, budget: 10 } });
   assert.equal(row.kind, REPORT_CARD.kind);
   assert.equal(row.version, REPORT_CARD.version);
   assert.equal(row.id, REPORT_CARD.id);
@@ -30,12 +30,12 @@ test("the row lists each decision made on the user's behalf with the header, the
 });
 
 test("the row shows the spend against the appetite, and says when the total is partial", () => {
-  const whole = reportCardRow({ decided: [], spend: { totalUsd: 1.25, appetiteUsd: 5, partial: false }, questions: { count: 0, budget: null } });
+  const whole = reportCardRow({ decided: [], spend: { totalUsd: 1.25, appetiteUsd: 5, partial: false, notified: false }, questions: { count: 0, budget: null } });
   const spend = (whole.data as { spend: unknown }).spend;
   assert.deepEqual(keys(spend), sorted(REPORT_CARD.spendFields));
   assert.deepEqual(spend, { totalUsd: 1.25, appetiteUsd: 5, partial: false });
 
-  const partial = reportCardRow({ decided: [], spend: { totalUsd: 0.5, appetiteUsd: null, partial: true }, questions: { count: 0, budget: null } });
+  const partial = reportCardRow({ decided: [], spend: { totalUsd: 0.5, appetiteUsd: null, partial: true, notified: false }, questions: { count: 0, budget: null } });
   assert.deepEqual((partial.data as { spend: unknown }).spend, { totalUsd: 0.5, appetiteUsd: null, partial: true });
 });
 
@@ -54,7 +54,7 @@ test("the row shows the day's question count against the budget, and no budget a
 });
 
 test("the row has no buttons: no action, button or callback key anywhere in it", () => {
-  const row = reportCardRow({ decided, spend: { totalUsd: 1, appetiteUsd: 2, partial: true }, questions: { count: 1, budget: 2 } });
+  const row = reportCardRow({ decided, spend: { totalUsd: 1, appetiteUsd: 2, partial: true, notified: false }, questions: { count: 1, budget: 2 } });
   assert.equal(REPORT_CARD.buttons, "none");
   const text = JSON.stringify(row);
   assert.doesNotMatch(text, /button|action|rpc|onPress|callback/i);

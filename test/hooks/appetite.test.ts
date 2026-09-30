@@ -116,7 +116,7 @@ test("the orchestrator gets one appetite passed message when the total passes th
   const { fake } = host();
   fake.setLastTurnCost("tkt-7", 3);
   await fake.emitTurnEnded(turn(ticket));
-  assert.deepEqual(fake.sent, [], "within the appetite: nothing is sent");
+  assert.deepEqual([...fake.sent], [], "within the appetite: nothing is sent");
   await fake.emitTurnEnded(turn(ticket));
   assert.deepEqual(fake.sent, [{ agentId: "stream-1", text: MESSAGES.appetitePassed("demo", 6, 5, false) }]);
   await fake.emitTurnEnded(turn(ticket));
@@ -130,7 +130,7 @@ test("the message is held while the orchestrator is in a turn and goes out when 
   fake.setRunning("stream-1", true);
   fake.setLastTurnCost("tkt-7", 6);
   await fake.emitTurnEnded(turn(ticket));
-  assert.deepEqual(fake.sent, []);
+  assert.deepEqual([...fake.sent], []);
   fake.setRunning("stream-1", false);
   await fake.emitTurnEnded(turn(stream));
   assert.equal(fake.sent.length, 1);
@@ -153,7 +153,7 @@ test("no message when the table has no appetite, or none can be read", async () 
     const { fake, appetite } = host({ table: text });
     fake.setLastTurnCost("tkt-7", 1000);
     await fake.emitTurnEnded(turn(ticket));
-    assert.deepEqual(fake.sent, []);
+    assert.deepEqual([...fake.sent], []);
     assert.equal(appetite.pastAppetite("demo"), false);
     assert.deepEqual(fake.failures, []);
   }

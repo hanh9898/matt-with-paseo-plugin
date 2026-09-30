@@ -195,7 +195,7 @@ test("the roadmap lists v0.1.0 to v0.5.0 in order, each with its theme, and its 
   });
 });
 
-test("v0.1.0 lists the issues it carries, the nine new tickets by number, the fourteen exit criteria in order, the skills-side dependencies and the named fallback", () => {
+test("v0.1.0 lists the issues it carries, the new tickets by number, the fourteen exit criteria in order, the skills-side dependencies and the named fallback", () => {
   const v1 = milestone(read(ROADMAP), 1);
   const carried = section(v1, "### Carried by existing issues");
   for (let n = 1; n <= 19; n++) {
@@ -206,7 +206,7 @@ test("v0.1.0 lists the issues it carries, the nine new tickets by number, the fo
   const tickets = listItems(section(v1, "### New tickets"));
   assert.deepEqual(
     tickets.map((item) => Number(item.match(/#(\d+)\s*$/)?.[1])),
-    [34, 33, 37, 35, 36, 38, 39, 40, 41],
+    [34, 33, 37, 35, 36, 38, 39, 40, 41, 43, 45, 48, 49],
   );
 
   const criteria = listItems(section(v1, "### Exit criteria"));

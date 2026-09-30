@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 
 const CHECKLIST = "docs/agents/release-checklist.md";
 const SEATWORKS_COMMIT = "6d316b0";

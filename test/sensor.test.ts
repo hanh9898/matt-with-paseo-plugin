@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { factsOf, flagged, loadConditions, modelSlots, type Condition, type Streaks } from "../server/sensor.ts";
 
 const shipped = loadConditions();

@@ -59,7 +59,7 @@ test("an environment's own marker stays as it is, whatever the title", async () 
 test("the handler needs no label and no agent id: neither exists when Paseo creates the agent", async () => {
   const host = marked();
   await host.create({ env: {}, title: "[Wave 1] 02 x" });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.answers, []);
 });
 

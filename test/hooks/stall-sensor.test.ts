@@ -23,7 +23,7 @@ test("a turn that flags nothing sends nothing: only flagged cases reach the judg
   const host = sensed();
   await host.emitTurnEnded({ agent: ticket, outcome: done, timeline: working });
   await host.emitTurnEnded({ agent: ticket, outcome: done, timeline: [...working, { type: "tool_call", name: "Edit" }, { type: "assistant_message", text: "next" }] });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.failures, []);
 });
 
@@ -57,7 +57,7 @@ test("a flagged case for a mid-turn orchestrator is held and goes out when its t
   const host = sensed();
   host.setRunning("stream-1", true);
   await host.emitTurnEnded({ agent: ticket, outcome: { kind: "canceled", reason: "user" }, timeline: working });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   host.setRunning("stream-1", false);
   await host.emitTurnEnded({ agent: orchestrator, outcome: done, timeline: [] });
   assert.equal(host.sent.length, 1);
@@ -71,7 +71,7 @@ test("conditions come from the data given: the sensor holds no condition of its 
   assert.match(host.sent[0]?.text ?? "", /any turn at all/);
   const none = sensed([]);
   await none.emitTurnEnded({ agent: ticket, outcome: { kind: "failed", error: { message: "x" } }, timeline: [] });
-  assert.deepEqual(none.sent, []);
+  assert.deepEqual([...none.sent], []);
 });
 
 test("an agent the plugin does not recognise by its labels is left alone (T3), and so is one with nobody to tell", async () => {
@@ -82,7 +82,7 @@ test("an agent the plugin does not recognise by its labels is left alone (T3), a
   for (const agent of [{ ...ticket, id: "half" }, { ...ticket, id: "bare" }, { ...ticket, id: "lone", parentAgentId: null }]) {
     await host.emitTurnEnded({ agent, outcome: { kind: "failed", error: { message: "x" } }, timeline: [] });
   }
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });
 
 test("it fails open (T4): a host that cannot say whether the orchestrator is busy stops nothing", async () => {
@@ -100,7 +100,7 @@ test("an archived agent's history is forgotten: its next timeline starts over", 
   await host.emitTurnEnded({ agent: ticket, outcome: done, timeline: working });
   await host.emitArchived({ agent: ticket });
   await host.emitTurnEnded({ agent: ticket, outcome: done, timeline: working });
-  assert.deepEqual(host.sent, [], "the same timeline counts as new after the archive");
+  assert.deepEqual([...host.sent], [], "the same timeline counts as new after the archive");
 });
 
 const bundleAgent: HostAgent = { ...ticket, id: "bnd-7", title: "[Wave 1] [70+71] x" };

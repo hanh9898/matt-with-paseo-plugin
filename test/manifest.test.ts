@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 
 const manifestUrl = new URL("../paseo-plugin.json", import.meta.url);
 const readmeUrl = new URL("../README.md", import.meta.url);

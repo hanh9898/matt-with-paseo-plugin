@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 
 function read(name: string): string {
   return readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
@@ -42,6 +43,7 @@ test("the README lays out the report card module and says the card has no button
 });
 
 test("CHANGELOG.md lists the report card under Unreleased", () => {
-  const unreleased = section(read("CHANGELOG.md"), "## [Unreleased]");
+  const changelog = read("CHANGELOG.md");
+  const unreleased = changelog.slice(changelog.indexOf("## [Unreleased]")).split("\n## ", 2)[0] ?? "";
   assert.match(unreleased, /[Rr]eport card/);
 });

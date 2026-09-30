@@ -26,7 +26,7 @@ Written, not run. Targets Paseo `0.10.1`. Run it after the steps above, with `mw
 
 1. Start an orchestrator agent titled `[mwp-smoke] orchestrator`, and set no heartbeat.
 2. From it, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=99` and a prompt that answers in one line and stops. The orchestrator ends its turn.
-3. The orchestrator's timeline gains a message starting `Turn ended:` naming the ticket `99`, the wave `1` and the outcome `completed`. It arrives with no heartbeat set and no `notifyOnFinish`. The orchestrator's own turn end adds no message.
+3. The orchestrator's timeline gains a message starting `Turn ended:`, from the `agent.turn_ended` hook, naming the ticket `99`, the wave `1` and the outcome `completed`. It arrives with no heartbeat set and no `notifyOnFinish`. The orchestrator's own turn end adds no message.
 4. Create a second ticket agent with the same labels whose prompt asks a question with `AskUserQuestion`. The orchestrator's timeline gains a message starting `Permission pending:` with the request id and `AskUserQuestion`, and not the question's text.
 5. Prompt the orchestrator with a long turn (a shell command that sleeps 60 seconds) and, while it runs, prompt a ticket agent so that its turn ends. Nothing arrives until the orchestrator's turn ends; then one message arrives.
 6. Create a third agent with no labels and one with only `wave=1`. Neither one's turn end or permission produces a message.
@@ -63,7 +63,7 @@ Written, not run. Targets Paseo `0.10.1`. Parts A and B need Node only and run o
 
 **A. The script, on each system.** `<plugin>` is the absolute path of this repository's checkout.
 
-1. Windows (PowerShell): `$env:MWP_ROLE = "ticket"; '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | node <plugin>guardgit-guard.mjs; $LASTEXITCODE`. macOS and Linux: `printf '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | MWP_ROLE=ticket node <plugin>/guard/git-guard.mjs; echo $?`. The output is a line starting `Refused: git push`, a last line starting `Next:` that says to commit, carry on and name the command in the report, and then `2`.
+1. Windows (PowerShell): `$env:MWP_ROLE = "ticket"; '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | node <plugin>\guard\git-guard.mjs; $LASTEXITCODE`. macOS and Linux: `printf '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | MWP_ROLE=ticket node <plugin>/guard/git-guard.mjs; echo $?`. The output is a line starting `Refused: git push`, a last `Next:` line that says to commit, carry on and name the command in the report, and then `2`.
 2. Repeat with `git checkout main`, `git switch main` and `git reset --hard`: each is refused with its own name in the line.
 3. Repeat with `git commit -m x` and `git status`: no output, exit 0.
 4. Repeat step 1 with `MWP_ROLE` unset (`Remove-Item Env:MWP_ROLE`, `env -u MWP_ROLE`): no output, exit 0.
@@ -192,6 +192,7 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with
 5. Raise the row to `Appetite | 50 USD` and end one more turn. Expected: the next question is answered again; the message is not repeated.
 6. Delete `stream-spend.json`, reduce the row to `Appetite | 0.01 USD`, then run a turn of an agent whose provider reports no cost. Expected: `partial` is true, the total is unchanged by that turn, and a later message reads `a partial total`.
 7. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
 ## Question budget
 
 Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with `mwp-smoke` installed and the daemon started with `MWP_QUESTION_BUDGET=2`, in the scratch repository of "Delegated answers" with the table row reduced to `Questions the orchestrator may decide | two-way`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Note `question-budget.json` under the state directory (`MWP_STATE_DIR` moves it) before you start, and delete it so the day starts at zero.

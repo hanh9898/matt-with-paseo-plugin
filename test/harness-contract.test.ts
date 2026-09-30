@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { HARNESS_FIELDS, problemsOf } from "../shared/harness.ts";
 
 const dir = new URL("../harness/", import.meta.url);

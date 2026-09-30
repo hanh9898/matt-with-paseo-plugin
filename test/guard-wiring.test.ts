@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { ROLE_ENV, TICKET_ROLE } from "../shared/role-marker.ts";
 
 function read(path: string): string {

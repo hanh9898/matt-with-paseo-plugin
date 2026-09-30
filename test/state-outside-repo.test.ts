@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import { test } from "node:test";
 import { MARKED_BLOCK, STATE_DIR_ENV, stateDir, withMarkedBlock } from "../shared/state-location.ts";
 import { readStateFile, writeMarkedBlock, writeStateFile } from "../server/state.ts";

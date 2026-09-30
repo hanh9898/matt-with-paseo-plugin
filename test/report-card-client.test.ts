@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { cardLines } from "../client/report-card-text.ts";
 import { CARD_RENDERER, contributeReportCard } from "../client/report-card.ts";
 import { reportCardRow } from "../server/report-card.ts";
@@ -35,7 +36,7 @@ test("the renderer's schema accepts the row the daemon builds, and rejects a row
   const schema = renderers[0]?.schema;
   assert.ok(schema);
   for (const input of [
-    { decided: [entry], spend: { totalUsd: 1, appetiteUsd: 5, partial: true }, questions: { count: 2, budget: 5 } },
+    { decided: [entry], spend: { totalUsd: 1, appetiteUsd: 5, partial: true, notified: false }, questions: { count: 2, budget: 5 } },
     { decided: [], spend: undefined, questions: { count: 0, budget: null } },
   ]) {
     assert.equal(schema.safeParse(reportCardRow(input).data).success, true);
@@ -48,7 +49,7 @@ test("the renderer's schema accepts the row the daemon builds, and rejects a row
 });
 
 test("the card's lines list each decision, the spend against the appetite, and the question count against the budget", () => {
-  const lines = cardLines(reportCardRow({ decided: [entry], spend: { totalUsd: 1.5, appetiteUsd: 5, partial: false }, questions: { count: 2, budget: 5 } }).data as never);
+  const lines = cardLines(reportCardRow({ decided: [entry], spend: { totalUsd: 1.5, appetiteUsd: 5, partial: false, notified: false }, questions: { count: 2, budget: 5 } }).data as never);
   assert.equal(lines.title, "Report card");
   assert.deepEqual(lines.decided, ["Colour: Red (Recommended)"]);
   assert.equal(lines.spend, "Spend $1.50 of $5.00");
@@ -56,7 +57,7 @@ test("the card's lines list each decision, the spend against the appetite, and t
 });
 
 test("the card says when the total is partial, when there is no appetite or budget, and when nothing was decided", () => {
-  const lines = cardLines(reportCardRow({ decided: [], spend: { totalUsd: 0.5, appetiteUsd: null, partial: true }, questions: { count: 3, budget: null } }).data as never);
+  const lines = cardLines(reportCardRow({ decided: [], spend: { totalUsd: 0.5, appetiteUsd: null, partial: true, notified: false }, questions: { count: 3, budget: null } }).data as never);
   assert.match(lines.spend, /partial/);
   assert.match(lines.spend, /no limit set/);
   assert.match(lines.questions, /no limit set/);

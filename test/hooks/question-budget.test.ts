@@ -140,7 +140,7 @@ test("a new day in local time starts the count again, and the budget can be spen
 });
 
 test("no setting, or one that is not a whole number, counts without a budget: no message, no pill", async () => {
-  for (const env of [{}, { [BUDGET_ENV]: "many" }, { [BUDGET_ENV]: "0" }]) {
+  for (const env of [{}, { [BUDGET_ENV]: "many" }, { [BUDGET_ENV]: "0" }] as Record<string, string>[]) {
     const { fake, budget } = wired(env);
     await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
     await fake.emitPermissionRequested({ agent: ticket, request: ask("r2") });

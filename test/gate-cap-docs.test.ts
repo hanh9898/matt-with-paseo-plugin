@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { CAP_SHARE_ENV, DEFAULT_SHARE } from "../shared/gate-cap.ts";
 
 function read(name: string): string {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 
 function read(name: string): string {
   return readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
@@ -23,7 +24,7 @@ test("the contract lists the appetite passed message with its case for a partial
 test("the contract says how the appetite is summed and where the total is kept", () => {
   const reads = section(read("docs/contract.md"), "## What the plugin reads from the delegation table");
   assert.match(reads, /turn end/i, "the total is summed at a turn end");
-  assert.match(reads, /`totalCostUsd`/);
+  assert.match(reads, /`(?:lastUsage\.)?totalCostUsd`/);
   assert.match(reads, /`stream-spend\.json`/, "the total is kept outside the repository");
   assert.doesNotMatch(reads, /until #40/, "the appetite is wired");
 });

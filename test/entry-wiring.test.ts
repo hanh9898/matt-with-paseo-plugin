@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import contribute from "../index.server.ts";
 
 test("the entry registers the relay and the waiting count on the agent events, and serves the count over RPC", () => {
@@ -50,7 +51,7 @@ test("the entry registers before hooks for agent creation and session open, and 
   contribute(server as unknown as Parameters<typeof contribute>[0]);
   assert.deepEqual(before, ["agent.create", "agent.session_open"]);
   const entry = readFileSync(new URL("../index.server.ts", import.meta.url), "utf8");
-  assert.match(entry, /registerTicketMarker(hooks)/);
+  assert.match(entry, /registerTicketMarker\(hooks\)/);
 });
 
 test("the entry hands the waiting count the same hooks", () => {
