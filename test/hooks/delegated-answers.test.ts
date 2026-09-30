@@ -183,3 +183,12 @@ test("a record that fails does not throw into Paseo (T4)", async () => {
   assert.equal(fake.answers.length, 1);
   assert.deepEqual(fake.failures, []);
 });
+
+test("a bundle agent's decidable question is answered with its recommendation", async () => {
+  const { host: fake } = host();
+  const bundleAgent: HostAgent = { ...ticket, id: "bnd-7", title: "[Wave 1] [70+71] x" };
+  fake.setLabels("bnd-7", { stream: "demo", wave: "1", bundle: "70", tickets: "70,71" });
+  await fake.emitPermissionRequested({ agent: bundleAgent, request: ask("r1") });
+  assert.equal(fake.answers.length, 1);
+  assert.equal(fake.answers[0]?.agentId, "bnd-7");
+});

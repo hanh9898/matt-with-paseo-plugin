@@ -250,3 +250,11 @@ test("a send that fails leaves the orchestrator untold, so the next question tri
     errors.mock.restore();
   }
 });
+
+test("a question a bundle agent leaves for the user is counted", async () => {
+  const { fake, budget } = wired({ [BUDGET_ENV]: "9" });
+  const bundleAgent: HostAgent = { ...ticket, id: "bnd-7", title: "[Wave 1] [70+71] x" };
+  fake.setLabels("bnd-7", { stream: "demo", wave: "1", bundle: "70", tickets: "70,71" });
+  await fake.emitPermissionRequested({ agent: bundleAgent, request: ask("r1") });
+  assert.equal(budget.count(), 1);
+});

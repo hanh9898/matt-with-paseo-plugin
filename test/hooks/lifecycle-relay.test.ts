@@ -391,3 +391,57 @@ test("an agent carrying stream and a wave without a ticket, or neither role, is 
   }
   assert.deepEqual(host.sent, []);
 });
+
+const bundleAgent: HostAgent = { ...ticketAgent, id: "bnd-7", title: "[Wave 1] [70+71] Relay and mark bundle agents" };
+const BUNDLE_CLAUSE = "bundle 70 (tickets 70,71) of wave 1, agent bnd-7";
+
+function bundled(labels: Record<string, string> = { wave: "1", bundle: "70", tickets: "70,71" }): FakeHost {
+  const host = new FakeHost();
+  registerLifecycleRelay(host);
+  host.setLabels("bnd-7", labels);
+  return host;
+}
+
+test("a bundle agent's creation, turn end, pending permission and archive reach its orchestrator with the bundle clause", async () => {
+  const host = bundled();
+  await host.emitCreated({ agent: bundleAgent });
+  await host.emitPermissionRequested({ agent: bundleAgent, request: { id: "req-9", name: "Bash", kind: "tool" } });
+  await host.emitTurnEnded({ agent: bundleAgent, outcome: completed, timeline: [] });
+  await host.emitArchived({ agent: bundleAgent });
+  assert.equal(host.sent.length, 4);
+  const leads = ["Agent created", "Permission pending", "Turn ended", "Agent archived"];
+  host.sent.forEach((message, n) => {
+    assert.equal(message.agentId, "orch-1");
+    assert.ok(message.text.startsWith(`${leads[n]}: ${BUNDLE_CLAUSE}`), message.text);
+  });
+  assert.deepEqual(host.failures, []);
+});
+
+test("a bundle agent under a stream is relayed as a bundle agent, not as a stream agent", async () => {
+  const host = bundled({ stream: "demo", wave: "1", bundle: "70", tickets: "70,71" });
+  await host.emitTurnEnded({ agent: bundleAgent, outcome: completed, timeline: [] });
+  assert.ok(host.sent[0]?.text.startsWith(`Turn ended: ${BUNDLE_CLAUSE}`), host.sent[0]?.text);
+});
+
+test("a bundle agent's archive is relayed after its labels are gone", async () => {
+  const host = bundled();
+  await host.emitCreated({ agent: bundleAgent });
+  host.setLabels("bnd-7", {});
+  await host.emitArchived({ agent: bundleAgent });
+  assert.ok(host.sent.at(-1)?.text.startsWith(`Agent archived: ${BUNDLE_CLAUSE}`), host.sent.at(-1)?.text);
+});
+
+test("the user's words in a bundle agent's chat ride its turn end, with the bundle clause", async () => {
+  const host = bundled();
+  await host.emitTurnEnded({ agent: bundleAgent, outcome: completed, timeline: [typed("m-1")] });
+  const text = host.sent[0]?.text ?? "";
+  assert.match(text, new RegExp(`Human words: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7`));
+  assert.match(text, /Turn ended: bundle 70/);
+});
+
+test("a ticket agent is relayed with today's text when a bundle agent exists beside it", async () => {
+  const host = relayed();
+  host.setLabels("bnd-7", { wave: "1", bundle: "70", tickets: "70,71" });
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [] });
+  assert.ok(host.sent[0]?.text.startsWith("Turn ended: ticket 07 of wave 1, agent tkt-7, outcome completed."), host.sent[0]?.text);
+});
