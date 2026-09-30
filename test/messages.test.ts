@@ -265,8 +265,7 @@ test("a bundle agent's text names the bundle, its tickets, the wave and the agen
       assert.match(text, /: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7[,.]/, `${type} (${name}) has the bundle clause`);
       assert.doesNotMatch(text, /ticket 7[01]/, `${type} (${name}) names no single ticket`);
       assert.doesNotMatch(text, /stream/i, `${type} (${name}) is no stream text`);
-      const moves = text.split("
-").at(-1) ?? "";
+      const moves = text.split("\n").at(-1) ?? "";
       assert.ok(moves.startsWith("Next: ") && moves.endsWith("."), `${type} (${name}) ends with a Next line`);
       assert.match(moves, /bundle 70/, `${type} (${name}) names the bundle in its moves`);
     }
@@ -280,20 +279,17 @@ test("a bundle agent's text names the bundle, its tickets, the wave and the agen
 test("a ticket agent's text is unchanged by the bundle case", () => {
   assert.equal(
     MESSAGES.turnEnded(subject, { kind: "completed" }),
-    "Turn ended: ticket 07 of wave 1, agent tkt-7, outcome completed.
-Next: check ticket 07's report with get_agent_activity and its artifacts (commits on its branch, ticket status); prompt agent tkt-7 when the report is incomplete.",
+    "Turn ended: ticket 07 of wave 1, agent tkt-7, outcome completed.\nNext: check ticket 07's report with get_agent_activity and its artifacts (commits on its branch, ticket status); prompt agent tkt-7 when the report is incomplete.",
   );
   assert.equal(
     MESSAGES.created(subject),
-    "Agent created: ticket 07 of wave 1, agent tkt-7.
-Next: carry on with the wave while ticket 07's turn end and any pending permission reach you as messages.",
+    "Agent created: ticket 07 of wave 1, agent tkt-7.\nNext: carry on with the wave while ticket 07's turn end and any pending permission reach you as messages.",
   );
 });
 
 test("combine joins a bundle agent's message with a ticket agent's, one `Next:` line holding both sets of moves", () => {
   const text = combine([MESSAGES.turnEnded(bundle, { kind: "completed" }), MESSAGES.turnEnded(subject, { kind: "completed" })]);
-  assert.equal(text.split("
-Next: ").length, 2);
+  assert.equal(text.split("\nNext: ").length, 2);
   assert.match(text, /bundle 70's report/);
   assert.match(text, /ticket 07's report/);
 });
