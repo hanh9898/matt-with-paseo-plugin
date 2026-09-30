@@ -272,7 +272,7 @@ The checks are `test/gate-cap.test.ts`, `test/hooks/gate-cap.test.ts` and `test/
 
 ### Delegated answers
 
-When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. A question with a `Yours:` line, a `Door: one-way`, no recommendation, or any question in a request that fails one of these is left to the user, as is every question when the table is missing, unreadable or switched off. Agents with no role labels are left alone.
+When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. A question with a `Yours:` line, a `Door: one-way`, no recommendation, or any question in a request that fails one of these is left to the user, as is every question when the table is missing, unreadable or switched off. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository.
 
 The checks are `test/delegation.test.ts`, `test/delegated-answers.test.ts`, `test/hooks/delegated-answers.test.ts` and `test/delegated-answers-docs.test.ts`; the smoke test ("Delegated answers") runs it on Paseo `0.10.1`.
 
