@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { URL } from "node:url";
-import { MARKED_BLOCK, STATE_DIR_ENV, STATE_DIR_NAME } from "../shared/state-location.ts";
+import { MARKED_BLOCK, STATE_DIR_ENV, STATE_DIR_NAME } from "../server/state-location.ts";
 
 function read(name: string): string {
   return readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
@@ -26,7 +26,7 @@ function stateSubsection(): string {
 
 test("the layout table lists the state location and the state module", () => {
   const rows = developmentSection().split("\n").filter((line) => line.startsWith("| `"));
-  for (const path of ["shared/state-location.ts", "server/state.ts"]) {
+  for (const path of ["server/state-location.ts", "server/state.ts"]) {
     assert.ok(rows.some((row) => row.startsWith(`| \`${path}\``)), `layout table has a row for ${path}`);
   }
 });

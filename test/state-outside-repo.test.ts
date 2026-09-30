@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { test } from "node:test";
-import { MARKED_BLOCK, STATE_DIR_ENV, stateDir, withMarkedBlock } from "../shared/state-location.ts";
+import { MARKED_BLOCK, STATE_DIR_ENV, stateDir, withMarkedBlock } from "../server/state-location.ts";
 import { readStateFile, writeMarkedBlock, writeStateFile } from "../server/state.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -12,7 +12,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 /** The one module that may write: it writes under the state directory, or into the one marked block. */
 const WRITER = "server/state.ts";
 /** The one module that names where the state lives. */
-const LOCATION = "shared/state-location.ts";
+const LOCATION = "server/state-location.ts";
 
 /** What a read-only import of `node:fs` may name: nothing that creates, changes or removes a file. */
 const READ_ONLY = new Set(["readFileSync", "readFile", "readdirSync", "readdir", "existsSync", "statSync", "stat", "lstatSync", "lstat", "accessSync", "access", "realpathSync", "realpath", "createReadStream", "constants"]);

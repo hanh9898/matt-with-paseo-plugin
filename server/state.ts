@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
-import { defaultStateDir, MARKED_BLOCK, withMarkedBlock } from "../shared/state-location.ts";
+import { defaultStateDir, MARKED_BLOCK, withMarkedBlock } from "./state-location.ts";
 
 /**
  * The one module that writes a file. It writes under the state directory, or into the one marked block of a
