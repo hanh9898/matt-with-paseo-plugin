@@ -35,5 +35,5 @@ export default function contribute(server: PaseoServer) {
     },
     answered: card.refresh,
   });
-  return () => {};
+  return () => hooks.stop();
 }
