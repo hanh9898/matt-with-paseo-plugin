@@ -22,6 +22,13 @@ test("the smoke test has a report card part that ends with a screenshot of the c
   assert.match(smoke, /question/i);
   assert.match(smoke, /no button/i);
   assert.match(smoke, /same row|one row/i);
+  assert.match(smoke, /Questions today: 1 of 5/, "the steps read the card's own words");
+});
+
+test("the smoke test says a card drawn as an unavailable placeholder fails, since the client renderer is the card", () => {
+  const smoke = section(read("test/smoke/README.md"), "## Report card");
+  assert.match(smoke, /unavailable/i);
+  assert.match(smoke, /renderer/i);
 });
 
 test("the README lays out the report card module and says the card has no buttons", () => {
@@ -30,6 +37,8 @@ test("the README lays out the report card module and says the card has no button
   assert.match(readme, /### The report card/);
   assert.match(section(readme, "### The report card"), /no buttons/i);
   assert.doesNotMatch(readme, /no report card exists in this repository yet/);
+  assert.doesNotMatch(readme, /no client file of its own/);
+  assert.match(section(readme, "### The report card"), /client\/report-card\.ts/);
 });
 
 test("CHANGELOG.md lists the report card under Unreleased", () => {
