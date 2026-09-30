@@ -197,6 +197,18 @@ export class FakeHost implements Host, HostHooks {
     this.rows.push({ agentId, row });
   }
 
+  /** The rows an agent's timeline holds now: a row appended again under the same `id` replaces the earlier one, as Paseo does; a row with no id stays. */
+  timeline(agentId: string): TimelineRow[] {
+    const held: TimelineRow[] = [];
+    for (const entry of this.rows) {
+      if (entry.agentId !== agentId) continue;
+      const at = entry.row.id === undefined ? -1 : held.findIndex((row) => row.id === entry.row.id);
+      if (at === -1) held.push(entry.row);
+      else held[at] = entry.row;
+    }
+    return held;
+  }
+
   private async run<E>(hook: string, handlers: Handler<E>[], event: E): Promise<void> {
     for (const handler of handlers) {
       try {

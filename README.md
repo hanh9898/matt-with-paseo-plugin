@@ -28,6 +28,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `client/` | App-side code the client entry imports |
 | `client/waiting-pill.ts` | The composer pill: one per agent, hidden at zero |
 | `client/pill-text.ts` | Every text the pill shows |
+| `client/report-card-text.ts`, `client/report-card.ts`, `client/report-card-view.ts` | The report card's client side: its texts, the renderer registration with its schema, and the text-only view |
 | `server/` | Daemon-side code the entry imports |
 | `server/host.ts` | The host port: the events a handler receives, the actions it may take, where it registers |
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
@@ -36,6 +37,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `shared/delegation.ts` | The reader of the `## Delegation` table |
 | `server/appetite.ts` | The appetite handler: sums each stream's turn costs, tells the orchestrator once when a stream passes its appetite, and tells the delegated answers to stop for that stream |
 | `shared/appetite.ts` | The appetite reader (a dollar amount) and the sum of a stream's spend |
+| `server/report-card.ts` | The report card: one timeline row in the orchestrator's chat, kept current under one row id, listing the delegated answers, the spend against the appetite and the question count against the budget |
 | `server/question-budget.ts` | The daily question budget: counts the questions left to the user, tells the orchestrator once when the budget is spent |
 | `shared/question-budget.ts` | The budget's setting (`MWP_QUESTION_BUDGET`) and the local day |
 | `server/hooks/gate-cap.ts` | The gate cap handler: tells the orchestrator when ticket agents run past the cap |
@@ -170,7 +172,7 @@ The skills' words blocks (`hanh9898/matt-with-paseo`: **Wave**, **Checkpoint**, 
 
 The precise terms stay where agents read them: the messages in `server/messages.ts` and this Development section keep them, and a check fails when a server or shared module imports the pill's words. The skills themselves are in `hanh9898/matt-with-paseo` and are not touched here; the plain wording of a checkpoint question is the skills' brief wording, since the question is the orchestrator's own `AskUserQuestion` text (ADR 0001).
 
-The first release draws no custom checkpoint card, and no report card exists in this repository yet, so the pill is the one screen the check covers. A card file added to `client/` is covered by the same check as soon as it exists.
+The first release draws no custom checkpoint card. The report card's client files (`client/report-card-text.ts`, `client/report-card.ts`, `client/report-card-view.ts`) sit under the same check as the pill's, and their words live in `client/report-card-text.ts`.
 
 ### The git guard
 
@@ -295,6 +297,16 @@ The delegated-answers handler tells `server/question-budget.ts` about each quest
 The budget informs and never widens delegation: it answers nothing and stops nothing, so questions keep reaching the user (the owner's answer 3 on #32). A store that cannot be read or written logs one line with the agent's id and the count goes on in memory (T4).
 
 The checks are `test/question-budget.test.ts`, `test/hooks/question-budget.test.ts` and `test/question-budget-docs.test.ts`; the smoke test ("Question budget") runs it on Paseo `0.10.1`.
+
+### The report card
+
+Nothing showed what was decided on the owner's behalf, so delegation could not be reviewed at a glance. `server/report-card.ts` appends one plugin timeline row (`kind: "report-card"`, its shape fixed by `REPORT_CARD` in `shared/contract.ts` and `docs/contract.md`) to the orchestrator's chat, under one row id, so each change replaces it and the chat holds one card. A ticket agent's change shows in its orchestrator's chat, the stream agent's in its own.
+
+Paseo draws a plugin row only through a renderer the plugin registers on the client for its kind and version, and shows "Plugin timeline item unavailable" otherwise; `client/report-card.ts` registers it (`addTimelineRenderer`, its schema the row's data), `client/report-card-view.ts` draws the text with the theme's colours, and `client/report-card-text.ts` holds the words. The view holds nothing to press.
+
+The card only reads. `decided` comes from the delegated answers' record (`readDelegatedAnswers` in `server/delegated-answers.ts`, through `server/state.ts`), `spend` from the appetite handler's record (`spendOf`, with `partial` when a turn had no cost), and `questions` from the budget's count (`count()`) and `MWP_QUESTION_BUDGET`. It is refreshed when a delegated answer is recorded (the `answered` member of the delegated-answers reader, the second hook the card needed out of it), when a question is left to the user (`left`, beside the budget), and when the appetite handler has summed a turn's cost (its `updated` member), so no refresh depends on the order Paseo runs handlers in. The card has no buttons: the round trip is unproven (ADR 0001), and buttons come with `v0.4.0`'s cards after a proof. A host that refuses the row logs one line with the agent's id and never a question or an answer (T4, T6).
+
+The checks are `test/report-card.test.ts`, `test/hooks/report-card.test.ts`, `test/report-card-client.test.ts` (the renderer), `test/report-card-docs.test.ts` and the report card cases of `test/contract.test.ts`; the smoke test ("Report card") runs it on Paseo `0.10.1` and takes the screenshot.
 
 ### Cost levels
 

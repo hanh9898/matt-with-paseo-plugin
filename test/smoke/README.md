@@ -199,6 +199,19 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with
 7. Ask a question from an agent with no labels. Expected: it is not counted.
 8. Archive every `[mwp-smoke]` agent, delete `question-budget.json`, then `paseo plugin remove mwp-smoke`.
 
+## Report card
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Question budget", with `mwp-smoke` installed and the daemon started with `MWP_QUESTION_BUDGET=5`, in the scratch repository of "Appetite" (`Questions the orchestrator may decide | two-way`, `Appetite | 0.05 USD`). Use a stream agent titled `[mwp-smoke] stream` (label `stream=mwp-smoke`) as the orchestrator and a ticket agent titled `[mwp-smoke] ticket` (labels `stream=mwp-smoke`, `wave=1`, `ticket=99`, parent the stream agent). Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Delete `delegated-answers.jsonl`, `stream-spend.json` and `question-budget.json` in the plugin's state directory first.
+
+1. Let the ticket agent's turn end. Expected: the stream agent's chat holds one report card with an empty `decided` list, the spend as `totalUsd` against 0.05 USD, and `Questions today: 0 of 5`. It is drawn as a card, not as an unavailable placeholder: a "Plugin timeline item unavailable" row means the client renderer did not register or the schema rejected the data, and the step fails. The ticket agent's own chat holds no card.
+2. Ask a `Door: two-way` question from the ticket agent (header `Colour`, first option `Red (Recommended)`). Expected: it is answered, and the card in the stream agent's chat now lists `Colour` with `Red (Recommended)` and its time. It is the same row (one card, not two), and the plugin's log shows no question text.
+3. Ask a `Door: one-way` question. Expected: it waits for the user, the same row now reads `Questions today: 1 of 5`, and it lists no new decision.
+4. Prompt the ticket agent until the total passes 0.05 USD. Expected: the same row shows the higher spend past the appetite.
+5. Run a turn of an agent whose provider reports no cost. Expected: the spend on the card says it is partial.
+6. Look at the card in Paseo's window. Expected: it has no button of any kind. Take a screenshot of the card in Paseo's window and keep it with the milestone run's results.
+7. Reload the plugin and end a turn. Expected: the card comes back with the decisions and the question count as before (the records survive), and the daemon restart drops the old row without harm.
+8. Archive every `[mwp-smoke]` agent, delete the three files, then `paseo plugin remove mwp-smoke`.
+
 ## Results
 
 None yet.

@@ -34,6 +34,13 @@ const fileStore: BudgetStore = {
   save: (record) => void writeStateFile(RECORD_FILE, `${JSON.stringify(record)}\n`),
 };
 
+/** The chat where the user sees the agent's question: a ticket agent's is its orchestrator's, the stream agent's its own; null for any other agent (T3). */
+export function ownerOf(agent: HostAgent, labels: Record<string, string>): string | null {
+  if (isTicketAgent(labels)) return agent.parentAgentId;
+  if (isStreamAgent(labels)) return agent.id;
+  return null;
+}
+
 /** What `left` takes: one question this plugin left to the user, as the delegated-answers handler reports it. */
 export type LeftQuestion = { agent: HostAgent; request: PermissionRequest; labels: Record<string, string> };
 
@@ -81,13 +88,6 @@ export function registerQuestionBudget(hooks: HostHooks, options: BudgetOptions 
     }
     if (current === null || current.day !== day) current = { day, count: 0, notified: false };
     return current;
-  }
-
-  /** The chat where the user sees the question: a ticket agent's is its orchestrator's, the stream agent's its own. */
-  function ownerOf(agent: HostAgent, labels: Record<string, string>): string | null {
-    if (isTicketAgent(labels)) return agent.parentAgentId;
-    if (isStreamAgent(labels)) return agent.id;
-    return null;
   }
 
   async function left({ agent, request, labels }: LeftQuestion, host: Host): Promise<void> {

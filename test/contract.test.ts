@@ -98,6 +98,22 @@ test("a report card that differs from the row the plugin builds fails the check"
   only(contractProblems(changed(/^Buttons: none$/m, "Buttons: approve")), "buttons");
 });
 
+test("the report card's row id, entry fields and no-buttons rule are fixed by the contract", () => {
+  assert.equal(parseContract(contract).card?.id, "report-card");
+  only(contractProblems(changed(/^Row id: `report-card`$/m, "Row id: `card`")), "row id");
+  only(contractProblems(changed(/^Decided entry: `header`, `answer`, `at`$/m, "Decided entry: `header`, `answer`")), "decided");
+  only(contractProblems(changed(/^Spend: `totalUsd`, `appetiteUsd`, `partial`$/m, "Spend: `totalUsd`, `appetiteUsd`")), "spend");
+  only(contractProblems(changed(/^Questions: `count`, `budget`$/m, "Questions: `count`")), "questions");
+  only(contractProblems(changed(/^Fields: `decided`, `spend`, `questions`$/m, "Fields: `decided`, `spend`")), "fields");
+});
+
+test("the contract says the card is one row kept current under one row id, and says when the total is partial", () => {
+  const card = contract.slice(contract.indexOf("## The report card"), contract.indexOf("## What the skills declare"));
+  assert.match(card, /one row id/);
+  assert.match(card, /partial/);
+  assert.match(card, /`null`/, "a missing appetite or budget is null");
+});
+
 test("a daily question budget in the delegation table fails the check", () => {
   const text = changed(/^\| Appetite \|/m, "| Daily question budget | how many a day |\n| Appetite |");
   only(contractProblems(text), "delegation table");

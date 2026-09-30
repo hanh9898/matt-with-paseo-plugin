@@ -58,6 +58,14 @@ test("the entry hands the waiting count the same hooks", () => {
   assert.match(entry, /registerWaitingCount\(hooks\)/);
 });
 
+test("the entry hands the report card to the modules that change a record, so no refresh depends on handler order", () => {
+  const entry = readFileSync(new URL("../index.server.ts", import.meta.url), "utf8");
+  assert.match(entry, /createReportCard\(/);
+  assert.match(entry, /updated: \(who, host\) => card\.refresh\(who, host\)/);
+  assert.match(entry, /answered: card\.refresh/);
+  assert.match(entry, /await card\.refresh\(question, host\)/);
+});
+
 test("the client entry default-exports a contribution that starts the waiting pill and hands back its cleanup", () => {
   const entry = readFileSync(new URL("../index.client.ts", import.meta.url), "utf8");
   assert.match(entry, /export default function contribute\(/);
