@@ -65,8 +65,9 @@ test("the workflow starts only on a push to release/v* and a pull request into m
   assert.deepEqual(flowList(block(text, /^ {2}pull_request:/), "branches"), ["main"]);
 });
 
-test("a pull request runs the jobs only when it comes from a release/v* branch", () => {
-  assert.match(workflow(), /if:\s*.*github\.event_name\s*==\s*'push'.*startsWith\(github\.head_ref,\s*'release\/v'\)/);
+test("every pull request into main runs the jobs, whatever branch it comes from", () => {
+  assert.doesNotMatch(workflow(), /^\s*if:/m, "no condition skips a job");
+  assert.doesNotMatch(workflow(), /head_ref/, "no job depends on the pull request's branch");
 });
 
 test("the workflow adds no dependency of its own and installs from the lockfile", () => {

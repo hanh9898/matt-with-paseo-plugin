@@ -378,7 +378,7 @@ The Claude Code plugin and its marketplace are both named `matt-with-paseo-plugi
 
 ### CI on three systems
 
-`.github/workflows/ci.yml` runs `npm ci`, then `npm run check` (the typecheck, every test and the docs-set test) on `ubuntu-latest`, `macos-latest` and `windows-latest`. It starts only on a push to a `release/v*` branch and on a pull request from one into `main`, so it runs at the milestone run and on no stream's ship pull request, as the [evidence standards](docs/agents/evidence-standards.md) require. There is no pre-commit hook: a hook that runs typecheck and tests on every commit would break that rule. Whether to add one waits for a decision after milestone `v0.5.0`. `test/ci-workflow.test.ts` reads the workflow and fails when a system, a command or a trigger differs.
+`.github/workflows/ci.yml` runs `npm ci`, then `npm run check` (the typecheck, every test and the docs-set test) on `ubuntu-latest`, `macos-latest` and `windows-latest`. It runs on every pull request into `main` (a stream's ship pull request and the release pull request alike) and on a push to a `release/v*` branch, and a red pull request is never merged, as the [evidence standards](docs/agents/evidence-standards.md) require. There is no pre-commit hook. Whether to add one waits for a decision after milestone `v0.5.0`. `test/ci-workflow.test.ts` reads the workflow and fails when a system, a command or a trigger differs.
 
 ## Contributing
 
