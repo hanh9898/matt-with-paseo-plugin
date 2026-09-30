@@ -105,3 +105,39 @@ test("the entry registers the gate cap, and no agent id is named in its source",
   const source = readFileSync(new URL("../../server/hooks/gate-cap.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /claude|codex|opencode|gemini/i);
 });
+
+function bundleAgent(n: number): HostAgent {
+  return { ...orchestrator, id: `bnd-${n}`, workspaceId: `wb${n}`, parentAgentId: "stream-1", title: `[Wave 1] [70+71] bundle ${n}` };
+}
+
+async function startBundle(host: FakeHost, n: number): Promise<void> {
+  host.setLabels(`bnd-${n}`, { stream: "demo", wave: "1", bundle: "70", tickets: "70,71" });
+  host.setRunning(`bnd-${n}`, true);
+  await host.emitCreated({ agent: bundleAgent(n) });
+}
+
+test("a bundle agent counts once toward the cap, however many tickets it carries", async () => {
+  const host = machine(2);
+  await startBundle(host, 1);
+  assert.deepEqual(host.sent, [], "one bundle agent of two tickets is one running agent against a cap of one");
+  await start(host, 2);
+  assert.match(host.sent[0]?.text ?? "", /^Gate cap passed: ticket 02 of wave 1, agent tkt-2, 2 ticket agents run against a cap of 1 concurrent gates\./);
+});
+
+test("the agent that passes the cap is told with the bundle clause when it is a bundle agent", async () => {
+  const host = machine(2);
+  await start(host, 1);
+  await startBundle(host, 2);
+  assert.equal(host.sent.length, 1);
+  assert.match(host.sent[0]?.text ?? "", /^Gate cap passed: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-2, 2 ticket agents run against a cap of 1 concurrent gates\./);
+  assert.ok(host.sent[0]?.text.split("\n").at(-1)?.startsWith("Next: "));
+});
+
+test("an archived bundle agent leaves the count", async () => {
+  const host = machine(2);
+  await startBundle(host, 1);
+  await host.emitArchived({ agent: bundleAgent(1) });
+  host.setRunning("bnd-1", false);
+  await start(host, 2);
+  assert.deepEqual(host.sent, []);
+});

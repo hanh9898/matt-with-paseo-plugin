@@ -202,3 +202,12 @@ test("a stream's total survives a new registration, read back from the record", 
   assert.equal(saved["demo"]?.totalUsd, 6);
   assert.equal(again.pastAppetite("demo"), true);
 });
+
+test("a bundle agent's turn counts toward its stream's total", async () => {
+  const { fake, record } = host();
+  const bundleAgent: HostAgent = { ...ticket, id: "bnd-7", title: "[Wave 1] [70+71] x" };
+  fake.setLabels("bnd-7", { stream: "demo", wave: "1", bundle: "70", tickets: "70,71" });
+  fake.setLastTurnCost("bnd-7", 2.5);
+  await fake.emitTurnEnded(turn(bundleAgent));
+  assert.equal(record()["demo"]?.totalUsd, 2.5);
+});

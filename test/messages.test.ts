@@ -237,3 +237,62 @@ test("combine joins a stream agent's message with a ticket agent's, one `Next:` 
     for (const move of movesOf(text)) assert.ok(movesOf(both).includes(move), `the combined line holds "${move}"`);
   }
 });
+
+const bundle = { agentId: "bnd-7", wave: "1", bundle: "70", tickets: "70,71" };
+
+/** Every message type a bundle agent gets, with each case whose moves differ. */
+const BUNDLE_SAMPLES: Record<string, Record<string, string>> = {
+  turnEnded: {
+    completed: MESSAGES.turnEnded(bundle, { kind: "completed" }),
+    failed: MESSAGES.turnEnded(bundle, { kind: "failed", error: { message: "out of quota", code: "quota" } }),
+    canceled: MESSAGES.turnEnded(bundle, { kind: "canceled", reason: "user" }),
+  },
+  permissionRequested: {
+    question: MESSAGES.permissionRequested(bundle, { id: "req-9", name: "AskUserQuestion", kind: "question" }),
+    tool: MESSAGES.permissionRequested(bundle, { id: "req-9", name: "Bash", kind: "tool" }),
+  },
+  created: { created: MESSAGES.created(bundle) },
+  archived: { archived: MESSAGES.archived(bundle) },
+  humanWords: { humanWords: MESSAGES.humanWords(bundle, ["c-1"]) },
+  stallSuspected: { stallSuspected: MESSAGES.stallSuspected(bundle, ["the turn ended in failure"]) },
+  gateCapPassed: { gateCapPassed: MESSAGES.gateCapPassed(bundle, 4, 5) },
+};
+
+test("a bundle agent's text names the bundle, its tickets, the wave and the agent, and no single ticket", () => {
+  for (const [type, cases] of Object.entries(BUNDLE_SAMPLES)) {
+    for (const [name, text] of Object.entries(cases)) {
+      assert.match(text, /: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7[,.]/, `${type} (${name}) has the bundle clause`);
+      assert.doesNotMatch(text, /ticket 7[01]/, `${type} (${name}) names no single ticket`);
+      assert.doesNotMatch(text, /stream/i, `${type} (${name}) is no stream text`);
+      const moves = text.split("
+").at(-1) ?? "";
+      assert.ok(moves.startsWith("Next: ") && moves.endsWith("."), `${type} (${name}) ends with a Next line`);
+      assert.match(moves, /bundle 70/, `${type} (${name}) names the bundle in its moves`);
+    }
+  }
+  assert.match(BUNDLE_SAMPLES.turnEnded.completed, /^Turn ended: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7, outcome completed\./);
+  assert.match(BUNDLE_SAMPLES.permissionRequested.question, /request req-9, AskUserQuestion \(question\)\./);
+  assert.match(BUNDLE_SAMPLES.archived.archived, /^Agent archived: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7\./);
+  assert.match(BUNDLE_SAMPLES.gateCapPassed.gateCapPassed, /, 5 ticket agents run against a cap of 4 concurrent gates\./);
+});
+
+test("a ticket agent's text is unchanged by the bundle case", () => {
+  assert.equal(
+    MESSAGES.turnEnded(subject, { kind: "completed" }),
+    "Turn ended: ticket 07 of wave 1, agent tkt-7, outcome completed.
+Next: check ticket 07's report with get_agent_activity and its artifacts (commits on its branch, ticket status); prompt agent tkt-7 when the report is incomplete.",
+  );
+  assert.equal(
+    MESSAGES.created(subject),
+    "Agent created: ticket 07 of wave 1, agent tkt-7.
+Next: carry on with the wave while ticket 07's turn end and any pending permission reach you as messages.",
+  );
+});
+
+test("combine joins a bundle agent's message with a ticket agent's, one `Next:` line holding both sets of moves", () => {
+  const text = combine([MESSAGES.turnEnded(bundle, { kind: "completed" }), MESSAGES.turnEnded(subject, { kind: "completed" })]);
+  assert.equal(text.split("
+Next: ").length, 2);
+  assert.match(text, /bundle 70's report/);
+  assert.match(text, /ticket 07's report/);
+});
