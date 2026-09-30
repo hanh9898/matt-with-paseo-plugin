@@ -169,7 +169,7 @@ test("a host that cannot give isRunning or lastActivityAt skips that agent for t
     if (agentId === "strm-3") throw new Error("no answer");
     return activity(agentId);
   };
-  clock.now = 60;
+  clock.now = 75;
   host.setLastActivity("strm-4", iso(40));
   await host.tick();
   assert.equal(host.sent.length, 2, "strm-4 has a new stretch, which flags; strm-3 stays skipped");
