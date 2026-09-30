@@ -58,11 +58,12 @@ test("the entry hands the waiting count the same hooks", () => {
   assert.match(entry, /registerWaitingCount\(hooks\)/);
 });
 
-test("the entry registers the report card after the appetite and the budget it reads, and hands it to the delegated answers", () => {
+test("the entry hands the report card to the modules that change a record, so no refresh depends on handler order", () => {
   const entry = readFileSync(new URL("../index.server.ts", import.meta.url), "utf8");
-  assert.match(entry, /registerReportCard\(hooks,/);
+  assert.match(entry, /createReportCard\(/);
+  assert.match(entry, /updated: \(who, host\) => card\.refresh\(who, host\)/);
   assert.match(entry, /answered: card\.refresh/);
-  assert.ok(entry.indexOf("registerAppetite(hooks)") < entry.indexOf("registerReportCard(hooks,"), "the card registers after the appetite, so a turn's cost is summed first");
+  assert.match(entry, /await card\.refresh\(question, host\)/);
 });
 
 test("the client entry default-exports a contribution that starts the waiting pill and hands back its cleanup", () => {

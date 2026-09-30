@@ -194,7 +194,7 @@ The plugin appends the row again under its one row id each time a delegated answ
 - `spend` is the stream's summed turn cost in `totalUsd` against its `appetiteUsd`, which is `null` when the table has no appetite. `partial` is true when a turn had no cost, so the total may be short of the real spend.
 - `questions` is the day's `count` of questions left to the user against the `budget`, which is `null` when no budget is set.
 
-The card has no buttons: the button round trip is unproven (ADR 0001).
+The plugin's client registers the renderer that draws this kind and version; a Paseo client without it shows the row as an unavailable placeholder. The card has no buttons: the button round trip is unproven (ADR 0001).
 
 ## What the skills declare
 

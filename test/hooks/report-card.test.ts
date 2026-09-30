@@ -4,7 +4,7 @@ import { registerAppetite } from "../../server/appetite.ts";
 import { type Entry, parseEntries, registerDelegatedAnswers } from "../../server/delegated-answers.ts";
 import type { HostAgent, PermissionRequest } from "../../server/host.ts";
 import { registerQuestionBudget, type BudgetRecord } from "../../server/question-budget.ts";
-import { registerReportCard } from "../../server/report-card.ts";
+import { createReportCard } from "../../server/report-card.ts";
 import type { Spend } from "../../shared/appetite.ts";
 import { REPORT_CARD } from "../../shared/contract.ts";
 import { BUDGET_ENV, budgetOf } from "../../shared/question-budget.ts";
@@ -34,13 +34,17 @@ function wired(env: Record<string, string> = { [BUDGET_ENV]: "10" }) {
   const lines: Entry[] = [];
   let spends: Record<string, Spend> = {};
   let day: BudgetRecord | null = null;
-  const appetite = registerAppetite(fake, { readTable: async () => TABLE, store: { read: () => spends, write: (all) => void (spends = all) } });
+  const appetite = registerAppetite(fake, {
+    readTable: async () => TABLE,
+    store: { read: () => spends, write: (all) => void (spends = all) },
+    updated: (who, host) => card.refresh(who, host),
+  });
   const budget = registerQuestionBudget(fake, {
     env,
     now: () => new Date(2026, 8, 30, 10, 0),
     store: { load: () => (day === null ? null : { ...day }), save: (record) => void (day = { ...record }) },
   });
-  const card = registerReportCard(fake, {
+  const card = createReportCard({
     decided: (name) => parseEntries(lines.map((line) => JSON.stringify(line)).join("\n")).filter((entry) => entry.stream === name),
     spend: appetite.spendOf,
     questions: () => ({ count: budget.count(), budget: budgetOf(env) }),
