@@ -71,9 +71,39 @@ export type Reader = {
   now?: () => string;
   /** Told of each question this handler leaves to the user, once, after the agent's role is known; the question budget (#39) counts them. It never changes what the handler answers. */
   left?: (left: { agent: HostAgent; request: PermissionRequest; labels: Record<string, string> }, host: Host) => void | Promise<void>;
+  /** Told once after each request this handler answered and recorded, with the answering agent and its labels; the report card (#41) refreshes on it. It never changes what the handler answers. */
+  answered?: (answered: { agent: HostAgent; labels: Record<string, string> }, host: Host) => void | Promise<void>;
 };
 
 const RECORD_FILE = "delegated-answers.jsonl";
+
+/** The entries in the text of the record, oldest first; a line that is not an entry is skipped, and no text is no entries. */
+export function parseEntries(text: string | null): Entry[] {
+  const entries: Entry[] = [];
+  for (const line of (text ?? "").split("\n")) {
+    if (line.trim() === "") continue;
+    try {
+      const value = objectOf(JSON.parse(line));
+      if (value === null) continue;
+      const { stream, agent, header, answer, at } = value;
+      if (typeof stream === "string" && typeof agent === "string" && typeof header === "string" && typeof answer === "string" && typeof at === "string") {
+        entries.push({ stream, agent, header, answer, at });
+      }
+    } catch {
+      // A torn or foreign line is not a decision.
+    }
+  }
+  return entries;
+}
+
+/** The delegated answers recorded for one stream, oldest first; none when the record is missing or cannot be read. */
+export function readDelegatedAnswers(stream: string): Entry[] {
+  try {
+    return parseEntries(readStateFile(RECORD_FILE)).filter((entry) => entry.stream === stream);
+  } catch {
+    return [];
+  }
+}
 
 function appendRecord(entry: Entry): void {
   writeStateFile(RECORD_FILE, `${readStateFile(RECORD_FILE) ?? ""}${JSON.stringify(entry)}\n`);
@@ -105,6 +135,7 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
   const pastAppetite = reader.pastAppetite ?? (() => false);
   const now = reader.now ?? (() => new Date().toISOString());
   const left = reader.left;
+  const answered = reader.answered;
   /** The requests settled per agent: resolved by anyone, or answered here. */
   const settled = new Map<string, Set<string>>();
 
@@ -154,6 +185,11 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
         for (const [header, answer] of Object.entries(decision.answers)) record({ stream, agent: agent.id, header, answer, at });
       } catch (error) {
         console.error(`[matt-with-paseo] delegated answer not recorded for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      try {
+        await answered?.({ agent, labels }, host);
+      } catch (error) {
+        console.error(`[matt-with-paseo] delegated answer not told for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
     } catch (error) {
       const cause = error instanceof Error ? error.message : String(error);

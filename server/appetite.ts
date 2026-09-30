@@ -56,7 +56,10 @@ async function readAgentsFile(cwd: string): Promise<string | null> {
  * The plugin cancels nothing and stops no agent: the skills decide any Hold. An agent with no role labels is left
  * alone (T3), and a failure never reaches Paseo (T4).
  */
-export function registerAppetite(hooks: HostHooks, reader: Reader = {}): { pastAppetite: (stream: string) => boolean } {
+export function registerAppetite(
+  hooks: HostHooks,
+  reader: Reader = {},
+): { pastAppetite: (stream: string) => boolean; spendOf: (stream: string) => Spend | undefined } {
   const readTable = reader.readTable ?? readAgentsFile;
   const store = reader.store ?? fileStore;
   const held = new Map<string, string[]>();
@@ -120,5 +123,5 @@ export function registerAppetite(hooks: HostHooks, reader: Reader = {}): { pastA
 
   hooks.onArchived(({ agent }) => void held.delete(agent.id));
 
-  return { pastAppetite: (stream) => isPast(store.read()[stream]) };
+  return { pastAppetite: (stream) => isPast(store.read()[stream]), spendOf: (stream) => store.read()[stream] };
 }
