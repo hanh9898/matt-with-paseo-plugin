@@ -104,6 +104,11 @@ export const MESSAGES = {
       `hold every ready ticket after ticket ${subject.ticket} in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than ${cap} running`,
       `leave ticket ${subject.ticket} running: agent ${subject.agentId} is already created`,
     ]),
+  questionBudgetSpent: (count: number, budget: number) =>
+    `Question budget spent: ${count} question${count === 1 ? "" : "s"} reached the user today against a budget of ${budget}.${NEXT}${[
+      "keep asking the questions only the user can answer: the plugin still leaves each one to them",
+      "decide nothing extra on the budget's account: the delegation table alone says what you may decide",
+    ].join(MOVES)}.`,
   archived: (subject: Subject) =>
     message("Agent archived", subject, undefined, [
       `finish step 8's clean-up of ticket ${subject.ticket} when you archived agent ${subject.agentId}`,

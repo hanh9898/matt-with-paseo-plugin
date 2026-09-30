@@ -14,9 +14,9 @@ A skill tells the plugin is present when `paseo plugin ls` lists the Paseo id `m
 
 Every text the plugin sends to an orchestrator is built in `server/messages.ts`. A text is one body line, then one last line starting `Next: ` that names the moves open to its reader, separated by `; ` and closed by a full stop. The moves are the plugin's suggestion: the judgement stays with the skills. A text carries ids and kinds, never a request's input or an error's message. When an orchestrator's own turn runs, the messages held for it arrive as one, the bodies in order, then one `Next:` line with each message's moves, a move two messages share written once.
 
-Placeholders below are the values a message names: `<ticket>` and `<wave>` from the agent's `ticket` and `wave` labels, `<agent>` its id, `<request>` and `<name>` a pending request's id and tool name, `<code>` the error code of a failed turn (a failed turn without a code reads `outcome failed`), `<reason>` a cancel's reason, `<n>` the count of the user's messages and `<ids>` their ids (up to five, then `and N more`; one reads `1 message`), `<says>` the sensor's flagged conditions joined by `; `, `<cap>` the concurrent gates allowed and `<running>` the ticket agents running. A permission request of a kind other than `question` or `tool` (`plan`, `mode`, `other`) names that kind in its body and takes the `tool` moves.
+Placeholders below are the values a message names: `<ticket>` and `<wave>` from the agent's `ticket` and `wave` labels, `<agent>` its id, `<request>` and `<name>` a pending request's id and tool name, `<code>` the error code of a failed turn (a failed turn without a code reads `outcome failed`), `<reason>` a cancel's reason, `<n>` the count of the user's messages and `<ids>` their ids (up to five, then `and N more`; one reads `1 message`), `<says>` the sensor's flagged conditions joined by `; `, `<cap>` the concurrent gates allowed and `<running>` the ticket agents running, `<count>` the questions that reached the user today and `<budget>` the day's question budget. A permission request of a kind other than `question` or `tool` (`plan`, `mode`, `other`) names that kind in its body and takes the `tool` moves.
 
-The relay covers the `wave`/`ticket` agents and, from v1, the stream agent too ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895097885)). The stream agent's messages are the same types with `stream <stream>` in place of the `ticket <ticket> of wave <wave>` clause; the module builds none yet, and the ticket that extends the relay adds their rows here with it. Two types come with the delegation tickets, which add their rows: appetite passed (#40) and question budget spent (#39).
+The relay covers the `wave`/`ticket` agents and, from v1, the stream agent too ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895097885)). The stream agent's messages are the same types with `stream <stream>` in place of the `ticket <ticket> of wave <wave>` clause; the module builds none yet, and the ticket that extends the relay adds their rows here with it. Two types come with the delegation tickets, which add their rows: appetite passed (#40) and question budget spent (#39, below). The question budget message speaks of the machine's day, not of one ticket, so its body names no ticket or wave.
 
 ### Turn ended
 
@@ -91,6 +91,18 @@ Fields: `ticket`, `wave`, `agent`, `cap`, `running`
 |---|---|---|
 | gateCapPassed | `Gate cap passed: ticket <ticket> of wave <wave>, agent <agent>, <running> ticket agents run against a cap of <cap> concurrent gates.` | `Next: hold every ready ticket after ticket <ticket> in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than <cap> running; leave ticket <ticket> running: agent <agent> is already created.` |
 
+### Question budget spent
+
+Type: `questionBudgetSpent`
+Lead: `Question budget spent`
+Fields: `count`, `budget`
+
+| Case | Body | Next line |
+|---|---|---|
+| questionBudgetSpent | `Question budget spent: <count> questions reached the user today against a budget of <budget>.` | `Next: keep asking the questions only the user can answer: the plugin still leaves each one to them; decide nothing extra on the budget's account: the delegation table alone says what you may decide.` |
+
+The budget is read from `MWP_QUESTION_BUDGET` (see "What the plugin reads from the delegation table"). The plugin counts each question it leaves to the user per day in local time, per daemon, and sends one message a day, this one, to the orchestrator that owns the chat where the question that spent the budget waits (a ticket agent's orchestrator, or the stream agent itself); a message for an orchestrator mid-turn is held until its turn ends. It informs and never widens delegation: questions keep reaching the user, and none is answered because the budget is spent. A count of one reads `1 question`. With no setting, or a value that is not a whole number above 0, there is no budget and no message.
+
 ## Labels the plugin reads
 
 The plugin knows an agent by the labels Paseo holds for it, and leaves every other agent as Paseo made it.
@@ -141,7 +153,7 @@ The table sits under a `## Delegation` heading in the `AGENTS.md` at the root of
 
 The plugin answers an `AskUserQuestion` from a ticket agent or the stream agent only when every question in it carries a `Door:` line the table lets the orchestrator decide, no `Yours:` line and a first option marked ` (Recommended)`; the answer is that option's label, keyed by the question's `header`. One question that fails leaves the whole request to the user. A table the plugin cannot read leaves the question to the user, as does a stream past its appetite (no stream is, until #40), and a request already resolved is settled and not answered. Each delegated answer is kept outside the repository, one line per question with the stream, agent, header, answer and time, in `delegated-answers.jsonl` under the plugin's state directory.
 
-The daily question budget is not in the table: it is a per-machine setting, read from the environment variable `MWP_QUESTION_BUDGET` (a whole number of questions a day) like the plugin's other machine settings ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895102916)).
+The daily question budget is not in the table: it is a per-machine setting, read from the environment variable `MWP_QUESTION_BUDGET` (a whole number of questions a day) like the plugin's other machine settings ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895102916), [Decision on #39](https://github.com/hanh9898/matt-with-paseo-plugin/issues/39#issuecomment-5902707853)). What the plugin does with it is the "Question budget spent" message.
 
 ## The report card
 

@@ -175,6 +175,19 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Waiting pill", with `mwp
 8. Ask the step 1 question from an agent with no labels. Expected: left to the user, and the daemon log names no read of `AGENTS.md`.
 9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
+## Question budget
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with `mwp-smoke` installed and the daemon started with `MWP_QUESTION_BUDGET=2`, in the scratch repository of "Delegated answers" with the table row reduced to `Questions the orchestrator may decide | two-way`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Note `question-budget.json` under the state directory (`MWP_STATE_DIR` moves it) before you start, and delete it so the day starts at zero.
+
+1. Create a ticket agent titled `[mwp-smoke] ticket` (labels `wave=1`, `ticket=99`) under a stream agent titled `[mwp-smoke] stream` (label `stream=demo`), whose prompt asks one `AskUserQuestion` with `Door: one-way`. Expected: the question waits for the user, the pill of the stream agent reads "1 waiting" without the limit, the file holds today's date and `"count":1`, and the stream agent received no `Question budget spent:` message.
+2. Ask a second question the same way. Expected: within 30 seconds the stream agent receives one `Question budget spent: 2 questions reached the user today against a budget of 2.` message ending in a `Next:` line (held until its turn ends if it is mid-turn), the pill reads "2 waiting, daily question limit reached", and the file holds `"count":2` and `"notified":true`.
+3. Ask a third question with `Door: one-way`, then one with `Door: two-way`. Expected: the third still reaches the user and is counted (`"count":3`), no second message arrives, and the two-way question is answered with its recommendation as in "Delegated answers", not counted: the budget answers nothing and stops nothing, so questions still reach the user.
+4. Restart the daemon (reload the plugin) with the same setting. Expected: the pill still reads the limit while a question waits, and asking one more question raises the count to 4 with no new message.
+5. Change the machine's date past local midnight, or edit the file's `day` to yesterday, and ask one question. Expected: the count starts again at 1 and no message is sent until the budget is reached again.
+6. Start the daemon without `MWP_QUESTION_BUDGET`, and again with `MWP_QUESTION_BUDGET=many`, and ask two questions. Expected: both reach the user and are counted, no message is sent, the pill never reads the limit.
+7. Ask a question from an agent with no labels. Expected: it is not counted.
+8. Archive every `[mwp-smoke]` agent, delete `question-budget.json`, then `paseo plugin remove mwp-smoke`.
+
 ## Results
 
 None yet.

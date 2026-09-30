@@ -5,6 +5,7 @@ import { registerStallSensor } from "./server/hooks/stall-sensor.ts";
 import { registerTicketMarker } from "./server/hooks/ticket-marker.ts";
 import { registerWaitingCount } from "./server/hooks/waiting-count.ts";
 import { connectPaseo, type PaseoServer } from "./server/paseo-host.ts";
+import { registerQuestionBudget } from "./server/question-budget.ts";
 
 export default function contribute(server: PaseoServer) {
   const hooks = connectPaseo(server);
@@ -13,6 +14,6 @@ export default function contribute(server: PaseoServer) {
   registerTicketMarker(hooks);
   registerStallSensor(hooks);
   registerGateCap(hooks);
-  registerDelegatedAnswers(hooks);
+  registerDelegatedAnswers(hooks, { left: registerQuestionBudget(hooks).left });
   return () => {};
 }

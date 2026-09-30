@@ -34,6 +34,8 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/hooks/` | The hook handlers, one module per handler |
 | `server/delegated-answers.ts` | The delegated-answers handler and its pure decision: answers a checkpoint with its recommendation when the `## Delegation` table lets the orchestrator decide |
 | `shared/delegation.ts` | The reader of the `## Delegation` table |
+| `server/question-budget.ts` | The daily question budget: counts the questions left to the user, tells the orchestrator once when the budget is spent |
+| `shared/question-budget.ts` | The budget's setting (`MWP_QUESTION_BUDGET`) and the local day |
 | `server/hooks/gate-cap.ts` | The gate cap handler: tells the orchestrator when ticket agents run past the cap |
 | `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
 | `server/hooks/waiting-count.ts` | The handler that counts what waits for the user, per chat |
@@ -276,6 +278,16 @@ When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## De
 
 The checks are `test/delegation.test.ts`, `test/delegated-answers.test.ts`, `test/hooks/delegated-answers.test.ts` and `test/delegated-answers-docs.test.ts`; the smoke test ("Delegated answers") runs it on Paseo `0.10.1`.
 
+### The question budget
+
+Nothing else counts how many questions reach the owner in a day, so an unattended stream can flood the owner's phone. The budget is a per-machine setting, not a row of the `## Delegation` table: the environment variable `MWP_QUESTION_BUDGET`, a whole number above 0, read from the daemon's environment (`shared/question-budget.ts`). With no setting, or one that is not a whole number above 0, there is no budget: the plugin still counts and says nothing.
+
+The delegated-answers handler tells `server/question-budget.ts` about each question it leaves to the user, through the `left` member of its reader (the one hook the budget needed out of it). A question is one `AskUserQuestion` request, as the pill counts it, and only an agent recognised by its labels is counted (T3). The count is per day in local time, per daemon, and lives in `question-budget.json` under the state directory (`server/state.ts`), so it survives a reload; a new local day starts it again. When the count reaches the budget, the orchestrator that owns the chat is sent one `Question budget spent:` message (`MESSAGES.questionBudgetSpent`) ending with its `Next:` line, once a day and held while its own turn runs, and the composer pill reads "<n> waiting, daily question limit reached" while a question waits.
+
+The budget informs and never widens delegation: it answers nothing and stops nothing, so questions keep reaching the user (the owner's answer 3 on #32). A store that cannot be read or written logs one line with the agent's id and the count goes on in memory (T4).
+
+The checks are `test/question-budget.test.ts`, `test/hooks/question-budget.test.ts` and `test/question-budget-docs.test.ts`; the smoke test ("Question budget") runs it on Paseo `0.10.1`.
+
 ### Cost levels
 
 A new user cannot choose every role's agent and model at once, so the plugin ships three presets that choose them together. `presets/cost-levels.json` holds them, and it is the only place they are written:
@@ -314,6 +326,7 @@ A public plugin should not litter the repositories it works in. The plugin keeps
 | `server/hooks/stall-sensor.ts` | Each agent's last turn, its streaks per condition, the messages held | In memory |
 | `server/hooks/waiting-count.ts` | The requests open in each agent's chat | In memory |
 | `client/waiting-pill.ts` | The pill registered for each agent | In memory |
+| `server/question-budget.ts` | The day's count of questions left to the user and whether the orchestrator was told; the requests seen this turn and the message held for a busy orchestrator | `question-budget.json` under the state directory; the rest in memory |
 | `server/harness.ts`, `server/sensor.ts` | Nothing: they read the plugin's own `harness/` and `sensor/` files | Read only |
 
 A restart of the plugin forgets what those hold and starts from the next event, as it did before; the holders that would need to survive one (a gate queue across a daemon restart, say) add their row here and write through `server/state.ts`.

@@ -73,6 +73,8 @@ function forEvent<N extends AgentEvent, E>(
 
 /** The real adapter of the host port, and the only module that imports Paseo's SDK (T2). */
 export function connectPaseo(server: Registration): HostHooks {
+  /** Whether the day's question budget is spent, per agent; served over the same RPC as the count, and absent until a handler serves it. */
+  let budgetSpent: ((agentId: string) => boolean | Promise<boolean>) | null = null;
   return {
     onCreated: (handler) =>
       void server.on("agent.created", forEvent("agent.created", handler, ({ agent }) => ({ agent }))),
@@ -99,12 +101,20 @@ export function connectPaseo(server: Registration): HostHooks {
     serveWaitingCount: (handler) =>
       void server.handle(waitingCount, async ({ agentId }) => {
         try {
-          return { count: await handler(agentId) };
+          const count = await handler(agentId);
+          if (budgetSpent === null) return { count };
+          try {
+            return { count, budgetSpent: await budgetSpent(agentId) };
+          } catch (error) {
+            report("waiting.count", agentId, error);
+            return { count, budgetSpent: false };
+          }
         } catch (error) {
           report("waiting.count", agentId, error);
           return { count: 0 };
         }
       }),
+    serveBudgetSpent: (handler) => void (budgetSpent = handler),
     beforeCreate: (handler) =>
       void server.before("agent.create", async ({ request }, context) => {
         try {
