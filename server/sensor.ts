@@ -4,9 +4,10 @@ import { fileURLToPath } from "node:url";
 /**
  * The cheap sensor in front of the orchestrator's stall judgement: conditions kept as data
  * (`sensor/conditions.json`), each checked on its own against facts the plugin already sees at a ticket agent's
- * turn end, so the orchestrator reads a transcript only when one is flagged.
+ * turn end, so the orchestrator reads a transcript only when one is flagged, and of a running agent at each tick of
+ * the host port's clock.
  *
- * A condition is `check: "code"` (a fact, a comparison and `times`, the turns in a row it must hold) or
+ * A condition is `check: "code"` (a fact, a comparison and `times`, the checks in a row it must hold) or
  * `check: "model"` (a question for a small model). No model is wired: a model condition is a named slot, read
  * from the data and never flagged, until a later ticket gives it a caller.
  *
@@ -15,29 +16,40 @@ import { fileURLToPath } from "node:url";
  * - `newItems`: the timeline items added since the last turn end
  * - `newToolCalls`: the `tool_call` items among them
  * - `tailRepeats`: 1 when the last timeline item has the same type and words as at the last turn end, else 0
+ *
+ * A code condition is checked at a turn end (`on: "turn-end"`, the default) or at a tick (`on: "running"`). The one
+ * fact of a tick is `quietMinutes`, the whole minutes since the agent's `lastActivityAt`, and a `"running"`
+ * condition names it and no other fact; a `"turn-end"` condition never names it.
  */
 
 /** The data file, beside the entry: `sensor/` is data the package ships, not a code module. */
 export const CONDITIONS_FILE = fileURLToPath(new URL("../sensor/conditions.json", import.meta.url));
 
 export type Facts = { outcome: string; newItems: number; newToolCalls: number; tailRepeats: number };
-export type FactName = keyof Facts;
+/** The fact of a tick: what a turn end cannot know, since an agent stuck in a call has none. */
+export type TickFacts = { quietMinutes: number };
+export type FactName = keyof Facts | keyof TickFacts;
+/** When a condition is checked: at the agent's turn end, or at the clock's tick while the agent runs. */
+export type CheckOn = "turn-end" | "running";
 
 type Base = { id: string; says: string };
 export type CodeCondition = Base & {
   check: "code";
+  /** Absent means `"turn-end"`. */
+  on?: CheckOn;
   fact: FactName;
   /** Holds when the fact equals it, or is at most, or at least, a number: exactly one of the three. */
   is?: string;
   atMost?: number;
   atLeast?: number;
-  /** The turns in a row the condition holds before it flags. */
+  /** The checks in a row the condition holds before it flags. */
   times: number;
 };
 export type ModelCondition = Base & { check: "model"; question: string; model: null };
 export type Condition = CodeCondition | ModelCondition;
 
-const FACTS: readonly FactName[] = ["outcome", "newItems", "newToolCalls", "tailRepeats"];
+const FACTS: readonly FactName[] = ["outcome", "newItems", "newToolCalls", "tailRepeats", "quietMinutes"];
+const CHECKS_ON: readonly CheckOn[] = ["turn-end", "running"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -63,6 +75,10 @@ function problemsOf(raw: unknown): string[] {
       if (entry["model"] !== null) problems.push(`${name} names a model, and none is wired`);
     } else if (check === "code") {
       if (!FACTS.includes(entry["fact"] as FactName)) problems.push(`${name} names an unknown fact`);
+      const on = entry["on"] ?? "turn-end";
+      if (!CHECKS_ON.includes(on as CheckOn)) problems.push(`${name} has on ${String(on)}, not turn-end or running`);
+      else if (on === "running" && entry["fact"] !== "quietMinutes") problems.push(`${name} is a running condition and must name quietMinutes`);
+      else if (on === "turn-end" && entry["fact"] === "quietMinutes") problems.push(`${name} is a turn-end condition and cannot name quietMinutes`);
       const tests = ["is", "atMost", "atLeast"].filter((key) => entry[key] !== undefined);
       if (tests.length !== 1) problems.push(`${name} needs exactly one of is, atMost, atLeast`);
       if (!Number.isInteger(entry["times"]) || (entry["times"] as number) < 1) problems.push(`${name} needs times of 1 or more`);
@@ -84,10 +100,10 @@ export function loadConditions(file: string = CONDITIONS_FILE): readonly Conditi
   return (raw as { conditions: Condition[] }).conditions;
 }
 
-/** How many turns in a row each condition has held for one agent. */
+/** How many checks in a row each condition has held for one agent. */
 export type Streaks = Map<string, number>;
 
-function holds(condition: CodeCondition, facts: Facts): boolean {
+function holds(condition: CodeCondition, facts: Partial<Facts & TickFacts>): boolean {
   const value = facts[condition.fact];
   if (condition.is !== undefined) return value === condition.is;
   if (typeof value !== "number") return false;
@@ -96,14 +112,19 @@ function holds(condition: CodeCondition, facts: Facts): boolean {
 }
 
 /**
- * The conditions this turn flags, checked one at a time. A condition flags when its streak reaches `times`, and
- * again at each further multiple of it, so a stall that goes on is told again but not at every turn. `streaks`
- * is updated. A model condition is skipped: no model is wired.
+ * The conditions this check flags, one at a time: those that run `on` a turn end (the default) or on a tick. A
+ * condition flags when its streak reaches `times`, and again at each further multiple of it, so a stall that goes
+ * on is told again but not at every check. `streaks` is updated. A model condition is skipped: no model is wired.
  */
-export function flagged(conditions: readonly Condition[], facts: Facts, streaks: Streaks): CodeCondition[] {
+export function flagged(
+  conditions: readonly Condition[],
+  facts: Partial<Facts & TickFacts>,
+  streaks: Streaks,
+  on: CheckOn = "turn-end",
+): CodeCondition[] {
   const flags: CodeCondition[] = [];
   for (const condition of conditions) {
-    if (condition.check !== "code") continue;
+    if (condition.check !== "code" || (condition.on ?? "turn-end") !== on) continue;
     const streak = holds(condition, facts) ? (streaks.get(condition.id) ?? 0) + 1 : 0;
     streaks.set(condition.id, streak);
     if (streak > 0 && streak % condition.times === 0) flags.push(condition);
@@ -140,4 +161,10 @@ export function factsOf(outcome: string, timeline: readonly unknown[], seen: See
     },
     seen: { length: items.length, tail },
   };
+}
+
+/** The whole minutes from `lastActivityAt` (an ISO time) to `now` (epoch milliseconds); null when it is not a time. */
+export function quietMinutesOf(lastActivityAt: string, now: number): number | null {
+  const at = Date.parse(lastActivityAt);
+  return Number.isNaN(at) ? null : Math.max(0, Math.floor((now - at) / 60_000));
 }
