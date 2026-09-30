@@ -74,8 +74,7 @@ export type Reader = {
 const RECORD_FILE = "delegated-answers.jsonl";
 
 function appendRecord(entry: Entry): void {
-  writeStateFile(RECORD_FILE, `${readStateFile(RECORD_FILE) ?? ""}${JSON.stringify(entry)}
-`);
+  writeStateFile(RECORD_FILE, `${readStateFile(RECORD_FILE) ?? ""}${JSON.stringify(entry)}\n`);
 }
 
 async function readAgentsFile(cwd: string): Promise<string | null> {
