@@ -37,6 +37,12 @@ function hostFor(paseo: PluginHookContext["paseo"]): Host {
       const found = await paseo.agents.ref(agentId).refresh();
       return found?.agent.status === "running";
     },
+    async lastTurnCostUsd(agentId) {
+      const found = await paseo.agents.ref(agentId).refresh();
+      const usage = (found?.agent as { lastUsage?: { totalCostUsd?: unknown } | null } | undefined)?.lastUsage;
+      const cost = usage?.totalCostUsd;
+      return typeof cost === "number" ? cost : null;
+    },
     send: (agentId, text) => paseo.agents.ref(agentId).send(text),
     respondToPermission: (agentId, requestId, answer) =>
       paseo.agents.ref(agentId).respondToPermission({ requestId, response: answer }),

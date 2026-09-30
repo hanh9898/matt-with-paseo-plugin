@@ -32,6 +32,7 @@ export class FakeHost implements Host, HostHooks {
   private readonly labels = new Map<string, Record<string, string>>();
   private readonly titles = new Map<string, string>();
   private readonly running = new Set<string>();
+  private readonly costs = new Map<string, number | null>();
   private readonly created: Handler<CreatedEvent>[] = [];
   private readonly archived: Handler<ArchivedEvent>[] = [];
   private readonly turnEnded: Handler<TurnEndedEvent>[] = [];
@@ -55,6 +56,11 @@ export class FakeHost implements Host, HostHooks {
   setRunning(agentId: string, running: boolean): void {
     if (running) this.running.add(agentId);
     else this.running.delete(agentId);
+  }
+
+  /** Sets the cost `lastTurnCostUsd` reports for an agent; an agent with none set, or null, has no cost. */
+  setLastTurnCost(agentId: string, usd: number | null): void {
+    this.costs.set(agentId, usd);
   }
 
   onCreated(handler: Handler<CreatedEvent>): void {
@@ -156,6 +162,10 @@ export class FakeHost implements Host, HostHooks {
 
   async isRunning(agentId: string): Promise<boolean> {
     return this.running.has(agentId);
+  }
+
+  async lastTurnCostUsd(agentId: string): Promise<number | null> {
+    return this.costs.get(agentId) ?? null;
   }
 
   async send(agentId: string, text: string): Promise<void> {
