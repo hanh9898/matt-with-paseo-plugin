@@ -80,7 +80,7 @@ test("a case the contract drops fails the check", () => {
 });
 
 test("a field the contract omits fails the check", () => {
-  const text = changed(/^Fields: `ticket`, `wave`, `agent`, `cap`, `running`$/m, "Fields: `ticket`, `wave`, `agent`");
+  const text = changed(/^Fields: `ticket`, `wave`, `agent`, `cap`, `running`, `bundle`, `tickets`$/m, "Fields: `ticket`, `wave`, `agent`");
   only(contractProblems(text), "gateCapPassed");
 });
 
@@ -148,7 +148,7 @@ test("a stream row the contract words differently, drops, or the module does not
   only(contractProblems(changed("`Turn ended: stream <stream>, agent <agent>, outcome completed.`", "`Turn ended: stream <stream>.`")), "stream completed");
   only(contractProblems(changed(/^\| stream canceled \|.*\n/m, "")), "turnEnded");
   only(contractProblems(changed(/^\| stream archived \|.*\n/m, "")), "archived");
-  only(contractProblems(changed(/^Fields: `ticket`, `wave`, `agent`, `request`, `name`, `stream`$/m, "Fields: `ticket`, `wave`, `agent`, `request`, `name`")), "permissionRequested");
+  only(contractProblems(changed(/^Fields: `ticket`, `wave`, `agent`, `request`, `name`, `stream`, `bundle`, `tickets`$/m, "Fields: `ticket`, `wave`, `agent`, `request`, `name`, `bundle`, `tickets`")), "permissionRequested");
   const invented = "| stream plan | `Permission pending: stream <stream>.` | `Next: wait.` |\n";
   only(contractProblems(changed(/^(\| stream tool \|.*\n)/m, "$1" + invented)), "stream plan");
 });
