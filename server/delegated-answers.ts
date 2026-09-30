@@ -66,7 +66,7 @@ export type Reader = {
   readTable?: (cwd: string) => Promise<string | null>;
   /** Keeps a delegated answer outside the repository; the default appends a line to `delegated-answers.jsonl` in the state directory. */
   record?: (entry: Entry) => void;
-  /** Whether a stream is past its appetite; no stream is until the appetite ticket (#40) lands. */
+  /** Whether a stream is past its appetite; the appetite handler (`server/appetite.ts`) supplies it, and none is past when it is left out. */
   pastAppetite?: (stream: string) => boolean;
   now?: () => string;
 };

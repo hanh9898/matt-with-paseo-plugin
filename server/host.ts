@@ -82,6 +82,11 @@ export interface Host {
   labelsOf(agentId: string): Promise<Record<string, string>>;
   /** Whether Paseo reports the agent in a turn right now; false when it is idle, gone or unknown. */
   isRunning(agentId: string): Promise<boolean>;
+  /**
+   * The cost in USD of the agent's last turn (`lastUsage.totalCostUsd`), which Paseo holds only once the turn has
+   * ended; null when it reports none.
+   */
+  lastTurnCostUsd(agentId: string): Promise<number | null>;
   /** Sends a message to an agent as a prompt. */
   send(agentId: string, text: string): Promise<void>;
   respondToPermission(agentId: string, requestId: string, answer: PermissionAnswer): Promise<void>;

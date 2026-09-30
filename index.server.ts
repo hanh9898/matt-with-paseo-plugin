@@ -1,3 +1,4 @@
+import { registerAppetite } from "./server/appetite.ts";
 import { registerDelegatedAnswers } from "./server/delegated-answers.ts";
 import { registerGateCap } from "./server/hooks/gate-cap.ts";
 import { registerLifecycleRelay } from "./server/hooks/lifecycle-relay.ts";
@@ -13,6 +14,7 @@ export default function contribute(server: PaseoServer) {
   registerTicketMarker(hooks);
   registerStallSensor(hooks);
   registerGateCap(hooks);
-  registerDelegatedAnswers(hooks);
+  const appetite = registerAppetite(hooks);
+  registerDelegatedAnswers(hooks, { pastAppetite: appetite.pastAppetite });
   return () => {};
 }

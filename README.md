@@ -34,6 +34,8 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/hooks/` | The hook handlers, one module per handler |
 | `server/delegated-answers.ts` | The delegated-answers handler and its pure decision: answers a checkpoint with its recommendation when the `## Delegation` table lets the orchestrator decide |
 | `shared/delegation.ts` | The reader of the `## Delegation` table |
+| `server/appetite.ts` | The appetite handler: sums each stream's turn costs, tells the orchestrator once when a stream passes its appetite, and tells the delegated answers to stop for that stream |
+| `shared/appetite.ts` | The appetite reader (a dollar amount) and the sum of a stream's spend |
 | `server/hooks/gate-cap.ts` | The gate cap handler: tells the orchestrator when ticket agents run past the cap |
 | `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
 | `server/hooks/waiting-count.ts` | The handler that counts what waits for the user, per chat |
@@ -269,6 +271,12 @@ What it does not do:
 - The setting is read once, at start: a change takes effect when the daemon restarts the plugin. The plugin adds no settings screen: the variable is the setting.
 
 The checks are `test/gate-cap.test.ts`, `test/hooks/gate-cap.test.ts` and `test/gate-cap-docs.test.ts`; the smoke test ("Gate cap") runs it on Paseo `0.10.1`.
+
+### Appetite
+
+At each turn end of a ticket agent or the stream agent, the plugin adds the agent's `lastUsage.totalCostUsd` to its stream's total and keeps the totals in `stream-spend.json` under the state directory, never in the repository. The appetite is the `Appetite` row of the `## Delegation` table, read as a dollar amount (`20 USD`); another value is no appetite. When a total passes it, the orchestrator gets one `Appetite passed:` message with a `Next:` line, and the plugin answers no question of that stream any more, so every one reaches the user. A turn with no cost adds nothing and marks the total partial. The plugin cancels nothing and stops no agent: any Hold is the skills' decision.
+
+The checks are `test/appetite.test.ts`, `test/hooks/appetite.test.ts` and `test/appetite-docs.test.ts`; the smoke test ("Appetite") runs it on Paseo `0.10.1`.
 
 ### Delegated answers
 

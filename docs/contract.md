@@ -97,6 +97,19 @@ Fields: `ticket`, `wave`, `agent`, `cap`, `running`
 |---|---|---|
 | gateCapPassed | `Gate cap passed: ticket <ticket> of wave <wave>, agent <agent>, <running> ticket agents run against a cap of <cap> concurrent gates.` | `Next: hold every ready ticket after ticket <ticket> in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than <cap> running; leave ticket <ticket> running: agent <agent> is already created.` |
 
+### Appetite passed
+
+Type: `appetitePassed`
+Lead: `Appetite passed`
+Fields: `stream`, `spent`, `appetite`
+
+`<stream>` is the `stream` label, `<spent>` the stream's total and `<appetite>` its appetite, both in USD with two decimals. The message goes to the orchestrator once per stream, and it names no ticket: it speaks of the stream.
+
+| Case | Body | Next line |
+|---|---|---|
+| passed | `Appetite passed: stream <stream>, spent <spent> USD against an appetite of <appetite> USD.` | `Next: leave every question of stream <stream> to the user, who answers it in the asking agent's chat, since the plugin no longer answers them for this stream; decide any Hold under the skills' rules, since the plugin cancels nothing and stops no agent.` |
+| partial | `Appetite passed: stream <stream>, spent <spent> USD against an appetite of <appetite> USD (a partial total: some turns reported no cost).` | `Next: leave every question of stream <stream> to the user, who answers it in the asking agent's chat, since the plugin no longer answers them for this stream; decide any Hold under the skills' rules, since the plugin cancels nothing and stops no agent.` |
+
 ## Labels the plugin reads
 
 The plugin knows an agent by the labels Paseo holds for it, and leaves every other agent as Paseo made it.
@@ -143,9 +156,11 @@ The table sits under a `## Delegation` heading in the `AGENTS.md` at the root of
 
 - `Switch`: `on` or `off`. A table with no `Switch` row is on; any value but `on` is off. With no table, or the switch off, the plugin answers nothing.
 - `Questions the orchestrator may decide`: the door classes the orchestrator may decide, separated by `,` or `;`. Only `two-way` and `costly` count; `one-way` and any other word are dropped, so a `Door: one-way` question is never answered.
-- `Appetite`: the spend as the table writes it; the appetite ticket (#40) reads its meaning.
+- `Appetite`: the spend as the table writes it, read as a dollar amount (`20 USD`, `$20`, `USD 20` or `20`). Any other value is no appetite, and a stream with none is never past it.
 
-The plugin answers an `AskUserQuestion` from a ticket agent or the stream agent only when every question in it carries a `Door:` line the table lets the orchestrator decide, no `Yours:` line and a first option marked ` (Recommended)`; the answer is that option's label, keyed by the question's `header`. One question that fails leaves the whole request to the user. A table the plugin cannot read leaves the question to the user, as does a stream past its appetite (no stream is, until #40), and a request already resolved is settled and not answered. Each delegated answer is kept outside the repository, one line per question with the stream, agent, header, answer and time, in `delegated-answers.jsonl` under the plugin's state directory.
+The plugin answers an `AskUserQuestion` from a ticket agent or the stream agent only when every question in it carries a `Door:` line the table lets the orchestrator decide, no `Yours:` line and a first option marked ` (Recommended)`; the answer is that option's label, keyed by the question's `header`. One question that fails leaves the whole request to the user. A table the plugin cannot read leaves the question to the user, as does a stream past its appetite, and a request already resolved is settled and not answered. Each delegated answer is kept outside the repository, one line per question with the stream, agent, header, answer and time, in `delegated-answers.jsonl` under the plugin's state directory.
+
+The plugin sums the spend at each turn end: the agent's `lastUsage.totalCostUsd` is added to the total of its `stream` label, for a ticket agent and the stream agent alike, and the totals are kept in `stream-spend.json` under the plugin's state directory. A turn with no cost adds nothing and marks the total partial, which the report card reads. When a total passes the appetite, the orchestrator gets one "Appetite passed" message (see Message types) and the plugin answers no question of that stream any more, so every one reaches the user. The plugin cancels nothing and stops no agent: any Hold is the skills' decision.
 
 The daily question budget is not in the table: it is a per-machine setting, read from the environment variable `MWP_QUESTION_BUDGET` (a whole number of questions a day) like the plugin's other machine settings ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895102916)).
 

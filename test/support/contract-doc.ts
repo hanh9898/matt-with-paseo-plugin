@@ -78,6 +78,10 @@ export const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
   humanWords: { humanWords: MESSAGES.humanWords(SUBJECT, ["zz-m1", "zz-m2"]) },
   stallSuspected: { stallSuspected: MESSAGES.stallSuspected(SUBJECT, ["zz-says"]) },
   gateCapPassed: { gateCapPassed: MESSAGES.gateCapPassed(SUBJECT, 77, 99) },
+  appetitePassed: {
+    passed: MESSAGES.appetitePassed("zz-stream", 123.45, 100, false),
+    partial: MESSAGES.appetitePassed("zz-stream", 123.45, 100, true),
+  },
 };
 
 const PLACEHOLDERS: readonly (readonly [RegExp, string])[] = [
@@ -94,6 +98,9 @@ const PLACEHOLDERS: readonly (readonly [RegExp, string])[] = [
   [/\b2 messages\b/g, "<n> messages"],
   [/\b77\b/g, "<cap>"],
   [/\b99\b/g, "<running>"],
+  [/zz-stream/g, "<stream>"],
+  [/123\.45/g, "<spent>"],
+  [/100\.00/g, "<appetite>"],
 ];
 
 /** A text the messages module built, split into its body and its `Next:` line, with its ids written as placeholders. */

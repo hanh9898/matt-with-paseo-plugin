@@ -175,6 +175,18 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Waiting pill", with `mwp
 8. Ask the step 1 question from an agent with no labels. Expected: left to the user, and the daemon log names no read of `AGENTS.md`.
 9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
+## Appetite
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with `mwp-smoke` installed, in a scratch repository whose `AGENTS.md` holds a `## Delegation` table with the rows `Questions the orchestrator may decide | two-way` and `Appetite | 0.05 USD`. Use a stream agent titled `[mwp-smoke] stream` (label `stream=mwp-smoke`) as the orchestrator. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Delete `stream-spend.json` in the plugin's state directory first.
+
+1. Create a ticket agent titled `[mwp-smoke] ticket` (labels `stream=mwp-smoke`, `wave=1`, `ticket=99`, parent the stream agent) and give it a prompt that asks for one short answer. Expected: after its turn ends, `stream-spend.json` holds `mwp-smoke` with `totalUsd` equal to the agent's `lastUsage.totalCostUsd` and `partial` false, and the repository's tree is unchanged.
+2. Ask the step 1 question `AskUserQuestion` (`Door: two-way`, first option `Red (Recommended)`) from the ticket agent while the total is under 0.05 USD. Expected: answered with `Red (Recommended)`.
+3. Prompt the ticket agent until the total passes 0.05 USD. Expected: the stream agent receives one message starting `Appetite passed: stream mwp-smoke` with a `Next:` line; further turns send no second one; no agent is cancelled or stopped.
+4. Ask the step 2 question again from the ticket agent and from the stream agent. Expected: both are left to the user (the pill counts them), and the plugin's log shows no question text.
+5. Raise the row to `Appetite | 50 USD` and end one more turn. Expected: the next question is answered again; the message is not repeated.
+6. Delete `stream-spend.json`, reduce the row to `Appetite | 0.01 USD`, then run a turn of an agent whose provider reports no cost. Expected: `partial` is true, the total is unchanged by that turn, and a later message reads `a partial total`.
+7. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
 ## Results
 
 None yet.

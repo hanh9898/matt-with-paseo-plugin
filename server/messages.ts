@@ -138,6 +138,15 @@ export const MESSAGES = {
       `hold every ready ticket after ticket ${subject.ticket} in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than ${cap} running`,
       `leave ticket ${subject.ticket} running: agent ${subject.agentId} is already created`,
     ]),
+  appetitePassed: (stream: string, spentUsd: number, appetiteUsd: number, partial: boolean) => {
+    const spent = `spent ${spentUsd.toFixed(2)} USD against an appetite of ${appetiteUsd.toFixed(2)} USD`;
+    const body = `Appetite passed: stream ${stream}, ${partial ? `${spent} (a partial total: some turns reported no cost)` : spent}.`;
+    const moves = [
+      `leave every question of stream ${stream} to the user, who answers it in the asking agent's chat, since the plugin no longer answers them for this stream`,
+      "decide any Hold under the skills' rules, since the plugin cancels nothing and stops no agent",
+    ];
+    return `${body}${NEXT}${moves.join(MOVES)}.`;
+  },
   archived: (subject: Relayed) =>
     message(
       "Agent archived",
