@@ -30,8 +30,8 @@ This repo adds one house rule of its own, not a lever of that skill:
 | ID | Rule | A finding looks like |
 |---|---|---|
 | T1 | **Strict types.** The compiler runs with `strict` on; no `any`, and no `as` cast that hides a mismatch. A value from outside (an event payload, a file, a message) enters as `unknown` and is narrowed before use | `const event = payload as TurnEndedEvent` with no check |
-| T2 | **One narrow host port.** Every call to Paseo's plugin SDK goes through one host module; the rest of the plugin depends on that module's own interface, so a test replaces the host in one place (#4) | an SDK import in a hook handler |
-| T3 | **Marked agents only.** The plugin acts only on an agent it recognises by its labels (ADR 0001's prototype marked its agents the same way); every other agent is left exactly as Paseo made it | a handler that edits the config of every agent it sees |
+| T2 | **One narrow host port.** Every server-side call to Paseo's plugin SDK goes through one host module, `server/paseo-host.ts`; the rest of the server depends on that module's own interface, `server/host.ts`, so a test replaces the host in one place (#4). On the client side only `index.client.ts` (its context type) and the RPC contract in `shared/` import the SDK | an SDK import in a hook handler |
+| T3 | **Marked agents only.** The plugin acts only on an agent it recognises by its labels (`shared/role-labels.ts`), or, in `before('agent.create')` where no label exists yet, by the wave skill's ticket-agent title (ADR 0001's prototype marked its agents the same way); every other agent is left exactly as Paseo made it | a handler that edits the config of every agent it sees |
 | T4 | **Fail open.** A handler never throws into the host. A failure is logged with the event and the agent's id, and the agent carries on on Paseo's default path, as it would with the plugin disabled | an unhandled rejection inside `before('agent.create')` |
 | T5 | **Answers keyed by header.** An answer to an `AskUserQuestion` is keyed by the question's `header`, as Paseo's own prompt keys it (ADR 0001) | `updatedInput.answers` keyed by the question text |
 | T6 | **No credentials.** The plugin never reads, logs, stores or sends a token or a credential, including in an error message | an environment dump in a log line |
@@ -41,7 +41,7 @@ This repo adds one house rule of its own, not a lever of that skill:
 
 | ID | Rule | A finding looks like |
 |---|---|---|
-| J1 | **One version token.** The version lives in one place, and every manifest and the contract version read or are checked against it (#16) | `paseo-plugin.json` at `0.2.0` while `package.json` says `0.1.0` |
+| J1 | **One version token.** The release version lives in `package.json`, and every manifest that carries a version is checked against it (#16); the contract version is its own whole number, checked against `docs/contract.md` (ADR 0003) | `.claude-plugin/plugin.json` at `0.2.0` while `package.json` says `0.1.0` |
 | J2 | **Host range declared.** The manifest names the range of Paseo host versions the plugin supports, and nothing outside it is claimed (#3) | a README claiming "any Paseo" |
 | J3 | **Plain JSON.** Two-space indent, a trailing newline, no comments, no trailing commas, keys in a stable order that a change does not shuffle | a diff that reorders a manifest's keys |
 

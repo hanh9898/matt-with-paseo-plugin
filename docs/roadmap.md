@@ -16,7 +16,7 @@ Where matt-with-paseo-plugin is going: five milestones, `v0.1.0` to `v0.5.0`, in
 
 ## v0.1.0: Supervision and Delegation, the first unattended stream
 
-Status: planned
+Status: in progress (the milestone run, on `release/v0.1.0`)
 
 ### Carried by existing issues
 
@@ -33,6 +33,10 @@ Status: planned
 7. Question budget per day: #39
 8. Appetite from turn costs: #40
 9. Report card from the record: #41
+10. Relay stream agents: #43
+11. Relay and mark bundle agents: #45
+12. Stall suspected for a running stream agent: #48
+13. Stall suspected for a running ticket agent: #49
 
 ### Exit criteria
 
@@ -46,7 +50,7 @@ In the order they are met:
 6. The skills run with the plugin absent (skills side).
 7. Contract v1 exists and a skills release reads it.
 8. A delegated question is answered within the `## Delegation` table's rules and never outside them. The user's five items and any question with no recommendation still reach the user.
-9. The question budget and the appetite are counted, and a stream past either one sends its questions to the user.
+9. The question budget and the appetite are counted: a stream past its appetite sends its questions to the user, and a spent budget tells the user and widens no delegation (#39).
 10. The report card shows what was decided on the user's behalf.
 11. An unattended stream runs end to end with no heartbeat and with delegation on.
 12. The README carries the vision, and ADR 0002 and `docs/roadmap.md` exist.

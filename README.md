@@ -12,7 +12,7 @@ What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-pl
 
 ## Development
 
-The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step; the plugin was tested on Node 22, and `package.json` has no `engines` field, so npm does not refuse another version.
+The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step, since from 22.18 Node strips TypeScript types by default; the plugin was tested on Node 22 and Node 24, and `package.json` has no `engines` field, so npm does not refuse another version.
 
 Install from a clone: `git clone https://github.com/hanh9898/matt-with-paseo-plugin`, `cd matt-with-paseo-plugin`, `npm ci`, then `paseo plugin install <path to the clone>` (the smoke test runs the same command with a plugin id, `--id`). The Claude Code half installs as `matt-with-paseo-plugin@matt-with-paseo-plugin` (see the Claude Code plugin paragraph below). Nothing is published to npm.
 
@@ -140,7 +140,7 @@ Each handler in `server/hooks/` needs a `test/hooks/<name>.test.ts` that uses `F
 | `agent.created` | `Agent created:` |
 | `agent.archived` | `Agent archived:` |
 
-A ticket agent is the one that carries the labels `wave` and `ticket`, as the wave skill starts every ticket agent; any other agent is left alone. Its orchestrator is its `parentAgentId`; an agent with none has nobody to tell. When `isRunning` reports the orchestrator mid-turn, the message is held and all held messages go out as one when that orchestrator's `agent.turn_ended` fires; an orchestrator that is archived loses what was held. A host that cannot say whether the orchestrator runs is treated as idle, and the message goes out at once.
+A ticket agent is the one that carries the labels `wave` and `ticket`, as the wave skill starts every ticket agent, or, for a bundle agent, `wave`, `bundle` and `tickets`; the stream agent carries `stream` and no `wave` (`shared/role-labels.ts`); any other agent is left alone. Its orchestrator is its `parentAgentId`; an agent with none has nobody to tell. When `isRunning` reports the orchestrator mid-turn, the message is held and all held messages go out as one when that orchestrator's `agent.turn_ended` fires; an orchestrator that is archived loses what was held. A host that cannot say whether the orchestrator runs is treated as idle, and the message goes out at once.
 
 Every text lives in `server/messages.ts`: its body on one line, then a last `Next:` line that names the moves open to the orchestrator, in the wave skill's tools and words (`get_agent_activity`, `list_pending_permissions`, `respond_to_permission`, checkpoint). A check fails when a message type or case has no `Next:` line. `combine` takes the held messages apart at their `Next:` lines and writes one at the end with each message's moves, a shared move once, so a held message ends with one `Next:` line; each move names its ticket for that reason. The git guard's refusal, the one other text that reaches an agent (a ticket agent, on stderr), ends with a `Next:` line too; the guard is a standalone script, so its wording lives in `guard/git-guard.mjs` and a check reads its last line. The heartbeat path in the skills stays the fallback while the plugin is off; that is a change in `hanh9898/matt-with-paseo`, not here.
 
@@ -160,7 +160,7 @@ A checkpoint is Paseo's own `AskUserQuestion` prompt (ADR 0001), so the plugin d
 
 | Agent, recognised by its labels | Its request counts toward |
 |---|---|
-| a ticket agent: `wave` and `ticket` | its orchestrator (`parentAgentId`); none when it has no parent |
+| a ticket agent: `wave` and `ticket`, or a bundle agent: `wave`, `bundle` and `tickets` | its orchestrator (`parentAgentId`); none when it has no parent |
 | the stream agent: `stream` and no `wave` | itself |
 | any other agent | nothing (T3) |
 
@@ -203,7 +203,7 @@ A role is what an agent is to the plugin: a ticket agent, the stream agent, or n
 
 | Where the plugin sees the agent | How it tells the role | Read by |
 |---|---|---|
-| An event hook (`onCreated`, `onTurnEnded`, `onPermissionRequested`, ...) | The labels: a ticket agent carries `wave` and `ticket`, the stream agent `stream` and no `wave`; `shared/role-labels.ts` names them | `lifecycle-relay.ts`, `waiting-count.ts` |
+| An event hook (`onCreated`, `onTurnEnded`, `onPermissionRequested`, ...) | The labels: a ticket agent carries `wave` and `ticket`, a bundle agent `wave`, `bundle` and `tickets`, the stream agent `stream` and no `wave`; `shared/role-labels.ts` names them | `lifecycle-relay.ts`, `waiting-count.ts` |
 | A hook that runs inside the agent | The env marker `MWP_ROLE=ticket`: `hasTicketMarker(env)` in `shared/role-marker.ts` reads it, and the standalone `guard/git-guard.mjs` repeats its two words | the git guard |
 | `beforeCreate` | The title `[Wave N] <NN> <ticket name>`: Paseo `0.10.1` sets labels only after this hook, and gives it no agent id | `ticket-marker.ts`, which sets the marker |
 | `beforeSessionOpen` | The title or the `wave` and `ticket` labels, when Paseo can read them before a resumed agent is registered; otherwise neither, and the agent stays unmarked | `ticket-marker.ts`, which sets the marker again |
@@ -378,7 +378,7 @@ The Claude Code plugin and its marketplace are both named `matt-with-paseo-plugi
 
 ### CI on three systems
 
-`.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck` and `npm test` on `ubuntu-latest`, `macos-latest` and `windows-latest`. It starts only on a push to a `release/v*` branch and on a pull request from one into `main`, so it runs at the milestone run and on no stream's ship pull request, as the [evidence standards](docs/agents/evidence-standards.md) require. There is no pre-commit hook: a hook that runs typecheck and tests on every commit would break that rule. Whether to add one waits for a decision after milestone `v0.5.0`. `test/ci-workflow.test.ts` reads the workflow and fails when a system, a command or a trigger differs.
+`.github/workflows/ci.yml` runs `npm ci`, then `npm run check` (the typecheck, every test and the docs-set test) on `ubuntu-latest`, `macos-latest` and `windows-latest`. It starts only on a push to a `release/v*` branch and on a pull request from one into `main`, so it runs at the milestone run and on no stream's ship pull request, as the [evidence standards](docs/agents/evidence-standards.md) require. There is no pre-commit hook: a hook that runs typecheck and tests on every commit would break that rule. Whether to add one waits for a decision after milestone `v0.5.0`. `test/ci-workflow.test.ts` reads the workflow and fails when a system, a command or a trigger differs.
 
 ## Contributing
 
