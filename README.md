@@ -86,7 +86,7 @@ npm run check
 
 Only `server/paseo-host.ts` imports `@getpaseo/plugin`; a handler imports `server/host.ts` and nothing from the SDK.
 
-A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onPermissionResolved`, `hooks.onCreated`, `hooks.onArchived`, `hooks.beforeCreate` or `hooks.beforeSessionOpen`, and each callback receives `(event, host)`. `hooks.serveWaitingCount` answers the composer pill's question, and `hooks.serveBudgetSpent` adds whether the day's question budget is spent. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
+A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onPermissionResolved`, `hooks.onCreated`, `hooks.onArchived`, `hooks.beforeCreate` or `hooks.beforeSessionOpen`, and each callback receives `(event, host)`. `hooks.serveWaitingCount` answers the composer pill's question, and `hooks.serveBudgetSpent` adds whether the day's question budget is spent. `hooks.onTick` runs a handler every 5 minutes with a host valid for that tick. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `lastActivityAt`, `parentOf`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)`, hands the returned `HostHooks` to each handler, and returns its `stop` as the plugin's cleanup, which clears the clock's timer.
 
 ```ts
 // server/hooks/relay.ts
@@ -233,22 +233,26 @@ Paseo loads only the entries and the `client/`, `server/` and `shared/` folders,
 
 ### The cheap sensor
 
-Reading every ticket agent's transcript with a strong model is too costly, and reading none misses a stall. The sensor sits in front of the orchestrator's stall judgement (the wave skill's heartbeat judgement, in `hanh9898/matt-with-paseo`): at each ticket agent's turn end it checks the conditions of `sensor/conditions.json`, one at a time, against facts the turn end already carries, and sends the orchestrator a `Stall suspected:` message, ending with its `Next:` line, only when one is flagged. A turn that flags nothing sends nothing.
+Reading every ticket agent's transcript with a strong model is too costly, and reading none misses a stall. The sensor sits in front of the orchestrator's stall judgement (the wave skill's heartbeat judgement, in `hanh9898/matt-with-paseo`): at each ticket agent's turn end it checks the conditions of `sensor/conditions.json`, one at a time, against facts the turn end already carries, and sends the orchestrator a `Stall suspected:` message, ending with its `Next:` line, only when one is flagged. A turn that flags nothing sends nothing. A stream agent stuck in a call has no turn end, so the sensor also watches a running stream agent between turn ends: every 5 minutes (a tick of the host port's clock) it checks the conditions marked `"running"`, and `quiet-running` flags a stream agent whose `lastActivityAt` is 30 minutes old, once per idle stretch, to the orchestrator that owns it.
 
 | Field of a condition | Takes |
 |---|---|
 | `id`, `says` | The name, and the one line the message quotes |
 | `check` | `code`: a fact and a comparison. `model`: a question for a small model |
-| `fact` | `outcome`, `newItems` (timeline items added since the last turn end), `newToolCalls`, `tailRepeats` (the last timeline item is the one of the last turn end) |
+| `on` | `"turn-end"` (the default) or `"running"`: when the condition is checked |
+| `fact` | `outcome`, `newItems` (timeline items added since the last turn end), `newToolCalls`, `tailRepeats` (the last timeline item is the one of the last turn end); `quietMinutes` (the whole minutes since the agent's `lastActivityAt`, computed at a tick only) |
 | `is`, `atMost`, `atLeast` | Exactly one: the word the fact equals, or the number it stays at most or at least |
-| `times` | The turns in a row it must hold before it flags; it flags again at each further multiple |
+| `times` | The checks in a row it must hold before it flags; it flags again at each further multiple |
+
+A `"running"` condition names `quietMinutes` and no other fact, and a `"turn-end"` condition never names it; a file that breaks this fails to load.
 
 To add a condition, add an entry to `sensor/conditions.json`; a file that breaks the shape fails to load, and `test/sensor.test.ts` names why. To add a fact, add it to `Facts` and `factsOf` in `server/sensor.ts`. The message text is `MESSAGES.stallSuspected` in `server/messages.ts`; it carries the conditions' `says` lines and never a timeline item or an error message (T6).
 
 What it does not do:
 
 - No model is wired. `off-task` is a named slot (`check: "model"`, `model: null`): the data holds its question, and the sensor lists it and never flags it, until a later ticket gives it a caller.
-- It sees turn ends only. The port has no clock, so an agent whose turn never ends is not seen; the orchestrator's own heartbeat rounds still cover that, as before the sensor.
+- It watches a ticket agent at its turn ends only: a ticket agent stuck in a call is not seen, and the orchestrator's own heartbeat rounds still cover that. The tick covers a running stream agent alone.
+- `lastActivityAt` and a `context.paseo` kept from a hook call (the tick builds its host from the latest one) are read from the SDK's types and docs for Paseo `0.10.1`, not run; the smoke test ("Cheap sensor") confirms them, and records `updatedAt` if `lastActivityAt` is missing.
 - It does not judge: the flagged case goes to the orchestrator's stall judgement, which decides. The skill's part of the change is in `hanh9898/matt-with-paseo`.
 - The `tool_call` item type and the `text` and `name` fields it reads are those of Paseo `0.10.1`'s timeline as read, not run; the smoke test ("Cheap sensor") confirms them.
 - No eval case is written: `claude plugin eval` runs a Claude Code plugin's prompts, and this repository's Claude Code plugin holds one `PreToolUse` hook and no skill, so no eval prompt can reach the sensor, which lives in the Paseo plugin. The proof that a stalled agent is still caught is `test/hooks/stall-sensor.test.ts`, on the fake host, and the smoke test on a real one.
