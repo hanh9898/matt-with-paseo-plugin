@@ -233,7 +233,7 @@ Paseo loads only the entries and the `client/`, `server/` and `shared/` folders,
 
 ### The cheap sensor
 
-Reading every ticket agent's transcript with a strong model is too costly, and reading none misses a stall. The sensor sits in front of the orchestrator's stall judgement (the wave skill's heartbeat judgement, in `hanh9898/matt-with-paseo`): at each ticket agent's turn end it checks the conditions of `sensor/conditions.json`, one at a time, against facts the turn end already carries, and sends the orchestrator a `Stall suspected:` message, ending with its `Next:` line, only when one is flagged. A turn that flags nothing sends nothing. A stream agent stuck in a call has no turn end, so the sensor also watches a running stream agent between turn ends: every 5 minutes (a tick of the host port's clock) it checks the conditions marked `"running"`, and `quiet-running` flags a stream agent whose `lastActivityAt` is 30 minutes old, once per idle stretch, to the orchestrator that owns it.
+Reading every ticket agent's transcript with a strong model is too costly, and reading none misses a stall. The sensor sits in front of the orchestrator's stall judgement (the wave skill's heartbeat judgement, in `hanh9898/matt-with-paseo`): at each ticket agent's turn end it checks the conditions of `sensor/conditions.json`, one at a time, against facts the turn end already carries, and sends the orchestrator a `Stall suspected:` message, ending with its `Next:` line, only when one is flagged. A turn that flags nothing sends nothing. An agent stuck in a call has no turn end, so the sensor also watches a running stream agent, ticket agent or bundle agent between turn ends: every 5 minutes (a tick of the host port's clock) it checks the conditions marked `"running"`, and `quiet-running` flags one whose `lastActivityAt` is 30 minutes old, once per idle stretch, to the orchestrator that owns it.
 
 | Field of a condition | Takes |
 |---|---|
@@ -251,7 +251,7 @@ To add a condition, add an entry to `sensor/conditions.json`; a file that breaks
 What it does not do:
 
 - No model is wired. `off-task` is a named slot (`check: "model"`, `model: null`): the data holds its question, and the sensor lists it and never flags it, until a later ticket gives it a caller.
-- It watches a ticket agent at its turn ends only: a ticket agent stuck in a call is not seen, and the orchestrator's own heartbeat rounds still cover that. The tick covers a running stream agent alone.
+- The turn-end check sees a ticket agent at its turn ends only, and an agent stuck in a call has none. The tick covers that: it also watches a running ticket agent, a bundle agent included, that has a `parentAgentId`, with the same `quiet-running` condition and once per idle stretch, and the message goes to that parent.
 - `lastActivityAt` and a `context.paseo` kept from a hook call (the tick builds its host from the latest one) are read from the SDK's types and docs for Paseo `0.10.1`, not run; the smoke test ("Cheap sensor") confirms them, and records `updatedAt` if `lastActivityAt` is missing.
 - It does not judge: the flagged case goes to the orchestrator's stall judgement, which decides. The skill's part of the change is in `hanh9898/matt-with-paseo`.
 - The `tool_call` item type and the `text` and `name` fields it reads are those of Paseo `0.10.1`'s timeline as read, not run; the smoke test ("Cheap sensor") confirms them.
