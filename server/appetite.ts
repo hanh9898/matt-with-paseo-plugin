@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { addTurn, isPast, parseAppetite, type Spend } from "../shared/appetite.ts";
+import { addTurn, isPast, isSpend, parseAppetite, type Spend } from "../shared/appetite.ts";
 import { readDelegation } from "../shared/delegation.ts";
 import { isStreamAgent, isTicketAgent } from "../shared/role-labels.ts";
 import type { Host, HostAgent, HostHooks } from "./host.ts";
@@ -28,7 +28,8 @@ const fileStore: Store = {
   read() {
     try {
       const parsed: unknown = JSON.parse(readStateFile(RECORD_FILE) ?? "{}");
-      return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, Spend>) : {};
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+      return Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, Spend] => isSpend(entry[1])));
     } catch {
       return {};
     }

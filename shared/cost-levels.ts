@@ -58,10 +58,10 @@ function choiceProblems(where: string, raw: unknown): string[] {
 export function problemsOf(raw: unknown): string[] {
   if (!isRecord(raw)) return ["presets: must be a JSON object"];
   const levels = raw["levels"];
-  if (!Array.isArray(levels) || levels.length === 0) return ["levels: must be a non-empty list"];
   const problems: string[] = [];
+  if (!Array.isArray(levels) || levels.length === 0) problems.push("levels: must be a non-empty list");
   const ids: string[] = [];
-  for (const level of levels as unknown[]) {
+  for (const level of Array.isArray(levels) ? (levels as unknown[]) : []) {
     if (!isRecord(level) || !isWord(level["id"])) {
       problems.push("levels: each level needs an id");
       continue;
