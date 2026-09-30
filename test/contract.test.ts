@@ -108,3 +108,31 @@ test("the ticket-agent title, a label and a checkpoint mark are fixed", () => {
   only(contractProblems(changed(/^\| `stream` \|.*\n/m, "")), "labels");
   only(contractProblems(changed(/^\| Door class \|.*\n/m, "")), "marks");
 });
+
+test("the contract holds the stream agent's row of each of the three types, with the `stream` field", () => {
+  const doc = parseContract(contract);
+  const cases = (type: string) => [...(doc.messages.find((message) => message.type === type)?.cases.keys() ?? [])];
+  assert.deepEqual(cases("turnEnded").filter((name) => name.startsWith("stream")).sort(), ["stream canceled", "stream completed", "stream failed"]);
+  assert.deepEqual(cases("permissionRequested").filter((name) => name.startsWith("stream")).sort(), ["stream question", "stream tool"]);
+  assert.deepEqual(cases("archived").filter((name) => name.startsWith("stream")), ["stream archived"]);
+  for (const type of ["turnEnded", "permissionRequested", "archived"]) {
+    assert.ok(doc.messages.find((message) => message.type === type)?.fields.includes("stream"), `${type} lists the stream field`);
+  }
+  for (const type of ["created", "humanWords", "stallSuspected", "gateCapPassed"]) {
+    assert.deepEqual(cases(type).filter((name) => name.startsWith("stream")), [], `${type} has no stream row`);
+  }
+});
+
+test("the contract no longer says the module builds no stream-agent message", () => {
+  assert.doesNotMatch(contract, /the module builds none yet/);
+  assert.doesNotMatch(contract, /What v1 leaves out:[^\n]*stream agent/);
+});
+
+test("a stream row the contract words differently, drops, or the module does not build fails the check", () => {
+  only(contractProblems(changed("`Turn ended: stream <stream>, agent <agent>, outcome completed.`", "`Turn ended: stream <stream>.`")), "stream completed");
+  only(contractProblems(changed(/^\| stream canceled \|.*\n/m, "")), "turnEnded");
+  only(contractProblems(changed(/^\| stream archived \|.*\n/m, "")), "archived");
+  only(contractProblems(changed(/^Fields: `ticket`, `wave`, `agent`, `request`, `name`, `stream`$/m, "Fields: `ticket`, `wave`, `agent`, `request`, `name`")), "permissionRequested");
+  const invented = "| stream plan | `Permission pending: stream <stream>.` | `Next: wait.` |\n";
+  only(contractProblems(changed(/^(\| stream tool \|.*\n)/m, "$1" + invented)), "stream plan");
+});
