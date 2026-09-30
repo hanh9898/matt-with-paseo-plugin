@@ -89,7 +89,7 @@ test("the smoke test's Cheap sensor section holds a step where a ticket agent he
   const smoke = read("test/smoke/README.md");
   const start = smoke.indexOf("## Cheap sensor");
   const section = smoke.slice(start).split("\n## ", 2)[0] ?? "";
-  const step = /^\d+\. [^\n]*ticket agent[^\n]*(?:shell command|sleep)[^\n]*$/m.exec(section)?.[0] ?? "";
+  const step = /^\d+\. [^\n]*ticket agent[^\n]*(?:shell command|sleep)[^\n]*Stall suspected: ticket[^\n]*$/m.exec(section)?.[0] ?? "";
   assert.ok(step !== "", "a step holds a ticket agent in a long shell command");
   assert.match(step, /Stall suspected: ticket/);
   assert.match(step, /once/);
