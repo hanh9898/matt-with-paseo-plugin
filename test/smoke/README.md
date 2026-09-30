@@ -10,9 +10,24 @@ The two cells are one claim: `0.10.1` is the version the range was tested on, an
 
 Installing the plugin touches every session on the machine's daemon. Run it only on a daemon whose owner agreed to that, and remove the plugin at the end so the daemon's plugin set is as it was.
 
+## Daemon batches
+
+The run starts the daemon twice, each time with every setting it needs, so no section restarts the daemon on its own.
+
+| Batch | The daemon is started with | Sections (Claude Code plugin needs no daemon and fits in the Cheap sensor's wait) |
+|---|---|---|
+| A | `MWP_STATE_DIR` set to an empty absolute directory outside any repository, `MWP_GATE_SHARE=0.01`, `MWP_QUESTION_BUDGET=2` | Steps 1 to 4, Lifecycle relay, Waiting pill, Git guard (parts A and B, part C steps 1 to 3), Claude Code plugin, Role identity, Human words, Cheap sensor, Gate cap (steps 1 to 3, 5 and 6), State outside the repository (steps 1 to 3), Cost levels, Delegated answers, Appetite, Question budget (steps 1 to 5, 7 and 8), Report card |
+| B | `MWP_QUESTION_BUDGET=many`, and `MWP_STATE_DIR` and `MWP_GATE_SHARE` unset | Git guard part C steps 4 to 6, Gate cap step 4, State outside the repository steps 4 and 5, Question budget step 6, then Steps step 5 |
+
+Install once, at Steps step 3, and remove once, at Steps step 5, the last step of batch B. A section's own last step then archives its `[mwp-smoke]` agents and skips its `paseo plugin remove mwp-smoke`. A section that deletes a state file still deletes it.
+
+In batch A the gate cap is one: a section that runs two ticket agents of one orchestrator at once also gets a `Gate cap passed:` message, which is expected and not a finding.
+
+**The smoke copy.** `test/smoke/conditions.json` is `sensor/conditions.json` with the `quiet-running` threshold at 1 minute instead of 30; the release default stays 30. Before step 3 below, copy this checkout to a scratch folder and copy `test/smoke/conditions.json` over the scratch folder's `sensor/conditions.json`. The clock ticks every 5 minutes, so a quiet running agent is flagged 1 to 6 minutes after it goes quiet.
+
 ## Steps
 
-`<plugin>` is the absolute path of this repository's checkout.
+`<plugin>` is the absolute path of the scratch folder of the smoke copy, in every section.
 
 1. `paseo --version` prints `0.10.1`. Any other version: stop, the run does not count for this range.
 2. `paseo daemon status --json` shows `pluginsEnabled` as `true` in the daemon's `config.json`. Otherwise stop: enabling plugins needs the daemon owner's consent.
@@ -61,7 +76,7 @@ Read the plugin's own output with `paseo plugin logs mwp-smoke`; a line starting
 
 Written, not run. Targets Paseo `0.10.1`. Parts A and B need Node only and run on each of Windows, macOS and Linux; part C runs on the daemon after the steps above, with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Install nothing into the machine's own Claude Code settings: part B uses a scratch configuration directory.
 
-**A. The script, on each system.** `<plugin>` is the absolute path of this repository's checkout.
+**A. The script, on each system.** `<plugin>` is the smoke copy's scratch folder, or any checkout of this repository.
 
 1. Windows (PowerShell): `$env:MWP_ROLE = "ticket"; '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | node <plugin>\guard\git-guard.mjs; $LASTEXITCODE`. macOS and Linux: `printf '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | MWP_ROLE=ticket node <plugin>/guard/git-guard.mjs; echo $?`. The output is a line starting `Refused: git push`, a last `Next:` line that says to commit, carry on and name the command in the report, and then `2`.
 2. Repeat with `git checkout main`, `git switch main` and `git reset --hard`: each is refused with its own name in the line.
@@ -79,7 +94,7 @@ Written, not run. Targets Paseo `0.10.1`. Parts A and B need Node only and run o
 1. From an orchestrator titled `[mwp-smoke] orchestrator`, create an agent titled `[Wave 1] 99 [mwp-smoke] guard` with the labels `wave=1` and `ticket=99` and this prompt: print the value of `MWP_ROLE` (PowerShell: `$env:MWP_ROLE`), run `git push` and `git checkout main` and report each message, then create `guard-smoke.txt` and commit it. It prints `ticket`, both commands are refused with a message starting `Refused:`, and the commit succeeds. This needs the repository enabled as a Claude Code plugin for that agent (ticket 16's `.claude-plugin/plugin.json`); before that, only the value `ticket` can be read.
 2. Create a second agent titled `[mwp-smoke] plain` with the same labels and a prompt that prints `MWP_ROLE`: it prints nothing, because its title is not `[Wave N] <NN> ...`.
 3. In the orchestrator's own shell, `git push --dry-run` in a checkout with a remote succeeds: the orchestrator is not guarded.
-4. Restart the daemon, then prompt the first agent again to print `MWP_ROLE`: the resumed agent prints `ticket`. If it prints nothing, `agent.session_open` could not read the title or labels before the agent was registered: `paseo plugin logs mwp-smoke` holds one line starting `[matt-with-paseo] agent.session_open could not read`, and criterion 1 of #35 fails.
+4. Restart the daemon, the switch to batch B (leave the step 1 agent unarchived until then), then prompt the first agent again to print `MWP_ROLE`: the resumed agent prints `ticket`. If it prints nothing, `agent.session_open` could not read the title or labels before the agent was registered: `paseo plugin logs mwp-smoke` holds one line starting `[matt-with-paseo] agent.session_open could not read`, and criterion 1 of #35 fails.
 5. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo] agent.create handler failed`.
 6. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
@@ -127,10 +142,10 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `
 4. Cancel a turn of the ticket agent. Expected: one `Stall suspected:` that quotes "the turn was canceled".
 5. With the orchestrator mid-turn, repeat step 4. Expected: the message waits and goes out when the orchestrator's turn ends.
 6. An agent with no labels, and one with only `wave=1`, gets a failed or canceled turn: no `Stall suspected:` message.
-7. A running stream agent that goes quiet. Start a stream agent titled `[mwp-smoke] stream` with the label `stream=smoke` from the orchestrator (so it has a `parentAgentId`), and give it a prompt that runs `sleep 2400` in a shell command. Fire one hook for it first (its creation does), so the plugin has a `context.paseo` to keep. Expected: after about 35 minutes the orchestrator gets one `Stall suspected: stream smoke, agent <id>, the sensor flagged: its turn has run 30 minutes with no new activity.` ending with the `Next:` line that says never to prompt it, and no second one while the command runs. Two facts are read from the SDK, not run; record each:
-   - A `context.paseo` kept from a hook call stays usable after that call returns: the message above arrives 5 to 10 minutes after the 30th quiet minute, with no hook call in between. If `paseo plugin logs mwp-smoke` shows a `[matt-with-paseo] tick handler failed` line about the session instead, the kept session died: record it as a finding.
-   - `refresh()`'s agent carries `lastActivityAt`, and it does not move while the tool call is stuck. Read the agent's `lastActivityAt` twice, ten minutes apart, during the sleep: expected equal. If the field is missing, the fallback is `updatedAt`: record which field the run used.
-8. A running ticket agent that goes quiet. From the orchestrator, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=98` (so it has a `parentAgentId`), and give it a prompt that runs `sleep 2400` in a shell command. Expected: after about 35 minutes the orchestrator gets one `Stall suspected: ticket 98 of wave 1, agent <id>, the sensor flagged: its turn has run 30 minutes with no new activity.` ending with the `Next:` line that says never to prompt it, and no second one while the command runs (once per idle stretch). Repeat with a bundle agent (labels `wave=1`, `bundle=97`, `tickets=97,98`): the body reads `bundle 97 (tickets 97,98) of wave 1`. With the orchestrator mid-turn, the message waits and goes out when its turn ends.
+7. A running stream agent that goes quiet. Start a stream agent titled `[mwp-smoke] stream` with the label `stream=smoke` from the orchestrator (so it has a `parentAgentId`), and give it a prompt that runs `sleep 900` in a shell command. Fire one hook for it first (its creation does), so the plugin has a `context.paseo` to keep. Start steps 7 and 8 together: their sleeps run side by side. Expected, with the smoke copy's `quiet-running` threshold of 1 minute: within 6 minutes the orchestrator gets one `Stall suspected: stream smoke, agent <id>, the sensor flagged: its turn has run 1 minute with no new activity.` ending with the `Next:` line that says never to prompt it, and no second one while the command runs (at least two more ticks). Two facts are read from the SDK, not run; record each:
+   - A `context.paseo` kept from a hook call stays usable after that call returns: the message above arrives 1 to 6 minutes after the agent went quiet, with no hook call in between. If `paseo plugin logs mwp-smoke` shows a `[matt-with-paseo] tick handler failed` line about the session instead, the kept session died: record it as a finding.
+   - `refresh()`'s agent carries `lastActivityAt`, and it does not move while the tool call is stuck. Read the agent's `lastActivityAt` twice, five minutes apart, during the sleep: expected equal. If the field is missing, the fallback is `updatedAt`: record which field the run used.
+8. A running ticket agent that goes quiet. From the orchestrator, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=98` (so it has a `parentAgentId`), and give it a prompt that runs `sleep 900` in a shell command. Expected: within 6 minutes the orchestrator gets one `Stall suspected: ticket 98 of wave 1, agent <id>, the sensor flagged: its turn has run 1 minute with no new activity.` ending with the `Next:` line that says never to prompt it, and no second one while the command runs (once per idle stretch). At the same time, run a bundle agent (labels `wave=1`, `bundle=97`, `tickets=97,98`): the body reads `bundle 97 (tickets 97,98) of wave 1`. With the orchestrator mid-turn, the message waits and goes out when its turn ends.
 9. Let the sleep end and the agent go idle. Expected: no further `Stall suspected:` message, since a tick flags only an agent Paseo reports running.
 10. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]` that names the sensor or `sensor/conditions.json`. A line about the conditions file means `new URL("../sensor/conditions.json", import.meta.url)` did not resolve in the daemon's bundle: record it as a finding.
 11. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`. Removing the plugin runs its cleanup: no tick runs after it.
@@ -139,10 +154,10 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `
 
 Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `mwp-smoke` still installed. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
 
-1. Start the daemon with `MWP_GATE_SHARE=0.01` in its environment, so the cap is one whatever the machine's processors. From an orchestrator titled `[mwp-smoke] orchestrator`, create one ticket agent titled `[mwp-smoke] ticket A` with the labels `wave=1` and `ticket=98`, and a first prompt that sleeps thirty seconds in a shell command. The orchestrator gets `Agent created:` and no `Gate cap passed:` message.
+1. In batch A (`MWP_GATE_SHARE=0.01`), the cap is one whatever the machine's processors. From an orchestrator titled `[mwp-smoke] orchestrator`, create one ticket agent titled `[mwp-smoke] ticket A` with the labels `wave=1` and `ticket=98`, and a first prompt that sleeps thirty seconds in a shell command. The orchestrator gets `Agent created:` and no `Gate cap passed:` message.
 2. While A runs, create a second, `[mwp-smoke] ticket B` with `ticket=99`. Expected: one `Gate cap passed:` message that names ticket 99, says `2 ticket agents run against a cap of 1`, and ends with a `Next:` line. If none arrives, `isRunning` did not report A as running: record it as a finding.
 3. Let A finish and archive it, then create a `[mwp-smoke] ticket C` (`ticket=97`) while B is idle. Expected: no `Gate cap passed:` message.
-4. Restart the daemon with `MWP_GATE_SHARE` unset, and create ticket agents one after another, each with a prompt that sleeps thirty seconds, until a `Gate cap passed:` message arrives. Expected: its `cap of N` is half of `node -p "os.availableParallelism()"`, rounded down, at least one, and it arrives with the agent that makes `N + 1` run.
+4. In batch B (`MWP_GATE_SHARE` unset), create ticket agents one after another, each with a prompt that sleeps thirty seconds, until a `Gate cap passed:` message arrives. Expected: its `cap of N` is half of `node -p "os.availableParallelism()"`, rounded down, at least one, and it arrives with the agent that makes `N + 1` run.
 5. With the orchestrator mid-turn, repeat step 2. Expected: the message waits and goes out when the orchestrator's turn ends.
 6. An agent with no labels, and one with only `wave=1`, is created under the orchestrator: no `Gate cap passed:` message.
 7. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
@@ -151,10 +166,10 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `
 
 Written, not run. Targets Paseo `0.10.1`. Run it after "Gate cap". Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
 
-1. Start the daemon with `MWP_STATE_DIR` set to an empty absolute directory outside any repository, with `mwp-smoke` installed. In a scratch git repository, note `git status --porcelain` (empty) and `git rev-parse HEAD`.
+1. In batch A, `MWP_STATE_DIR` is an empty absolute directory outside any repository and `mwp-smoke` is installed. In a scratch git repository, note `git status --porcelain` (empty) and `git rev-parse HEAD`.
 2. Run the relay, sensor and gate cap steps against agents whose working directory is that repository. Expected: `git status --porcelain` is still empty and `HEAD` is unchanged: the plugin wrote nothing in the repository.
 3. List the state directory. Expected: empty, or only files a change after this ticket added; today nothing persists. Record what is there.
-4. Restart the daemon with `MWP_STATE_DIR` unset. Expected: no directory `matt-with-paseo` appears in the repository, and none appears under the platform's data folder until something persists.
+4. In batch B (`MWP_STATE_DIR` unset), end one ticket agent's turn in the scratch repository. Expected: no directory `matt-with-paseo` appears in the repository, and none appears under the platform's data folder until something persists.
 5. `paseo plugin remove mwp-smoke`, and archive every `[mwp-smoke]` agent.
 
 ## Cost levels
@@ -163,7 +178,7 @@ Written, not run. Targets Paseo `0.10.1`. Run it with `mwp-smoke` installed. It 
 
 1. Record `list_profiles` (ids, names, provider, model, mode, thinking). Run steps 2 to 4, then `list_profiles` again. Expected: the two lists are identical: the plugin created, edited and deleted no profile.
 2. In the installed plugin's folder, `presets/cost-levels.json` exists (`paseo plugin` lists the install path). If it is missing, `files` in `package.json` did not ship it: record it as a finding.
-3. Start the daemon with `MWP_COST_LEVEL=cheap` and `MWP_COST_TICKET=claude/claude-sonnet-5-5`. Run `node --experimental-strip-types -e "import('./server/cost-levels.ts').then(async (a) => { const b = await import('./shared/cost-levels.ts'); const l = a.loadCostLevels(); for (const r of b.ROLES) console.log(r, JSON.stringify(b.choiceFor(l, r, process.env))); })"` in the plugin's folder. Expected: the stream and wave roles print the cheap level's model with `"from":"level"`, and the ticket role prints `claude-sonnet-5-5` with `"from":"override"`.
+3. In a shell of its own, with `MWP_COST_LEVEL=cheap` and `MWP_COST_TICKET=claude/claude-sonnet-5-5` set in that shell only (the daemon needs neither), run `node --experimental-strip-types -e "import('./server/cost-levels.ts').then(async (a) => { const b = await import('./shared/cost-levels.ts'); const l = a.loadCostLevels(); for (const r of b.ROLES) console.log(r, JSON.stringify(b.choiceFor(l, r, process.env))); })"` in the plugin's folder. Expected: the stream and wave roles print the cheap level's model with `"from":"level"`, and the ticket role prints `claude-sonnet-5-5` with `"from":"override"`.
 4. Repeat step 3 with `MWP_COST_LEVEL=nope` and `MWP_COST_TICKET=big`. Expected: every role prints the balanced level's choice with `"from":"level"`, and nothing throws.
 5. From an orchestrator titled `[mwp-smoke] orchestrator`, create a ticket agent titled `[mwp-smoke] ticket` with the provider and model step 3 printed for the ticket role. Expected: the agent starts on that model; the chosen `modeId` and `thinkingOptionId` come from the profile the orchestrator copied, not from the preset. Archive every `[mwp-smoke]` agent.
 
@@ -195,24 +210,24 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with
 
 ## Question budget
 
-Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with `mwp-smoke` installed and the daemon started with `MWP_QUESTION_BUDGET=2`, in the scratch repository of "Delegated answers" with the table row reduced to `Questions the orchestrator may decide | two-way`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Note `question-budget.json` under the state directory (`MWP_STATE_DIR` moves it) before you start, and delete it so the day starts at zero.
+Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with `mwp-smoke` installed, in batch A (`MWP_QUESTION_BUDGET=2`), in the scratch repository of "Delegated answers" with the table row reduced to `Questions the orchestrator may decide | two-way`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Note `question-budget.json` under the state directory (`MWP_STATE_DIR` moves it) before you start, and delete it so the day starts at zero.
 
 1. Create a ticket agent titled `[mwp-smoke] ticket` (labels `wave=1`, `ticket=99`) under a stream agent titled `[mwp-smoke] stream` (label `stream=demo`), whose prompt asks one `AskUserQuestion` with `Door: one-way`. Expected: the question waits for the user, the pill of the stream agent reads "1 waiting" without the limit, the file holds today's date and `"count":1`, and the stream agent received no `Question budget spent:` message.
 2. Ask a second question the same way. Expected: within 30 seconds the stream agent receives one `Question budget spent: 2 questions reached the user today against a budget of 2.` message ending in a `Next:` line (held until its turn ends if it is mid-turn), the pill reads "2 waiting, daily question limit reached", and the file holds `"count":2` and `"notified":true`.
 3. Ask a third question with `Door: one-way`, then one with `Door: two-way`. Expected: the third still reaches the user and is counted (`"count":3`), no second message arrives, and the two-way question is answered with its recommendation as in "Delegated answers", not counted: the budget answers nothing and stops nothing, so questions still reach the user.
-4. Restart the daemon (reload the plugin) with the same setting. Expected: the pill still reads the limit while a question waits, and asking one more question raises the count to 4 with no new message.
+4. Reload the plugin (`paseo plugin reload mwp-smoke`), with the same setting. Expected: the pill still reads the limit while a question waits, and asking one more question raises the count to 4 with no new message.
 5. Change the machine's date past local midnight, or edit the file's `day` to yesterday, and ask one question. Expected: the count starts again at 1 and no message is sent until the budget is reached again.
-6. Start the daemon without `MWP_QUESTION_BUDGET`, and again with `MWP_QUESTION_BUDGET=many`, and ask two questions. Expected: both reach the user and are counted, no message is sent, the pill never reads the limit.
+6. In batch B (`MWP_QUESTION_BUDGET=many`), ask two questions. Expected: both reach the user and are counted, no message is sent, the pill never reads the limit. A daemon with no setting at all is the same case, and `test/hooks/question-budget.test.ts` covers it.
 7. Ask a question from an agent with no labels. Expected: it is not counted.
 8. Archive every `[mwp-smoke]` agent, delete `question-budget.json`, then `paseo plugin remove mwp-smoke`.
 
 ## Report card
 
-Written, not run. Targets Paseo `0.10.1`. Run it after "Question budget", with `mwp-smoke` installed and the daemon started with `MWP_QUESTION_BUDGET=5`, in the scratch repository of "Appetite" (`Questions the orchestrator may decide | two-way`, `Appetite | 0.05 USD`). Use a stream agent titled `[mwp-smoke] stream` (label `stream=mwp-smoke`) as the orchestrator and a ticket agent titled `[mwp-smoke] ticket` (labels `stream=mwp-smoke`, `wave=1`, `ticket=99`, parent the stream agent). Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Delete `delegated-answers.jsonl`, `stream-spend.json` and `question-budget.json` in the plugin's state directory first.
+Written, not run. Targets Paseo `0.10.1`. Run it after "Question budget", with `mwp-smoke` installed, in batch A (`MWP_QUESTION_BUDGET=2`), in the scratch repository of "Appetite" (`Questions the orchestrator may decide | two-way`, `Appetite | 0.05 USD`). Use a stream agent titled `[mwp-smoke] stream` (label `stream=mwp-smoke`) as the orchestrator and a ticket agent titled `[mwp-smoke] ticket` (labels `stream=mwp-smoke`, `wave=1`, `ticket=99`, parent the stream agent). Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Delete `delegated-answers.jsonl`, `stream-spend.json` and `question-budget.json` in the plugin's state directory first.
 
-1. Let the ticket agent's turn end. Expected: the stream agent's chat holds one report card with an empty `decided` list, the spend as `totalUsd` against 0.05 USD, and `Questions today: 0 of 5`. It is drawn as a card, not as an unavailable placeholder: a "Plugin timeline item unavailable" row means the client renderer did not register or the schema rejected the data, and the step fails. The ticket agent's own chat holds no card.
+1. Let the ticket agent's turn end. Expected: the stream agent's chat holds one report card with an empty `decided` list, the spend as `totalUsd` against 0.05 USD, and `Questions today: 0 of 2`. It is drawn as a card, not as an unavailable placeholder: a "Plugin timeline item unavailable" row means the client renderer did not register or the schema rejected the data, and the step fails. The ticket agent's own chat holds no card.
 2. Ask a `Door: two-way` question from the ticket agent (header `Colour`, first option `Red (Recommended)`). Expected: it is answered, and the card in the stream agent's chat now lists `Colour` with `Red (Recommended)` and its time. It is the same row (one card, not two), and the plugin's log shows no question text.
-3. Ask a `Door: one-way` question. Expected: it waits for the user, the same row now reads `Questions today: 1 of 5`, and it lists no new decision.
+3. Ask a `Door: one-way` question. Expected: it waits for the user, the same row now reads `Questions today: 1 of 2`, and it lists no new decision.
 4. Prompt the ticket agent until the total passes 0.05 USD. Expected: the same row shows the higher spend past the appetite.
 5. Run a turn of an agent whose provider reports no cost. Expected: the spend on the card says it is partial.
 6. Look at the card in Paseo's window. Expected: it has no button of any kind. Take a screenshot of the card in Paseo's window and keep it with the milestone run's results.
