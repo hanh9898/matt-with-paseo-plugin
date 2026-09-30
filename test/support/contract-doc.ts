@@ -16,9 +16,13 @@ export interface MessageDoc {
 }
 
 export interface CardDoc {
+  id: string;
   kind: string;
   version: string;
   fields: string[];
+  decidedEntry: string[];
+  spendFields: string[];
+  questionsFields: string[];
   buttons: string;
 }
 
@@ -173,8 +177,12 @@ function cardOf(section: string | undefined): CardDoc | null {
   const version = lineValue(section, "Version");
   const fields = ticks(lineValue(section, "Fields") ?? "");
   const buttons = lineValue(section, "Buttons");
+  const id = ticks(lineValue(section, "Row id") ?? "")[0] ?? "";
+  const decidedEntry = ticks(lineValue(section, "Decided entry") ?? "");
+  const spendFields = ticks(lineValue(section, "Spend") ?? "");
+  const questionsFields = ticks(lineValue(section, "Questions") ?? "");
   if (kind === undefined || version === null || buttons === null) return null;
-  return { kind, version, fields, buttons };
+  return { id, kind, version, fields, decidedEntry, spendFields, questionsFields, buttons };
 }
 
 /** Reads the contract document; a part it lacks comes back empty or null, and `contractProblems` names it. */
@@ -246,6 +254,10 @@ export function contractProblems(text: string): string[] {
   const card = doc.card;
   if (card === null) problems.push("the contract has no report card with Kind, Version, Fields and Buttons lines");
   else {
+    if (card.id !== REPORT_CARD.id) problems.push(`the contract card row id is "${card.id}" but the plugin builds "${REPORT_CARD.id}"`);
+    if (!same(card.decidedEntry, REPORT_CARD.decidedEntry)) problems.push(`the contract card decided entry is [${card.decidedEntry.join(", ")}] but the plugin builds [${REPORT_CARD.decidedEntry.join(", ")}]`);
+    if (!same(card.spendFields, REPORT_CARD.spendFields)) problems.push(`the contract card spend is [${card.spendFields.join(", ")}] but the plugin builds [${REPORT_CARD.spendFields.join(", ")}]`);
+    if (!same(card.questionsFields, REPORT_CARD.questionsFields)) problems.push(`the contract card questions are [${card.questionsFields.join(", ")}] but the plugin builds [${REPORT_CARD.questionsFields.join(", ")}]`);
     if (card.kind !== REPORT_CARD.kind) problems.push(`the contract card kind is "${card.kind}" but the plugin builds "${REPORT_CARD.kind}"`);
     if (card.version !== String(REPORT_CARD.version)) problems.push(`the contract card version is "${card.version}" but the plugin builds ${REPORT_CARD.version}`);
     if (!same(card.fields, REPORT_CARD.fields)) problems.push(`the contract card fields are [${card.fields.join(", ")}] but the plugin builds [${REPORT_CARD.fields.join(", ")}]`);

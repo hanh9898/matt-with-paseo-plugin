@@ -184,3 +184,18 @@ test("the fake serves the budget's state to the pill's read, false when none is 
   assert.deepEqual(await host.pill("a"), { count: 3, budgetSpent: false });
   assert.equal(host.failures.length, 1);
 });
+
+test("a row appended again under the same id replaces the earlier one, and a row with no id stays beside it", async () => {
+  const host = new FakeHost();
+  await host.appendTimelineRow("worker", { id: "card", kind: "report", version: 1, data: { decided: 1 } });
+  await host.appendTimelineRow("worker", { kind: "note", version: 1, data: {} });
+  await host.appendTimelineRow("worker", { id: "card", kind: "report", version: 1, data: { decided: 2 } });
+  await host.appendTimelineRow("other", { id: "card", kind: "report", version: 1, data: { decided: 9 } });
+  assert.deepEqual(host.timeline("worker"), [
+    { id: "card", kind: "report", version: 1, data: { decided: 2 } },
+    { kind: "note", version: 1, data: {} },
+  ]);
+  assert.deepEqual(host.timeline("other"), [{ id: "card", kind: "report", version: 1, data: { decided: 9 } }]);
+  assert.deepEqual(host.timeline("nobody"), []);
+  assert.equal(host.rows.length, 4, "every append is still recorded in `rows`");
+});
