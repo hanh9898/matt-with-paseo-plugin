@@ -32,6 +32,8 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/host.ts` | The host port: the events a handler receives, the actions it may take, where it registers |
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
 | `server/hooks/` | The hook handlers, one module per handler |
+| `server/delegated-answers.ts` | The delegated-answers handler and its pure decision: answers a checkpoint with its recommendation when the `## Delegation` table lets the orchestrator decide |
+| `shared/delegation.ts` | The reader of the `## Delegation` table |
 | `server/hooks/gate-cap.ts` | The gate cap handler: tells the orchestrator when ticket agents run past the cap |
 | `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
 | `server/hooks/waiting-count.ts` | The handler that counts what waits for the user, per chat |
@@ -267,6 +269,12 @@ What it does not do:
 - The setting is read once, at start: a change takes effect when the daemon restarts the plugin. The plugin adds no settings screen: the variable is the setting.
 
 The checks are `test/gate-cap.test.ts`, `test/hooks/gate-cap.test.ts` and `test/gate-cap-docs.test.ts`; the smoke test ("Gate cap") runs it on Paseo `0.10.1`.
+
+### Delegated answers
+
+When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. A question with a `Yours:` line, a `Door: one-way`, no recommendation, or any question in a request that fails one of these is left to the user, as is every question when the table is missing, unreadable or switched off. Agents with no role labels are left alone.
+
+The checks are `test/delegation.test.ts`, `test/delegated-answers.test.ts`, `test/hooks/delegated-answers.test.ts` and `test/delegated-answers-docs.test.ts`; the smoke test ("Delegated answers") runs it on Paseo `0.10.1`.
 
 ### Cost levels
 
