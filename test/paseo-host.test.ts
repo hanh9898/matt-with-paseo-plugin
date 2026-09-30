@@ -295,3 +295,21 @@ test("beforeSessionOpen leaves the request alone when the handler changes nothin
     log.mock.restore();
   }
 });
+
+test("lastTurnCostUsd reads the agent's lastUsage.totalCostUsd after a refresh, and null when there is none", async () => {
+  const { server, fire } = stubServer();
+  const usages: Record<string, unknown> = { paid: { totalCostUsd: 0.25 }, free: {}, unpriced: undefined };
+  const paseo = {
+    agents: {
+      ref: (agentId: string) => ({
+        refresh: async () => (agentId === "gone" ? null : { agent: { labels: {}, title: null, lastUsage: usages[agentId] } }),
+      }),
+    },
+  };
+  const costs: (number | null)[] = [];
+  connectPaseo(server).onCreated(async (_event, host) => {
+    for (const id of ["paid", "free", "unpriced", "gone"]) costs.push(await host.lastTurnCostUsd(id));
+  });
+  await fire("agent.created", { agent }, { paseo });
+  assert.deepEqual(costs, [0.25, null, null, null]);
+});
