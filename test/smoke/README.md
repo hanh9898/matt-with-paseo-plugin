@@ -127,7 +127,12 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `
 4. Cancel a turn of the ticket agent. Expected: one `Stall suspected:` that quotes "the turn was canceled".
 5. With the orchestrator mid-turn, repeat step 4. Expected: the message waits and goes out when the orchestrator's turn ends.
 6. An agent with no labels, and one with only `wave=1`, gets a failed or canceled turn: no `Stall suspected:` message.
-7. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]` that names the sensor or `sensor/conditions.json`. A line about the conditions file means `new URL("../sensor/conditions.json", import.meta.url)` did not resolve in the daemon's bundle: record it as a finding. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+7. A running stream agent that goes quiet. Start a stream agent titled `[mwp-smoke] stream` with the label `stream=smoke` from the orchestrator (so it has a `parentAgentId`), and give it a prompt that runs `sleep 2400` in a shell command. Fire one hook for it first (its creation does), so the plugin has a `context.paseo` to keep. Expected: after about 35 minutes the orchestrator gets one `Stall suspected: stream smoke, agent <id>, the sensor flagged: its turn has run 30 minutes with no new activity.` ending with the `Next:` line that says never to prompt it, and no second one while the command runs. Two facts are read from the SDK, not run; record each:
+   - A `context.paseo` kept from a hook call stays usable after that call returns: the message above arrives 5 to 10 minutes after the 30th quiet minute, with no hook call in between. If `paseo plugin logs mwp-smoke` shows a `[matt-with-paseo] tick handler failed` line about the session instead, the kept session died: record it as a finding.
+   - `refresh()`'s agent carries `lastActivityAt`, and it does not move while the tool call is stuck. Read the agent's `lastActivityAt` twice, ten minutes apart, during the sleep: expected equal. If the field is missing, the fallback is `updatedAt`: record which field the run used.
+8. Let the sleep end and the agent go idle. Expected: no further `Stall suspected:` message, since a tick flags only an agent Paseo reports running.
+9. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]` that names the sensor or `sensor/conditions.json`. A line about the conditions file means `new URL("../sensor/conditions.json", import.meta.url)` did not resolve in the daemon's bundle: record it as a finding.
+10. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`. Removing the plugin runs its cleanup: no tick runs after it.
 
 ## Gate cap
 
