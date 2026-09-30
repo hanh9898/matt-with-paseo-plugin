@@ -23,7 +23,7 @@ Install once, at Steps step 3, and remove once, at Steps step 5, the last step o
 
 In batch A the gate cap is one: a section that runs two ticket agents of one orchestrator at once also gets a `Gate cap passed:` message, which is expected and not a finding.
 
-**The smoke copy.** `test/smoke/conditions.json` is `sensor/conditions.json` with the `quiet-running` threshold at 1 minute instead of 30; the release default stays 30. Before step 3 below, copy this checkout to a scratch folder and copy `test/smoke/conditions.json` over the scratch folder's `sensor/conditions.json`. The clock ticks every 5 minutes, so a quiet running agent is flagged 1 to 6 minutes after it goes quiet.
+**The smoke copy.** `test/smoke/conditions.json` is `sensor/conditions.json` with the `quiet-running` threshold at 1 minute instead of 30; the release default stays 30. Before step 3 below, copy this checkout to a scratch folder and copy `test/smoke/conditions.json` over the scratch folder's `server/data/conditions.json`, the copy the daemon builds into the plugin at install (overwriting `sensor/conditions.json` changes nothing the loaded plugin reads). The clock ticks every 5 minutes, so a quiet running agent is flagged 1 to 6 minutes after it goes quiet.
 
 ## Steps
 
@@ -147,7 +147,7 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Lifecycle relay", with `
    - `refresh()`'s agent carries `lastActivityAt`, and it does not move while the tool call is stuck. Read the agent's `lastActivityAt` twice, five minutes apart, during the sleep: expected equal. If the field is missing, the fallback is `updatedAt`: record which field the run used.
 8. A running ticket agent that goes quiet. From the orchestrator, create a ticket agent titled `[mwp-smoke] ticket` with the labels `wave=1` and `ticket=98` (so it has a `parentAgentId`), and give it a prompt that runs `sleep 900` in a shell command. Expected: within 6 minutes the orchestrator gets one `Stall suspected: ticket 98 of wave 1, agent <id>, the sensor flagged: its turn has run 1 minute with no new activity.` ending with the `Next:` line that says never to prompt it, and no second one while the command runs (once per idle stretch). At the same time, run a bundle agent (labels `wave=1`, `bundle=97`, `tickets=97,98`): the body reads `bundle 97 (tickets 97,98) of wave 1`. With the orchestrator mid-turn, the message waits and goes out when its turn ends.
 9. Let the sleep end and the agent go idle. Expected: no further `Stall suspected:` message, since a tick flags only an agent Paseo reports running.
-10. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]` that names the sensor or `sensor/conditions.json`. A line about the conditions file means `new URL("../sensor/conditions.json", import.meta.url)` did not resolve in the daemon's bundle: record it as a finding.
+10. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo]` that names the sensor or its conditions. A line about the conditions means the copy embedded from `server/data/conditions.json` broke the shape: record it as a finding.
 11. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`. Removing the plugin runs its cleanup: no tick runs after it.
 
 ## Gate cap

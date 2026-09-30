@@ -85,3 +85,69 @@ test("no file the client bundle or both bundles compile imports a Node module or
   const breaches = bundledFiles().flatMap((file) => breachesIn(file, readFileSync(join(root, file), "utf8")));
   assert.deepEqual(breaches, []);
 });
+
+/** The folders the daemon compiles into the server bundle, with the entry file: `import.meta.url` is `undefined` there. */
+const SERVER_ENTRY = "index.server.ts";
+const SERVER_FOLDERS = ["server", "shared"];
+const SOURCE_FILE = /\.(tsx?|mjs|cjs|js)$/;
+
+/** Every source file the server bundle compiles: its entry, `server/` and `shared/`. */
+function serverBundleFiles(): string[] {
+  const inFolders = SERVER_FOLDERS.flatMap((folder) =>
+    readdirSync(join(root, folder), { recursive: true, encoding: "utf8" })
+      .map((path) => posix(join(folder, path)))
+      .filter((path) => SOURCE_FILE.test(path)),
+  );
+  return [SERVER_ENTRY, "index.client.ts", ...inFolders];
+}
+
+/** The code of `text` with its comments dropped, so a comment that names `import.meta.url` is not a use of it. */
+function withoutComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'])\/\/.*$/gm, "$1");
+}
+
+const IMPORT_META_URL = /\bimport\s*\.\s*meta\s*\.\s*url\b/;
+
+test("the import.meta.url check sees a use in code and skips a comment", () => {
+  assert.equal(IMPORT_META_URL.test(withoutComments('export const F = fileURLToPath(new URL("../a.json", import.meta.url));')), true);
+  assert.equal(IMPORT_META_URL.test(withoutComments("const u = import\n  .meta.url;")), true);
+  assert.equal(IMPORT_META_URL.test(withoutComments("// beside import.meta.url\nconst a = 1;")), false);
+  assert.equal(IMPORT_META_URL.test(withoutComments("/** not import.meta.url */\nconst a = 1;")), false);
+});
+
+test("the scan covers the server entry, the server folder and the shared folder", () => {
+  const files = serverBundleFiles();
+  assert.ok(files.includes(SERVER_ENTRY), "the server entry is scanned");
+  assert.ok(files.some((file) => file.startsWith("server/")), "a file under server/ is scanned");
+  assert.ok(files.some((file) => file.startsWith("shared/")), "a file under shared/ is scanned");
+});
+
+/** Every relative import in the server bundle's files that lands outside `client/`, `server/` and `shared/`: the daemon refuses it. */
+function outsideModulesIn(file: string, text: string): string[] {
+  return specifiersIn(text)
+    .filter((spec) => spec.startsWith("."))
+    .filter((spec) => {
+      const target = posix(relative(root, join(root, dirname(file), spec)));
+      return !["client", "server", "shared"].includes(target.split("/")[0] ?? "");
+    })
+    .map((spec) => `${file} imports ${spec}, outside client/, server/ and shared/`);
+}
+
+test("the outside-module check sees a data file beside the entry and lets one under server/ through", () => {
+  assert.deepEqual(outsideModulesIn("server/a.ts", 'import d from "../sensor/conditions.json" with { type: "json" };'), [
+    "server/a.ts imports ../sensor/conditions.json, outside client/, server/ and shared/",
+  ]);
+  assert.deepEqual(outsideModulesIn("server/a.ts", 'import d from "./data/conditions.json" with { type: "json" };'), []);
+  assert.deepEqual(outsideModulesIn("server/hooks/a.ts", 'import { x } from "../sensor.ts";'), []);
+});
+
+test("every module the server bundle imports is under client/, server/ or shared/: the daemon's build refuses the rest", () => {
+  const outside = serverBundleFiles()
+    .flatMap((file) => outsideModulesIn(file, readFileSync(join(root, file), "utf8")));
+  assert.deepEqual(outside, []);
+});
+
+test("no module the plugin ships uses import.meta.url: the daemon's server bundle has none", () => {
+  const uses = serverBundleFiles().filter((file) => IMPORT_META_URL.test(withoutComments(readFileSync(join(root, file), "utf8"))));
+  assert.deepEqual(uses, []);
+});

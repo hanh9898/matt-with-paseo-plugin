@@ -1,0 +1,60 @@
+{
+  "conditions": [
+    {
+      "id": "failed-turn",
+      "says": "the turn ended in failure",
+      "check": "code",
+      "fact": "outcome",
+      "is": "failed",
+      "times": 1
+    },
+    {
+      "id": "canceled-turn",
+      "says": "the turn was canceled",
+      "check": "code",
+      "fact": "outcome",
+      "is": "canceled",
+      "times": 1
+    },
+    {
+      "id": "no-new-activity",
+      "says": "the turn added nothing to the timeline",
+      "check": "code",
+      "fact": "newItems",
+      "atMost": 0,
+      "times": 1
+    },
+    {
+      "id": "no-tool-use",
+      "says": "two turns in a row ran no tool",
+      "check": "code",
+      "fact": "newToolCalls",
+      "atMost": 0,
+      "times": 2
+    },
+    {
+      "id": "same-tail",
+      "says": "two turns in a row ended on the same last timeline item",
+      "check": "code",
+      "fact": "tailRepeats",
+      "atLeast": 1,
+      "times": 2
+    },
+    {
+      "id": "quiet-running",
+      "says": "its turn has run 30 minutes with no new activity",
+      "check": "code",
+      "on": "running",
+      "fact": "quietMinutes",
+      "atLeast": 30,
+      "times": 1
+    },
+    {
+      "id": "off-task",
+      "says": "the agent drifted from its ticket",
+      "check": "model",
+      "question": "Does the latest turn of this ticket agent still work on its own ticket, or has it drifted?",
+      "model": null
+    }
+  ]
+}
