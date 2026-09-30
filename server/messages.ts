@@ -102,21 +102,21 @@ const AFTER_TURN: Record<TurnOutcome["kind"], (subject: TicketSubject) => string
  */
 const AFTER_QUIET_TURN = (s: TicketSubject): string[] => [
   `judge whether ${named(s)} is stalled: read agent ${s.agentId}'s recent activity with get_agent_activity`,
-  `decide by the wave skill's hung-agent table, which says whether agent ${s.agentId} is replaced within the restart budget or prompted to resume, or record ${named(s)} as stalled with the reason`,
+  `decide by the wave skill's hung-agent table, which says whether agent ${s.agentId} is replaced within the wave skill's restart budget or prompted to resume, or record ${named(s)} as stalled with the reason`,
   `leave ${named(s)} alone when its agent is working`,
 ];
 
 /** The moves open after a running ticket or bundle agent has been quiet too long: it may be hung in a call, so it is replaced, never prompted. */
 const WHILE_TICKET_RUNS = (s: TicketSubject): string[] => [
   `judge whether ${named(s)} is stalled: read agent ${s.agentId}'s recent activity with get_agent_activity`,
-  `when agent ${s.agentId} is hung on a shell command or on no tool call, replace it within the restart budget under the wave skill's hung-agent table, and never prompt it, since a prompt queues behind the stuck call`,
+  `when agent ${s.agentId} is hung on a shell command or on no tool call, replace it within the wave skill's restart budget under its hung-agent table, and never prompt it, since a prompt queues behind the stuck call`,
   `leave ${named(s)} alone when agent ${s.agentId} runs a subagent or another long tool`,
 ];
 
 /** The moves open after a running stream agent has been quiet too long: it may be hung in a call, so it is replaced, never prompted. */
 const WHILE_RUNNING = (s: StreamSubject): string[] => [
   `judge whether stream ${s.stream} is stalled: read agent ${s.agentId}'s recent activity with get_agent_activity`,
-  `when agent ${s.agentId} is hung on a shell command or on no tool call, replace it under the stream skill's restart budget, and never prompt it, since a prompt queues behind the stuck call`,
+  `when agent ${s.agentId} is hung on a shell command or on no tool call, replace it within the stream skill's restart budget, and never prompt it, since a prompt queues behind the stuck call`,
   `leave stream ${s.stream} alone when agent ${s.agentId} runs a subagent or another long tool`,
 ];
 
@@ -134,7 +134,7 @@ function afterRequest(subject: Relayed, request: RequestHead): string[] {
       ]
     : [
         read,
-        `answer request ${request.id} with respond_to_permission, or leave it to the user when the decision is theirs`,
+        `answer ${of}'s request ${request.id} with respond_to_permission, or leave it to the user when the decision is theirs`,
       ];
 }
 
