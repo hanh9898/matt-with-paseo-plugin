@@ -2,7 +2,7 @@
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
-**This repo:** single-context. The plugin speaks the vocabulary of the skills it serves: the words blocks at the top of `plugins/matt-with-paseo/skills/matt-with-paseo/SKILL.md` and `plugins/matt-with-paseo/skills/matt-with-paseo-streams/SKILL.md` in [hanh9898/matt-with-paseo](https://github.com/hanh9898/matt-with-paseo) (**Wave**, **Checkpoint**, **Brief**, **Stream**, **Hold** and the rest). Reuse those words; never redefine one here. There is no `GLOSSARY.md` yet: `/domain-modeling` creates it at the repo root once a term that only the plugin uses gets resolved. Design decisions are ADRs in `docs/adr/`.
+**This repo:** single-context. The plugin speaks the vocabulary of the skills it serves: the words blocks at the top of `plugins/matt-with-paseo/skills/matt-with-paseo/SKILL.md` and `plugins/matt-with-paseo/skills/matt-with-paseo-streams/SKILL.md` in [hanh9898/matt-with-paseo](https://github.com/hanh9898/matt-with-paseo) (**Wave**, **Checkpoint**, **Brief**, **Stream**, **Hold** and the rest). Reuse those words; never redefine one here. `GLOSSARY.md` at the repo root defines the two words the skills do not: "the skills" (the Claude Code plugin `matt-with-paseo`) and "the plugin" (only this Paseo plugin); read it before you write a ticket or a document that names either. Design decisions are ADRs in `docs/adr/`.
 
 ## Before exploring, read these
 

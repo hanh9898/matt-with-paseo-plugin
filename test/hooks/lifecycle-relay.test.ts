@@ -219,9 +219,9 @@ test("the same history at the next turn end is not relayed again, and a new mess
   assert.doesNotMatch(texts[1] ?? "", /Human words/);
 });
 
-test("a message typed in an agent that is not a ticket agent is left alone (T3)", async () => {
+test("a message typed in an agent that is neither a ticket agent nor a stream agent is left alone (T3)", async () => {
   const host = relayed();
-  host.setLabels("stray", { stream: "demo" });
+  host.setLabels("stray", { role: "scratch" });
   const stray: HostAgent = { ...ticketAgent, id: "stray" };
   await host.emitTurnEnded({ agent: stray, outcome: completed, timeline: [typed("c-1")] });
   await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [typed("c-2")] });
@@ -277,4 +277,117 @@ test("a timeline that is not a list does not stop the turn end from being told (
   await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: undefined as unknown as unknown[] });
   assert.equal(host.sent.length, 1);
   assert.deepEqual(host.failures, []);
+});
+
+const streamAgent: HostAgent = { ...orchestrator, id: "strm-3", workspaceId: "w3", parentAgentId: "orch-1", title: "[Stream] demo" };
+const STREAM_LABELS = { stream: "demo" };
+
+function relayedStream(): FakeHost {
+  const host = relayed();
+  host.setLabels("strm-3", STREAM_LABELS);
+  return host;
+}
+
+test("a stream agent's turn end reaches its parent as one message naming the stream and the agent", async () => {
+  const host = relayedStream();
+  await host.emitTurnEnded({ agent: streamAgent, outcome: completed, timeline: [] });
+  assert.equal(host.sent.length, 1);
+  const [message] = host.sent;
+  assert.equal(message?.agentId, "orch-1");
+  const text = message?.text ?? "";
+  assert.match(text, /^Turn ended: stream demo, agent strm-3, outcome completed\./);
+  assert.doesNotMatch(text, /ticket|wave/i, "the stream clause stands in for the ticket-and-wave clause");
+  assert.deepEqual(host.failures, []);
+});
+
+test("a stream agent's failed and canceled turns say how they ended", async () => {
+  const host = relayedStream();
+  await host.emitTurnEnded({ agent: streamAgent, outcome: { kind: "failed", error: { message: "out of quota", code: "quota" } }, timeline: [] });
+  await host.emitTurnEnded({ agent: streamAgent, outcome: { kind: "failed", error: { message: "boom" } }, timeline: [] });
+  await host.emitTurnEnded({ agent: streamAgent, outcome: { kind: "canceled", reason: "user" }, timeline: [] });
+  assert.match(host.sent[0]?.text ?? "", /stream demo, agent strm-3, outcome failed \(quota\)\./);
+  assert.match(host.sent[1]?.text ?? "", /outcome failed\./);
+  assert.match(host.sent[2]?.text ?? "", /outcome canceled \(user\)\./);
+});
+
+test("a stream agent's permission request reaches its parent with the stream, the agent, the request and its kind, never its input", async () => {
+  const host = relayedStream();
+  await host.emitPermissionRequested({
+    agent: streamAgent,
+    request: { id: "req-4", name: "AskUserQuestion", kind: "question", input: { secret: "hunter2" } },
+  });
+  await host.emitPermissionRequested({ agent: streamAgent, request: { id: "req-5", name: "Bash", kind: "tool" } });
+  assert.equal(host.sent.length, 2);
+  assert.ok(host.sent.every((message) => message.agentId === "orch-1"));
+  assert.match(host.sent[0]?.text ?? "", /^Permission pending: stream demo, agent strm-3, request req-4, AskUserQuestion \(question\)\./);
+  assert.match(host.sent[1]?.text ?? "", /request req-5, Bash \(tool\)\./);
+  assert.ok(!host.sent[0]?.text.includes("hunter2"), "the request's input stays out of the message (T6)");
+});
+
+test("a stream agent's archive reaches its parent, also when Paseo no longer reports its labels", async () => {
+  const host = relayedStream();
+  await host.emitTurnEnded({ agent: streamAgent, outcome: completed, timeline: [] });
+  host.setLabels("strm-3", {});
+  await host.emitArchived({ agent: streamAgent });
+  assert.equal(host.sent.length, 2);
+  assert.match(host.sent[1]?.text ?? "", /^Agent archived: stream demo, agent strm-3\./);
+});
+
+test("the stream agent's creation and the words typed in its chat are not relayed: those types stay ticket-agent only", async () => {
+  const host = relayedStream();
+  await host.emitCreated({ agent: streamAgent });
+  assert.deepEqual(host.sent, []);
+  await host.emitTurnEnded({ agent: streamAgent, outcome: completed, timeline: [typed("c-1")] });
+  assert.equal(host.sent.length, 1);
+  assert.doesNotMatch(host.sent[0]?.text ?? "", /Human words/);
+  assert.doesNotMatch(host.sent[0]?.text ?? "", /c-1/);
+});
+
+test("a stream agent's messages are held for a running parent and go out with the ticket agents' ones, in arrival order", async () => {
+  const host = relayedStream();
+  host.setRunning("orch-1", true);
+  await host.emitTurnEnded({ agent: streamAgent, outcome: completed, timeline: [] });
+  await host.emitPermissionRequested({ agent: ticketAgent, request: { id: "req-9", name: "Bash", kind: "tool" } });
+  await host.emitArchived({ agent: streamAgent });
+  assert.deepEqual(host.sent, []);
+  host.setRunning("orch-1", false);
+  await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [] });
+  assert.equal(host.sent.length, 1, "one message");
+  const text = host.sent[0]?.text ?? "";
+  const lines = text.split("
+");
+  assert.equal(lines.filter((line) => line.startsWith("Next:")).length, 1);
+  assert.ok(lines.at(-1)?.startsWith("Next: "));
+  assert.ok(text.indexOf("stream demo") < text.indexOf("ticket 07"), "arrival order");
+  assert.ok(text.indexOf("ticket 07") < text.lastIndexOf("Agent archived"), "arrival order");
+});
+
+test("a stream agent with no parent is told to nobody", async () => {
+  const host = relayedStream();
+  await host.emitTurnEnded({ agent: { ...streamAgent, parentAgentId: null }, outcome: completed, timeline: [] });
+  await host.emitPermissionRequested({ agent: { ...streamAgent, parentAgentId: null }, request: { id: "r", name: "Bash", kind: "tool" } });
+  await host.emitArchived({ agent: { ...streamAgent, parentAgentId: null } });
+  assert.deepEqual(host.sent, []);
+  assert.deepEqual(host.failures, []);
+});
+
+test("an agent carrying both stream and the ticket labels is relayed as a ticket agent", async () => {
+  const host = relayed();
+  host.setLabels("tkt-7", { stream: "demo", ...TICKET_LABELS });
+  await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [] });
+  assert.match(host.sent[0]?.text ?? "", /^Turn ended: ticket 07 of wave 1, agent tkt-7,/);
+});
+
+test("an agent carrying stream and a wave without a ticket, or neither role, is left alone (T3)", async () => {
+  const host = new FakeHost();
+  registerLifecycleRelay(host);
+  host.setLabels("strm-3", { stream: "demo", wave: "1" });
+  host.setLabels("stray", { other: "x" });
+  const stray: HostAgent = { ...streamAgent, id: "stray" };
+  for (const agent of [streamAgent, stray]) {
+    await host.emitTurnEnded({ agent, outcome: completed, timeline: [] });
+    await host.emitPermissionRequested({ agent, request: { id: "r", name: "Bash", kind: "tool" } });
+    await host.emitArchived({ agent });
+  }
+  assert.deepEqual(host.sent, []);
 });

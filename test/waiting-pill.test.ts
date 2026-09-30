@@ -9,6 +9,7 @@ type Contribution = Parameters<PillClient["addComposerPill"]>[0];
 /** Stands in for the client context: records each pill and its updates, serves the counts a test sets. */
 function stubClient() {
   const counts = new Map<string, number>();
+  const spent = new Set<string>();
   const asked: string[] = [];
   const pills = new Map<string, { contribution: Contribution; patches: { label?: string; visible?: boolean }[]; removed: boolean }>();
   const listed: PillUpdate[] = [];
@@ -40,7 +41,7 @@ function stubClient() {
       const count = counts.get(agentId) ?? 0;
       if (holding) await new Promise<void>((resolve) => void releases.push(resolve));
       if (fail) throw new Error("rpc down");
-      return { count };
+      return { count, budgetSpent: spent.has(agentId) };
     },
     addComposerPill(contribution) {
       const pill = { contribution, patches: [] as { label?: string; visible?: boolean }[], removed: false };
@@ -58,6 +59,7 @@ function stubClient() {
   return {
     client,
     counts,
+    spent,
     listed,
     setListFails: (value: boolean) => void (listFails = value),
     asked,
@@ -294,4 +296,33 @@ test("every text the pill shows lives in client/pill-text.ts", () => {
     assert.ok(!/\} waiting|\b\d+ waiting/.test(text), `${path} writes the pill's label`);
   }
   assert.match(readFileSync(new URL("client/waiting-pill.ts", root), "utf8"), /from "\.\/pill-text\.ts"/);
+});
+
+test("the pill says the day's question limit is reached, beside the count, once the daemon says so", async () => {
+  const stub = stubClient();
+  contribute(stub.client);
+  stub.emit(stub.agent("stream-1"));
+  await settle();
+  stub.counts.set("stream-1", 2);
+  stub.emit(stub.agent("stream-1"));
+  await settle();
+  assert.deepEqual(stub.shown("stream-1"), { label: PILL.label(2), visible: true });
+  stub.spent.add("stream-1");
+  stub.emit(stub.agent("stream-1"));
+  await settle();
+  assert.deepEqual(stub.shown("stream-1"), { label: PILL.label(2, true), visible: true });
+  assert.notEqual(PILL.label(2, true), PILL.label(2));
+  assert.match(PILL.label(2, true), /2 waiting/);
+  assert.match(PILL.label(2, true), /daily question limit reached/);
+});
+
+test("the limit alone shows no pill when nothing waits", async () => {
+  const stub = stubClient();
+  contribute(stub.client);
+  stub.emit(stub.agent("stream-1"));
+  await settle();
+  stub.spent.add("stream-1");
+  stub.emit(stub.agent("stream-1"));
+  await settle();
+  assert.equal(stub.shown("stream-1").visible, false);
 });

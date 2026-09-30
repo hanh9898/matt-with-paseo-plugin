@@ -1,0 +1,15 @@
+matt-with-paseo-plugin
+Copyright (c) 2026 hanh9898
+Licensed under the MIT License, see LICENSE.
+
+This plugin owes its lessons and several of its designs to sting9k/seatworks
+(https://github.com/sting9k/seatworks) at commit 6d316b0
+(6d316b067d5fe1a67f8cffbfa50182e54e97697a):
+
+- The lessons: what a Paseo plugin has to do for an orchestrator that runs
+  agents unattended, learned from reading how seatworks does it.
+- The adapted designs: the ones this repository rewrote for its own hook
+  port, harness descriptors and contract.
+
+docs/roadmap.md maps each seatworks capability at that commit to a milestone
+of this plugin, or says why it stays out.

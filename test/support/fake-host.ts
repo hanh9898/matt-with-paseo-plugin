@@ -9,11 +9,14 @@ import type {
   PermissionAnswer,
   PermissionRequestedEvent,
   PermissionResolvedEvent,
+  SessionOpenRequest,
   TimelineRow,
   TurnEndedEvent,
 } from "../../server/host.ts";
 
 type BeforeCreate = (request: CreateRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>;
+
+type BeforeSessionOpen = (request: SessionOpenRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>;
 
 /**
  * The fake adapter of the host port: no daemon, no SDK. A test registers its handlers on it, emits the
@@ -27,24 +30,38 @@ export class FakeHost implements Host, HostHooks {
   readonly failures: { hook: string; error: unknown }[] = [];
 
   private readonly labels = new Map<string, Record<string, string>>();
+  private readonly titles = new Map<string, string>();
   private readonly running = new Set<string>();
+  private readonly costs = new Map<string, number | null>();
   private readonly created: Handler<CreatedEvent>[] = [];
   private readonly archived: Handler<ArchivedEvent>[] = [];
   private readonly turnEnded: Handler<TurnEndedEvent>[] = [];
   private readonly permissionRequested: Handler<PermissionRequestedEvent>[] = [];
   private readonly permissionResolved: Handler<PermissionResolvedEvent>[] = [];
   private readonly beforeCreates: BeforeCreate[] = [];
+  private readonly beforeSessionOpens: BeforeSessionOpen[] = [];
   private waitingCounter: ((agentId: string) => number | Promise<number>) | null = null;
+  private budgetSpentServer: ((agentId: string) => boolean | Promise<boolean>) | null = null;
 
   /** Sets the labels `labelsOf` reports for an agent. */
   setLabels(agentId: string, labels: Record<string, string>): void {
     this.labels.set(agentId, labels);
   }
 
+  /** Sets the title `openSession` reports for an agent; an agent with none is one Paseo cannot read yet. */
+  setTitle(agentId: string, title: string): void {
+    this.titles.set(agentId, title);
+  }
+
   /** Sets whether `isRunning` reports an agent in a turn. */
   setRunning(agentId: string, running: boolean): void {
     if (running) this.running.add(agentId);
     else this.running.delete(agentId);
+  }
+
+  /** Sets the cost `lastTurnCostUsd` reports for an agent; an agent with none set, or null, has no cost. */
+  setLastTurnCost(agentId: string, usd: number | null): void {
+    this.costs.set(agentId, usd);
   }
 
   onCreated(handler: Handler<CreatedEvent>): void {
@@ -71,8 +88,16 @@ export class FakeHost implements Host, HostHooks {
     this.waitingCounter = handler;
   }
 
+  serveBudgetSpent(handler: (agentId: string) => boolean | Promise<boolean>): void {
+    this.budgetSpentServer = handler;
+  }
+
   beforeCreate(handler: BeforeCreate): void {
     this.beforeCreates.push(handler);
+  }
+
+  beforeSessionOpen(handler: BeforeSessionOpen): void {
+    this.beforeSessionOpens.push(handler);
   }
 
   emitCreated(event: CreatedEvent): Promise<void> {
@@ -106,6 +131,18 @@ export class FakeHost implements Host, HostHooks {
     }
   }
 
+  /** What the composer pill would read: the served count and whether the budget is spent; false when none is served or its handler throws (T4). */
+  async pill(agentId: string): Promise<{ count: number; budgetSpent: boolean }> {
+    const count = await this.waitingCount(agentId);
+    if (this.budgetSpentServer === null) return { count, budgetSpent: false };
+    try {
+      return { count, budgetSpent: await this.budgetSpentServer(agentId) };
+    } catch (error) {
+      this.failures.push({ hook: "waiting.count", error });
+      return { count, budgetSpent: false };
+    }
+  }
+
   /** What Paseo would create with: the environment after every `beforeCreate` handler, in order. */
   async create(request: CreateRequest): Promise<CreateChange> {
     let env: Record<string, string> = { ...request.env };
@@ -120,12 +157,32 @@ export class FakeHost implements Host, HostHooks {
     return { env };
   }
 
+  /** What Paseo would open a session with: the environment after every `beforeSessionOpen` handler, in order. */
+  async openSession(request: { agentId: string; env: Readonly<Record<string, string>>; reason?: SessionOpenRequest["reason"] }): Promise<CreateChange> {
+    let env: Record<string, string> = { ...request.env };
+    const title = this.titles.get(request.agentId) ?? null;
+    const labels = { ...this.labels.get(request.agentId) };
+    for (const handler of this.beforeSessionOpens) {
+      try {
+        const change = await handler({ agentId: request.agentId, reason: request.reason ?? "resume", env, title, labels }, this);
+        if (change) env = change.env;
+      } catch (error) {
+        this.failures.push({ hook: "agent.session_open", error });
+      }
+    }
+    return { env };
+  }
+
   async labelsOf(agentId: string): Promise<Record<string, string>> {
     return { ...this.labels.get(agentId) };
   }
 
   async isRunning(agentId: string): Promise<boolean> {
     return this.running.has(agentId);
+  }
+
+  async lastTurnCostUsd(agentId: string): Promise<number | null> {
+    return this.costs.get(agentId) ?? null;
   }
 
   async send(agentId: string, text: string): Promise<void> {
@@ -138,6 +195,18 @@ export class FakeHost implements Host, HostHooks {
 
   async appendTimelineRow(agentId: string, row: TimelineRow): Promise<void> {
     this.rows.push({ agentId, row });
+  }
+
+  /** The rows an agent's timeline holds now: a row appended again under the same `id` replaces the earlier one, as Paseo does; a row with no id stays. */
+  timeline(agentId: string): TimelineRow[] {
+    const held: TimelineRow[] = [];
+    for (const entry of this.rows) {
+      if (entry.agentId !== agentId) continue;
+      const at = entry.row.id === undefined ? -1 : held.findIndex((row) => row.id === entry.row.id);
+      if (at === -1) held.push(entry.row);
+      else held[at] = entry.row;
+    }
+    return held;
   }
 
   private async run<E>(hook: string, handlers: Handler<E>[], event: E): Promise<void> {

@@ -1,16 +1,20 @@
 # matt-with-paseo-plugin
 
-A [Paseo](https://paseo.sh) plugin for [matt-with-paseo](https://github.com/hanh9898/matt-with-paseo). The skills stay the core. The plugin adds:
+A [Paseo](https://paseo.sh) plugin for [matt-with-paseo](https://github.com/hanh9898/matt-with-paseo).
 
-- lifecycle hooks in place of heartbeats;
-- answers to delegated checkpoints;
-- the wiring for the agents the skills start.
+## What it is for
 
-> **Pre-release.** Nothing is built yet. The decisions so far are in [`docs/adr/`](docs/adr/). The work is tracked in issues labelled `plugin` on [matt-with-paseo](https://github.com/hanh9898/matt-with-paseo/issues?q=label%3Aplugin), and the lessons behind it are in that repository's `docs/lessons/sting9k-seatworks.md`.
+matt-with-paseo-plugin is an optional Paseo plugin for people who run the `matt-with-paseo` skills, above all people who run streams unattended. It lets the orchestrator see what its agents do without polling, answers the checkpoints the owner has delegated, and wires each ticket agent when it is created. The skills stay the core and still run without the plugin.
+
+The design case is the unattended stream; a single wave is helped too. The plugin supports Windows, macOS and Linux. Claude Code only; other agents prepared through descriptors, not promised.
+
+What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md). Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
 
 ## Development
 
-The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step.
+The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step; the plugin was tested on Node 22, and `package.json` has no `engines` field, so npm does not refuse another version.
+
+Install from a clone: `git clone https://github.com/hanh9898/matt-with-paseo-plugin`, `cd matt-with-paseo-plugin`, `npm ci`, then `paseo plugin install <path to the clone>` (the smoke test runs the same command with a plugin id, `--id`). The Claude Code half installs as `matt-with-paseo-plugin@matt-with-paseo-plugin` (see the Claude Code plugin paragraph below). Nothing is published to npm.
 
 Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin.json`](paseo-plugin.json)), tested on Paseo `0.10.1`. The [smoke test](test/smoke/README.md) targets that version. When Paseo cuts a new minor, the [release checklist](docs/agents/release-checklist.md) widens the range after the smoke test passes on it.
 
@@ -24,10 +28,18 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `client/` | App-side code the client entry imports |
 | `client/waiting-pill.ts` | The composer pill: one per agent, hidden at zero |
 | `client/pill-text.ts` | Every text the pill shows |
+| `client/report-card-text.ts`, `client/report-card.ts`, `client/report-card-view.ts` | The report card's client side: its texts, the renderer registration with its schema, and the text-only view |
 | `server/` | Daemon-side code the entry imports |
 | `server/host.ts` | The host port: the events a handler receives, the actions it may take, where it registers |
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
 | `server/hooks/` | The hook handlers, one module per handler |
+| `server/delegated-answers.ts` | The delegated-answers handler and its pure decision: answers a checkpoint with its recommendation when the `## Delegation` table lets the orchestrator decide |
+| `shared/delegation.ts` | The reader of the `## Delegation` table |
+| `server/appetite.ts` | The appetite handler: sums each stream's turn costs, tells the orchestrator once when a stream passes its appetite, and tells the delegated answers to stop for that stream |
+| `shared/appetite.ts` | The appetite reader (a dollar amount) and the sum of a stream's spend |
+| `server/report-card.ts` | The report card: one timeline row in the orchestrator's chat, kept current under one row id, listing the delegated answers, the spend against the appetite and the question count against the budget |
+| `server/question-budget.ts` | The daily question budget: counts the questions left to the user, tells the orchestrator once when the budget is spent |
+| `shared/question-budget.ts` | The budget's setting (`MWP_QUESTION_BUDGET`) and the local day |
 | `server/hooks/gate-cap.ts` | The gate cap handler: tells the orchestrator when ticket agents run past the cap |
 | `server/hooks/lifecycle-relay.ts` | The handler that tells an orchestrator what its ticket agents do |
 | `server/hooks/waiting-count.ts` | The handler that counts what waits for the user, per chat |
@@ -42,7 +54,8 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `shared/waiting.ts` | The `waiting.count` RPC the pill reads |
 | `shared/role-marker.ts` | The name and value of the ticket marker: the one place that names it |
 | `shared/role-labels.ts` | The role labels: what marks an agent as a ticket agent or the stream agent |
-| `shared/contract.ts` | The contract version between the skills and the plugin: `CONTRACT_VERSION` |
+| `shared/contract.ts` | The contract version between the skills and the plugin: `CONTRACT_VERSION`, and the report card row's shape |
+| `docs/contract.md` | Contract v1: what the plugin sends, reads and promises to the skills |
 | `shared/state-location.ts` | Where the plugin keeps its state (a per-user directory, one setting) and the one marked block it may write in a repository |
 | `server/state.ts` | The one module that writes a file: under the state directory, or into the marked block |
 | `shared/gate-cap.ts` | The gate cap: the default share, the setting that adjusts it and the count it gives |
@@ -64,13 +77,16 @@ Paseo loads only the entries and the `client/`, `server/` and `shared/` folders;
 npm install
 npm run typecheck
 npm test
+npm run check
 ```
+
+`npm run check` is the command that proves everything: it runs the typecheck, then every test, then the docs-set test that the `test` script's glob misses (`test/docs/docs-set.test.mjs`), and stops at the first failure. It has no lint or format step. The smoke steps in [`test/smoke/README.md`](test/smoke/README.md) stay manual.
 
 ### The host port
 
 Only `server/paseo-host.ts` imports `@getpaseo/plugin`; a handler imports `server/host.ts` and nothing from the SDK.
 
-A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onPermissionResolved`, `hooks.onCreated`, `hooks.onArchived` or `hooks.beforeCreate`, and each callback receives `(event, host)`. `hooks.serveWaitingCount` answers the composer pill's question. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
+A handler is a module in `server/hooks/` that exports a function taking `HostHooks`. It registers with `hooks.onTurnEnded`, `hooks.onPermissionRequested`, `hooks.onPermissionResolved`, `hooks.onCreated`, `hooks.onArchived`, `hooks.beforeCreate` or `hooks.beforeSessionOpen`, and each callback receives `(event, host)`. `hooks.serveWaitingCount` answers the composer pill's question, and `hooks.serveBudgetSpent` adds whether the day's question budget is spent. `host` is the only way to reach Paseo: `labelsOf`, `isRunning`, `send`, `respondToPermission`, `appendTimelineRow`. The entry module calls `connectPaseo(server)` and hands the returned `HostHooks` to each handler.
 
 ```ts
 // server/hooks/relay.ts
@@ -84,7 +100,7 @@ export function registerRelay(hooks: HostHooks): void {
 }
 ```
 
-A test builds a `FakeHost` from `test/support/fake-host.ts`, passes it as the hooks, emits the event Paseo would send, and reads what the handler did. No daemon and no SDK are involved. `await host.create({ env, title })` returns the environment after every `beforeCreate` handler, in the order they registered; a handler receives `{ env, title }`, the only marks of the agent before Paseo sets its labels. `host.setLabels(agentId, labels)` sets what `labelsOf` reports. A handler that throws is recorded in `failures` instead of reaching the test, as the real adapter keeps it out of Paseo.
+A test builds a `FakeHost` from `test/support/fake-host.ts`, passes it as the hooks, emits the event Paseo would send, and reads what the handler did. No daemon and no SDK are involved. `await host.create({ env, title })` returns the environment after every `beforeCreate` handler, in the order they registered; a handler receives `{ env, title }`, the only marks of the agent before Paseo sets its labels. `host.setLabels(agentId, labels)` sets what `labelsOf` reports. `await host.openSession({ agentId, env })` does the same for `beforeSessionOpen`, and a handler receives the title `host.setTitle(agentId, title)` set and the labels; an agent the fake was told nothing about arrives with `title: null` and no labels, as one Paseo cannot read yet. A handler that throws is recorded in `failures` instead of reaching the test, as the real adapter keeps it out of Paseo.
 
 ```ts
 // test/hooks/relay.test.ts
@@ -156,7 +172,7 @@ The skills' words blocks (`hanh9898/matt-with-paseo`: **Wave**, **Checkpoint**, 
 
 The precise terms stay where agents read them: the messages in `server/messages.ts` and this Development section keep them, and a check fails when a server or shared module imports the pill's words. The skills themselves are in `hanh9898/matt-with-paseo` and are not touched here; the plain wording of a checkpoint question is the skills' brief wording, since the question is the orchestrator's own `AskUserQuestion` text (ADR 0001).
 
-The first release draws no custom checkpoint card, and no report card exists in this repository yet, so the pill is the one screen the check covers. A card file added to `client/` is covered by the same check as soon as it exists.
+The first release draws no custom checkpoint card. The report card's client files (`client/report-card-text.ts`, `client/report-card.ts`, `client/report-card-view.ts`) sit under the same check as the pill's, and their words live in `client/report-card-text.ts`.
 
 ### The git guard
 
@@ -165,7 +181,7 @@ A ticket agent runs in a worktree with broad permissions, and the orchestrator s
 | Part | Where | Does |
 |---|---|---|
 | The marker | `shared/role-marker.ts` (`ROLE_ENV`, `TICKET_ROLE`) | Names `MWP_ROLE=ticket`; the guard, the handler and ticket 14 all read it |
-| The handler | `server/hooks/ticket-marker.ts` | In `beforeCreate`, adds the marker to the environment of an agent titled `[Wave N] <NN> <ticket name>`, as the wave skill titles every ticket agent |
+| The handler | `server/hooks/ticket-marker.ts` | In `beforeCreate`, adds the marker to the environment of an agent titled `[Wave N] <NN> <ticket name>`, as the wave skill titles every ticket agent; in `beforeSessionOpen`, adds it again for a resumed one, by its title or its `wave` and `ticket` labels |
 | The guard | `guard/git-guard.mjs` | Reads the tool call on stdin, exits 2 with the message on stderr to refuse; fails open |
 | The hook file | `hooks/hooks.json` | Runs `node "${CLAUDE_PLUGIN_ROOT}/guard/git-guard.mjs"` in a `PreToolUse` hook for `Bash` and `PowerShell`, for an agent that loads this repository as a plugin |
 | The descriptor | `guard` in `harness/<agent>.json` | `hook` for an agent that runs hooks; `path-shim` for one that does not |
@@ -176,7 +192,7 @@ What it does not cover:
 
 - Only the `hook` value is built; no `path-shim` exists yet.
 - The hook file takes effect once an agent loads this repository as a Claude Code plugin: `.claude-plugin/plugin.json` makes it loadable, and someone still has to enable it for the ticket agents.
-- An agent Paseo resumes after a daemon restart is not re-marked: the environment set at creation is not kept, and only an `agent.session_open` hook could set it again, when labels are readable.
+- An agent Paseo resumes after a daemon restart loses the environment set at creation, so `beforeSessionOpen` (Paseo's `agent.session_open`) sets the marker again from the agent's title or labels. On Paseo `0.10.1` that hook runs before a resumed agent is registered, so neither may be readable: the handler then fails open, logs one line and leaves the agent unmarked. The "Git guard" smoke steps show which case holds.
 - It reads a command as a shell splits it and sees through `&&`, `;`, `|`, `$( )`, `bash -c`, `eval`, `env`, `sudo` and `git -C dir`; it does not follow a git alias or a program that runs git for the agent. It is a guardrail against a ticket agent's habits, not a sandbox.
 
 The checks are `test/guard/git-guard.test.ts` (the script, run as the hook runner runs it), `test/guard-wiring.test.ts` and `test/hooks/ticket-marker.test.ts`; the proof on the three systems and on a real host is written in the [smoke test](test/smoke/README.md).
@@ -190,6 +206,7 @@ A role is what an agent is to the plugin: a ticket agent, the stream agent, or n
 | An event hook (`onCreated`, `onTurnEnded`, `onPermissionRequested`, ...) | The labels: a ticket agent carries `wave` and `ticket`, the stream agent `stream` and no `wave`; `shared/role-labels.ts` names them | `lifecycle-relay.ts`, `waiting-count.ts` |
 | A hook that runs inside the agent | The env marker `MWP_ROLE=ticket`: `hasTicketMarker(env)` in `shared/role-marker.ts` reads it, and the standalone `guard/git-guard.mjs` repeats its two words | the git guard |
 | `beforeCreate` | The title `[Wave N] <NN> <ticket name>`: Paseo `0.10.1` sets labels only after this hook, and gives it no agent id | `ticket-marker.ts`, which sets the marker |
+| `beforeSessionOpen` | The title or the `wave` and `ticket` labels, when Paseo can read them before a resumed agent is registered; otherwise neither, and the agent stays unmarked | `ticket-marker.ts`, which sets the marker again |
 
 The env marker exists because an event carries no environment, and a hook inside the agent cannot ask Paseo for labels. An agent without the marker is the orchestrator or one the plugin does not know, and keeps the environment Paseo made for it; an agent without the labels is left alone (T3). The title is the one place the plugin recognises an agent by something other than its labels (ticket 02's decision), and only where the labels do not exist yet.
 
@@ -259,6 +276,38 @@ What it does not do:
 
 The checks are `test/gate-cap.test.ts`, `test/hooks/gate-cap.test.ts` and `test/gate-cap-docs.test.ts`; the smoke test ("Gate cap") runs it on Paseo `0.10.1`.
 
+### Appetite
+
+At each turn end of a ticket agent or the stream agent, the plugin adds the agent's `lastUsage.totalCostUsd` to its stream's total and keeps the totals in `stream-spend.json` under the state directory, never in the repository. The appetite is the `Appetite` row of the `## Delegation` table, read as a dollar amount (`20 USD`); another value is no appetite. When a total passes it, the orchestrator gets one `Appetite passed:` message with a `Next:` line, and the plugin answers no question of that stream any more, so every one reaches the user. A turn with no cost adds nothing and marks the total partial. The plugin cancels nothing and stops no agent: any Hold is the skills' decision.
+
+The checks are `test/appetite.test.ts`, `test/hooks/appetite.test.ts` and `test/appetite-docs.test.ts`; the smoke test ("Appetite") runs it on Paseo `0.10.1`.
+
+### Delegated answers
+
+When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. A question with a `Yours:` line, a `Door: one-way`, no recommendation, or any question in a request that fails one of these is left to the user, as is every question when the table is missing, unreadable or switched off. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository.
+
+The checks are `test/delegation.test.ts`, `test/delegated-answers.test.ts`, `test/hooks/delegated-answers.test.ts` and `test/delegated-answers-docs.test.ts`; the smoke test ("Delegated answers") runs it on Paseo `0.10.1`.
+
+### The question budget
+
+Nothing else counts how many questions reach the owner in a day, so an unattended stream can flood the owner's phone. The budget is a per-machine setting, not a row of the `## Delegation` table: the environment variable `MWP_QUESTION_BUDGET`, a whole number above 0, read from the daemon's environment (`shared/question-budget.ts`). With no setting, or one that is not a whole number above 0, there is no budget: the plugin still counts and says nothing.
+
+The delegated-answers handler tells `server/question-budget.ts` about each question it leaves to the user, through the `left` member of its reader (the one hook the budget needed out of it). A question is one `AskUserQuestion` request, as the pill counts it, and only an agent recognised by its labels is counted (T3). The count is per day in local time, per daemon, and lives in `question-budget.json` under the state directory (`server/state.ts`), so it survives a reload; a new local day starts it again. When the count reaches the budget, the orchestrator that owns the chat is sent one `Question budget spent:` message (`MESSAGES.questionBudgetSpent`) ending with its `Next:` line, once a day and held while its own turn runs, and the composer pill reads "<n> waiting, daily question limit reached" while a question waits.
+
+The budget informs and never widens delegation: it answers nothing and stops nothing, so questions keep reaching the user (the owner's answer 3 on #32). A store that cannot be read or written logs one line with the agent's id and the count goes on in memory (T4).
+
+The checks are `test/question-budget.test.ts`, `test/hooks/question-budget.test.ts` and `test/question-budget-docs.test.ts`; the smoke test ("Question budget") runs it on Paseo `0.10.1`.
+
+### The report card
+
+Nothing showed what was decided on the owner's behalf, so delegation could not be reviewed at a glance. `server/report-card.ts` appends one plugin timeline row (`kind: "report-card"`, its shape fixed by `REPORT_CARD` in `shared/contract.ts` and `docs/contract.md`) to the orchestrator's chat, under one row id, so each change replaces it and the chat holds one card. A ticket agent's change shows in its orchestrator's chat, the stream agent's in its own.
+
+Paseo draws a plugin row only through a renderer the plugin registers on the client for its kind and version, and shows "Plugin timeline item unavailable" otherwise; `client/report-card.ts` registers it (`addTimelineRenderer`, its schema the row's data), `client/report-card-view.ts` draws the text with the theme's colours, and `client/report-card-text.ts` holds the words. The view holds nothing to press.
+
+The card only reads. `decided` comes from the delegated answers' record (`readDelegatedAnswers` in `server/delegated-answers.ts`, through `server/state.ts`), `spend` from the appetite handler's record (`spendOf`, with `partial` when a turn had no cost), and `questions` from the budget's count (`count()`) and `MWP_QUESTION_BUDGET`. It is refreshed when a delegated answer is recorded (the `answered` member of the delegated-answers reader, the second hook the card needed out of it), when a question is left to the user (`left`, beside the budget), and when the appetite handler has summed a turn's cost (its `updated` member), so no refresh depends on the order Paseo runs handlers in. The card has no buttons: the round trip is unproven (ADR 0001), and buttons come with `v0.4.0`'s cards after a proof. A host that refuses the row logs one line with the agent's id and never a question or an answer (T4, T6).
+
+The checks are `test/report-card.test.ts`, `test/hooks/report-card.test.ts`, `test/report-card-client.test.ts` (the renderer), `test/report-card-docs.test.ts` and the report card cases of `test/contract.test.ts`; the smoke test ("Report card") runs it on Paseo `0.10.1` and takes the screenshot.
+
 ### Cost levels
 
 A new user cannot choose every role's agent and model at once, so the plugin ships three presets that choose them together. `presets/cost-levels.json` holds them, and it is the only place they are written:
@@ -297,6 +346,7 @@ A public plugin should not litter the repositories it works in. The plugin keeps
 | `server/hooks/stall-sensor.ts` | Each agent's last turn, its streaks per condition, the messages held | In memory |
 | `server/hooks/waiting-count.ts` | The requests open in each agent's chat | In memory |
 | `client/waiting-pill.ts` | The pill registered for each agent | In memory |
+| `server/question-budget.ts` | The day's count of questions left to the user and whether the orchestrator was told; the requests seen this turn and the message held for a busy orchestrator | `question-budget.json` under the state directory; the rest in memory |
 | `server/harness.ts`, `server/sensor.ts` | Nothing: they read the plugin's own `harness/` and `sensor/` files | Read only |
 
 A restart of the plugin forgets what those hold and starts from the next event, as it did before; the holders that would need to survive one (a gate queue across a daemon restart, say) add their row here and write through `server/state.ts`.
@@ -311,13 +361,14 @@ The plugin's version, id and Claude Code name are spelled in several files, and 
 
 | Identifier | Spelled in | Checked against |
 |---|---|---|
-| Version | `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `plugins[0].version`, `shared/contract.ts` `CONTRACT_VERSION` | `package.json` `version` |
+| Version | `.claude-plugin/plugin.json` `version`, `.claude-plugin/marketplace.json` `plugins[0].version` | `package.json` `version` |
+| Contract version (a whole number) | `shared/contract.ts` `CONTRACT_VERSION` | `docs/contract.md` `Contract version:` line |
 | Paseo id (`matt-with-paseo`) | `package.json` `name` | `paseo-plugin.json` `id` |
 | Claude Code name (`matt-with-paseo-plugin`) | `.claude-plugin/marketplace.json` `plugins[0].name` | `.claude-plugin/plugin.json` `name` |
 
-`paseo-plugin.json` carries no version: Paseo's manifest schema takes `id`, `description`, `requirements` and `build` and no other key (read in `@getpaseo/server` `0.10.1`), so the file takes part through its id. The contract version between the skills and the plugin is the version token itself, read by the skills from the plugin's version.
+`paseo-plugin.json` carries no version: Paseo's manifest schema takes `id`, `description`, `requirements` and `build` and no other key (read in `@getpaseo/server` `0.10.1`), so the file takes part through its id. The contract version between the skills and the plugin is not the version token: it is the whole number on the `Contract version:` line of `docs/contract.md` (ADR 0003), and the two move independently.
 
-`test/version-token.test.ts` runs the check (`test/support/version-token.ts`) and fails with one line per spelling that differs, naming that file and the one that holds the token. To release, change `version` in `package.json`, then in the three other places; `npm test` names any that lags.
+`test/version-token.test.ts` runs the check (`test/support/version-token.ts`) and fails with one line per spelling that differs, naming that file and the one that holds the token. To release, change `version` in `package.json`, then in the two other places; `npm test` names any that lags.
 
 The Claude Code plugin and its marketplace are both named `matt-with-paseo-plugin`, not `matt-with-paseo`: the skills repository's plugin and marketplace have that name, ticket agents enable both plugins, and a user registers one marketplace per name. The plugin installs as `matt-with-paseo-plugin@matt-with-paseo-plugin`. The Paseo id stays `matt-with-paseo`.
 
@@ -333,4 +384,4 @@ For agents and for reviewers: [`AGENTS.md`](AGENTS.md) points to the [coding sta
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). [NOTICE](NOTICE) credits sting9k/seatworks at `6d316b0` as the source of the lessons and the adapted designs.

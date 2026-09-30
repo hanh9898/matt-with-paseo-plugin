@@ -12,15 +12,27 @@ import type { PermissionRequest, TurnOutcome } from "./host.ts";
 /** The ticket agent a message speaks of: its id, and the `wave` and `ticket` labels it carries. */
 export type Subject = { agentId: string; wave: string; ticket: string };
 
+/** The stream agent a message speaks of: its id, and the `stream` label it carries (it carries no `wave`). */
+export type StreamSubject = { agentId: string; stream: string };
+
+/** Who a relayed message speaks of: a ticket agent or a stream agent. */
+export type Relayed = Subject | StreamSubject;
+
+function isStream(subject: Relayed): subject is StreamSubject {
+  return "stream" in subject;
+}
+
 type RequestHead = Pick<PermissionRequest, "id" | "name" | "kind">;
 
 const NEXT = "\nNext: ";
-/** Separates the moves on a `Next:` line, so a move never holds it. Each move names its ticket: `combine` may join several messages' moves. */
+/** Separates the moves on a `Next:` line, so a move never holds it. Each move of a ticket or stream message names its ticket or stream: `combine` may join several messages' moves. */
 const MOVES = "; ";
 
-/** One message: the words that lead, then the ticket agent it speaks of, then the detail when there is one, then the moves. */
-function message(lead: string, subject: Subject, detail: string | undefined, moves: readonly string[]): string {
-  const who = `ticket ${subject.ticket} of wave ${subject.wave}, agent ${subject.agentId}`;
+/** One message: the words that lead, then the agent it speaks of, then the detail when there is one, then the moves. */
+function message(lead: string, subject: Relayed, detail: string | undefined, moves: readonly string[]): string {
+  const who = isStream(subject)
+    ? `stream ${subject.stream}, agent ${subject.agentId}`
+    : `ticket ${subject.ticket} of wave ${subject.wave}, agent ${subject.agentId}`;
   const body = detail === undefined ? `${lead}: ${who}.` : `${lead}: ${who}, ${detail}.`;
   return `${body}${NEXT}${moves.join(MOVES)}.`;
 }
@@ -36,7 +48,23 @@ function outcomeOf(outcome: TurnOutcome): string {
   }
 }
 
-/** The moves open after a turn ends, by how it ended. */
+/** The moves open after a stream agent's turn ends, by how it ended. */
+const AFTER_STREAM_TURN: Record<TurnOutcome["kind"], (subject: StreamSubject) => string[]> = {
+  completed: (s) => [
+    `check stream ${s.stream}'s report with get_agent_activity and its artifacts (commits on its branch, its pull request)`,
+    `prompt agent ${s.agentId} when the report is incomplete`,
+  ],
+  failed: (s) => [
+    `read agent ${s.agentId}'s last activity with get_agent_activity`,
+    `prompt agent ${s.agentId} to resume, or record stream ${s.stream} as failed with the reason`,
+  ],
+  canceled: (s) => [
+    `read agent ${s.agentId}'s last activity with get_agent_activity`,
+    `prompt agent ${s.agentId} to resume, or leave stream ${s.stream} stopped when the cancel was deliberate`,
+  ],
+};
+
+/** The moves open after a ticket agent's turn ends, by how it ended. */
 const AFTER_TURN: Record<TurnOutcome["kind"], (subject: Subject) => string[]> = {
   completed: (s) => [
     `check ticket ${s.ticket}'s report with get_agent_activity and its artifacts (commits on its branch, ticket status)`,
@@ -56,8 +84,9 @@ const AFTER_TURN: Record<TurnOutcome["kind"], (subject: Subject) => string[]> = 
  * The moves open while a request waits. A question is a checkpoint (ADR 0001): the user answers it in the asking
  * agent's chat, or the plugin does under the delegation table; the orchestrator reads it and leaves it to them.
  */
-function afterRequest(subject: Subject, request: RequestHead): string[] {
-  const read = `read ticket ${subject.ticket}'s request ${request.id} with list_pending_permissions, and treat it as settled when it is no longer listed`;
+function afterRequest(subject: Relayed, request: RequestHead): string[] {
+  const of = isStream(subject) ? `stream ${subject.stream}` : `ticket ${subject.ticket}`;
+  const read = `read ${of}'s request ${request.id} with list_pending_permissions, and treat it as settled when it is no longer listed`;
   return request.kind === "question"
     ? [
         read,
@@ -80,9 +109,14 @@ function humanWordsDetail(ids: readonly string[]): string {
 }
 
 export const MESSAGES = {
-  turnEnded: (subject: Subject, outcome: TurnOutcome) =>
-    message("Turn ended", subject, outcomeOf(outcome), AFTER_TURN[outcome.kind](subject)),
-  permissionRequested: (subject: Subject, request: RequestHead) =>
+  turnEnded: (subject: Relayed, outcome: TurnOutcome) =>
+    message(
+      "Turn ended",
+      subject,
+      outcomeOf(outcome),
+      isStream(subject) ? AFTER_STREAM_TURN[outcome.kind](subject) : AFTER_TURN[outcome.kind](subject),
+    ),
+  permissionRequested: (subject: Relayed, request: RequestHead) =>
     message("Permission pending", subject, `request ${request.id}, ${request.name} (${request.kind})`, afterRequest(subject, request)),
   created: (subject: Subject) =>
     message("Agent created", subject, undefined, [
@@ -104,11 +138,35 @@ export const MESSAGES = {
       `hold every ready ticket after ticket ${subject.ticket} in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than ${cap} running`,
       `leave ticket ${subject.ticket} running: agent ${subject.agentId} is already created`,
     ]),
-  archived: (subject: Subject) =>
-    message("Agent archived", subject, undefined, [
-      `finish step 8's clean-up of ticket ${subject.ticket} when you archived agent ${subject.agentId}`,
-      `check ticket ${subject.ticket}'s status before counting its work done when someone else archived agent ${subject.agentId}`,
-    ]),
+  appetitePassed: (stream: string, spentUsd: number, appetiteUsd: number, partial: boolean) => {
+    const spent = `spent ${spentUsd.toFixed(2)} USD against an appetite of ${appetiteUsd.toFixed(2)} USD`;
+    const body = `Appetite passed: stream ${stream}, ${partial ? `${spent} (a partial total: some turns reported no cost)` : spent}.`;
+    const moves = [
+      `leave every question of stream ${stream} to the user, who answers it in the asking agent's chat, since the plugin no longer answers them for this stream`,
+      "decide any Hold under the skills' rules, since the plugin cancels nothing and stops no agent",
+    ];
+    return `${body}${NEXT}${moves.join(MOVES)}.`;
+  },
+  questionBudgetSpent: (count: number, budget: number) =>
+    `Question budget spent: ${count} question${count === 1 ? "" : "s"} reached the user today against a budget of ${budget}.${NEXT}${[
+      "keep asking the questions only the user can answer: the plugin still leaves each one to them",
+      "decide nothing extra on the budget's account: the delegation table alone says what you may decide",
+    ].join(MOVES)}.`,
+  archived: (subject: Relayed) =>
+    message(
+      "Agent archived",
+      subject,
+      undefined,
+      isStream(subject)
+        ? [
+            `finish the clean-up of stream ${subject.stream} when you archived agent ${subject.agentId}`,
+            `check stream ${subject.stream}'s status before counting its work done when someone else archived agent ${subject.agentId}`,
+          ]
+        : [
+            `finish step 8's clean-up of ticket ${subject.ticket} when you archived agent ${subject.agentId}`,
+            `check ticket ${subject.ticket}'s status before counting its work done when someone else archived agent ${subject.agentId}`,
+          ],
+    ),
 };
 
 /**

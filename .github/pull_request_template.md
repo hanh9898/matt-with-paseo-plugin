@@ -6,6 +6,7 @@
 
 - **Before:** <!-- failing test run, output or screenshot; a stream's pull request shows the end-of-stream runs -->
   **After:** <!-- passing test run, code review findings, eval report, or screenshot -->
+- [ ] A pull request that ships a milestone: the roadmap is updated (`docs/roadmap.md`).
 
 ## Merge Danger
 

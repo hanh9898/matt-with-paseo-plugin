@@ -37,6 +37,9 @@ const SAMPLES: Record<keyof typeof MESSAGES, Record<string, string>> = {
   humanWords: { one: MESSAGES.humanWords(subject, ["c-1"]) },
   stallSuspected: { one: MESSAGES.stallSuspected(subject, ["the turn ended in failure"]) },
   gateCapPassed: { one: MESSAGES.gateCapPassed(subject, 4, 5) },
+  questionBudgetSpent: { one: MESSAGES.questionBudgetSpent(4, 4) },
+  // The partial case differs from this one in its body only, and no two cases share a `Next:` line.
+  appetitePassed: { passed: MESSAGES.appetitePassed("demo", 6, 5, false) },
 };
 
 /** The `Next:` line of a text: its last line, or null when the last line is anything else. */
@@ -59,7 +62,8 @@ test("every message type ends with one `Next:` line that names the moves open to
       assert.equal(text.split("\n").filter((line) => line.startsWith("Next:")).length, 1, `${type} (${name}) has one`);
       assert.ok(next.length > "Next: .".length, `${type} (${name}) names a move`);
       assert.ok(next.endsWith("."), `${type} (${name}) ends its line with a full stop`);
-      assert.ok(next.includes("07"), `${type} (${name}) names the ticket its moves are about`);
+      // The budget is the machine's and the appetite the stream's, not one ticket's: their moves name no ticket.
+      assert.ok(type === "questionBudgetSpent" || type === "appetitePassed" || next.includes("07"), `${type} (${name}) names the ticket its moves are about`);
     }
   }
 });
@@ -158,4 +162,78 @@ test("the human words message combines with a turn end into one `Next:` line", (
   const both = combine([MESSAGES.humanWords(subject, ["c-1"]), MESSAGES.turnEnded(subject, { kind: "completed" })]);
   assert.equal(both.split("\n").filter((line) => line.startsWith("Next:")).length, 1);
   assert.ok(both.indexOf("Human words") < both.indexOf("Turn ended"));
+});
+
+const stream = { agentId: "strm-3", stream: "demo" };
+
+/** The stream agent's cases: the same types as the ticket agent's, `stream <stream>` in place of the ticket-and-wave clause. */
+const STREAM_SAMPLES = {
+  turnEnded: {
+    completed: MESSAGES.turnEnded(stream, { kind: "completed" }),
+    failed: MESSAGES.turnEnded(stream, { kind: "failed", error: { message: "out of quota", code: "quota" } }),
+    canceled: MESSAGES.turnEnded(stream, { kind: "canceled", reason: "user" }),
+  },
+  permissionRequested: {
+    question: MESSAGES.permissionRequested(stream, { id: "req-4", name: "AskUserQuestion", kind: "question" }),
+    tool: MESSAGES.permissionRequested(stream, { id: "req-4", name: "Bash", kind: "tool" }),
+  },
+  archived: { archived: MESSAGES.archived(stream) },
+};
+
+test("a stream agent's text names the stream and the agent in place of the ticket and the wave", () => {
+  for (const [type, cases] of Object.entries(STREAM_SAMPLES)) {
+    for (const [name, text] of Object.entries(cases)) {
+      assert.match(text, /: stream demo, agent strm-3[,.]/, `${type} (${name}) names the stream and the agent`);
+      assert.doesNotMatch(text, /ticket|wave/i, `${type} (${name}) has no ticket-and-wave clause`);
+    }
+  }
+  assert.match(STREAM_SAMPLES.turnEnded.completed, /^Turn ended: stream demo, agent strm-3, outcome completed\./);
+  assert.match(STREAM_SAMPLES.turnEnded.failed, /outcome failed \(quota\)\./);
+  assert.match(STREAM_SAMPLES.turnEnded.canceled, /outcome canceled \(user\)\./);
+  assert.match(STREAM_SAMPLES.permissionRequested.question, /request req-4, AskUserQuestion \(question\)\./);
+  assert.match(STREAM_SAMPLES.archived.archived, /^Agent archived: stream demo, agent strm-3\./);
+});
+
+test("a stream agent's text is one body line, then a `Next:` line of moves closed by a full stop, each move naming the stream or the agent", () => {
+  const lines: (string | null)[] = [];
+  for (const cases of Object.values(STREAM_SAMPLES)) {
+    for (const text of Object.values(cases)) {
+      assert.equal(text.split("\n").length, 2);
+      const next = nextLineOf(text);
+      assert.ok(next !== null && next.endsWith("."), text);
+      lines.push(next);
+      for (const move of movesOf(text)) assert.match(move, /stream demo|strm-3/, `"${move}" names the stream or the agent`);
+    }
+  }
+  assert.equal(new Set(lines).size, lines.length, "no two cases share a `Next:` line");
+});
+
+test("a stream agent's moves fit the streams orchestrator: read its report, answer under the delegation, finish the clean-up", () => {
+  assert.match(nextLineOf(STREAM_SAMPLES.turnEnded.completed) ?? "", /stream demo's report with get_agent_activity/);
+  assert.match(nextLineOf(STREAM_SAMPLES.turnEnded.failed) ?? "", /record stream demo as failed/);
+  assert.match(nextLineOf(STREAM_SAMPLES.turnEnded.canceled) ?? "", /stream demo stopped/);
+  const question = nextLineOf(STREAM_SAMPLES.permissionRequested.question) ?? "";
+  assert.match(question, /list_pending_permissions/);
+  assert.match(question, /no longer listed/);
+  assert.match(question, /delegation table/);
+  assert.match(question, /strm-3's chat/);
+  assert.match(nextLineOf(STREAM_SAMPLES.permissionRequested.tool) ?? "", /respond_to_permission/);
+  assert.match(nextLineOf(STREAM_SAMPLES.archived.archived) ?? "", /clean-up of stream demo/);
+});
+
+test("a stream agent's text carries no part of a request's input or an error's message (T6)", () => {
+  assert.doesNotMatch(MESSAGES.turnEnded(stream, { kind: "failed", error: { message: "token=hunter2" } }), /hunter2/);
+  assert.doesNotMatch(MESSAGES.permissionRequested(stream, { id: "r", name: "Bash", kind: "tool", input: { secret: "hunter2" } }), /hunter2/);
+});
+
+test("combine joins a stream agent's message with a ticket agent's, one `Next:` line holding both sets of moves", () => {
+  const streamText = MESSAGES.turnEnded(stream, { kind: "completed" });
+  const ticketText = MESSAGES.turnEnded(subject, { kind: "completed" });
+  const both = combine([streamText, ticketText]);
+  const lines = both.split("\n");
+  assert.equal(lines.length, 3);
+  assert.equal(lines.filter((line) => line.startsWith("Next:")).length, 1);
+  for (const text of [streamText, ticketText]) {
+    for (const move of movesOf(text)) assert.ok(movesOf(both).includes(move), `the combined line holds "${move}"`);
+  }
 });

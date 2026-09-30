@@ -21,7 +21,8 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"test/**/*.test.ts\""
+    "test": "node --test \"test/**/*.test.ts\"",
+    "check": "npm run typecheck && npm test && node --test test/docs/docs-set.test.mjs"
   },
   "devDependencies": {
     "@getpaseo/plugin": "0.10.1",

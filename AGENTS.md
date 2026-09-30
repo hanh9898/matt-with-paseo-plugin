@@ -10,7 +10,7 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 
 ### Domain docs
 
-Single-context; the vocabulary is the words blocks of the `matt-with-paseo` and `matt-with-paseo-streams` skills, no `GLOSSARY.md` yet. Decisions are ADRs in `docs/adr/`. See `docs/agents/domain.md`.
+Single-context; the vocabulary is the words blocks of the `matt-with-paseo` and `matt-with-paseo-streams` skills. `GLOSSARY.md` at the repo root separates "the skills" from "the plugin": read it before you name either. Decisions are ADRs in `docs/adr/`. See `docs/agents/domain.md`.
 
 ## Evidence standards
 

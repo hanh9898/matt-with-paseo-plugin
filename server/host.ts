@@ -60,8 +60,21 @@ export type PermissionResolvedEvent = { agent: HostAgent; requestId: string };
  * only mark of who the agent is; it is absent when the creator gave none.
  */
 export type CreateRequest = { env: Readonly<Record<string, string>>; title?: string | null };
-/** What a `beforeCreate` handler changes: the environment the agent is created with, whole. */
+/** What a `beforeCreate` or `beforeSessionOpen` handler changes: the environment the agent is created or opened with, whole. */
 export type CreateChange = { env: Record<string, string> };
+
+/**
+ * A session Paseo is about to open for an agent it already has, on a resume for one. On Paseo `0.10.1` this runs
+ * before a resumed agent is registered, so what Paseo cannot read yet arrives as `title: null` and no labels;
+ * a handler that needs either fails open.
+ */
+export type SessionOpenRequest = {
+  agentId: string;
+  reason: "create" | "resume" | "refresh" | "import";
+  env: Readonly<Record<string, string>>;
+  title: string | null;
+  labels: Readonly<Record<string, string>>;
+};
 
 /** What a handler does with Paseo: the actions it may take while handling one event. */
 export interface Host {
@@ -69,6 +82,11 @@ export interface Host {
   labelsOf(agentId: string): Promise<Record<string, string>>;
   /** Whether Paseo reports the agent in a turn right now; false when it is idle, gone or unknown. */
   isRunning(agentId: string): Promise<boolean>;
+  /**
+   * The cost in USD of the agent's last turn (`lastUsage.totalCostUsd`), which Paseo holds only once the turn has
+   * ended; null when it reports none.
+   */
+  lastTurnCostUsd(agentId: string): Promise<number | null>;
   /** Sends a message to an agent as a prompt. */
   send(agentId: string, text: string): Promise<void>;
   respondToPermission(agentId: string, requestId: string, answer: PermissionAnswer): Promise<void>;
@@ -86,7 +104,13 @@ export interface HostHooks {
   onPermissionResolved(handler: Handler<PermissionResolvedEvent>): void;
   /** Serves the composer pill's question, "how many things wait for the user in this agent's chat"; a handler that throws answers zero (T4). */
   serveWaitingCount(handler: (agentId: string) => number | Promise<number>): void;
+  /** Serves whether the day's question budget is spent, for the pill's read of one agent's chat; a handler that throws answers false (T4). */
+  serveBudgetSpent(handler: (agentId: string) => boolean | Promise<boolean>): void;
   beforeCreate(
     handler: (request: CreateRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>,
+  ): void;
+  /** Runs when Paseo opens an agent's session, a resume included; returns the environment it changes, as `beforeCreate` does. */
+  beforeSessionOpen(
+    handler: (request: SessionOpenRequest, host: Host) => CreateChange | void | Promise<CreateChange | void>,
   ): void;
 }

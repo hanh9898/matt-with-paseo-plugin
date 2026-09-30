@@ -79,7 +79,7 @@ Written, not run. Targets Paseo `0.10.1`. Parts A and B need Node only and run o
 1. From an orchestrator titled `[mwp-smoke] orchestrator`, create an agent titled `[Wave 1] 99 [mwp-smoke] guard` with the labels `wave=1` and `ticket=99` and this prompt: print the value of `MWP_ROLE` (PowerShell: `$env:MWP_ROLE`), run `git push` and `git checkout main` and report each message, then create `guard-smoke.txt` and commit it. It prints `ticket`, both commands are refused with a message starting `Refused:`, and the commit succeeds. This needs the repository enabled as a Claude Code plugin for that agent (ticket 16's `.claude-plugin/plugin.json`); before that, only the value `ticket` can be read.
 2. Create a second agent titled `[mwp-smoke] plain` with the same labels and a prompt that prints `MWP_ROLE`: it prints nothing, because its title is not `[Wave N] <NN> ...`.
 3. In the orchestrator's own shell, `git push --dry-run` in a checkout with a remote succeeds: the orchestrator is not guarded.
-4. Read what happens after a resume: restart the daemon, prompt the first agent again to print `MWP_ROLE`. It prints nothing (a known gap, see the README's "The git guard"); record what is seen.
+4. Restart the daemon, then prompt the first agent again to print `MWP_ROLE`: the resumed agent prints `ticket`. If it prints nothing, `agent.session_open` could not read the title or labels before the agent was registered: `paseo plugin logs mwp-smoke` holds one line starting `[matt-with-paseo] agent.session_open could not read`, and criterion 1 of #35 fails.
 5. `paseo plugin logs mwp-smoke` holds no line starting `[matt-with-paseo] agent.create handler failed`.
 6. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
@@ -160,6 +160,57 @@ Written, not run. Targets Paseo `0.10.1`. Run it with `mwp-smoke` installed. It 
 3. Start the daemon with `MWP_COST_LEVEL=cheap` and `MWP_COST_TICKET=claude/claude-sonnet-5-5`. Run `node --experimental-strip-types -e "import('./server/cost-levels.ts').then(async (a) => { const b = await import('./shared/cost-levels.ts'); const l = a.loadCostLevels(); for (const r of b.ROLES) console.log(r, JSON.stringify(b.choiceFor(l, r, process.env))); })"` in the plugin's folder. Expected: the stream and wave roles print the cheap level's model with `"from":"level"`, and the ticket role prints `claude-sonnet-5-5` with `"from":"override"`.
 4. Repeat step 3 with `MWP_COST_LEVEL=nope` and `MWP_COST_TICKET=big`. Expected: every role prints the balanced level's choice with `"from":"level"`, and nothing throws.
 5. From an orchestrator titled `[mwp-smoke] orchestrator`, create a ticket agent titled `[mwp-smoke] ticket` with the provider and model step 3 printed for the ticket role. Expected: the agent starts on that model; the chosen `modeId` and `thinkingOptionId` come from the profile the orchestrator copied, not from the preset. Archive every `[mwp-smoke]` agent.
+
+## Delegated answers
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Waiting pill", with `mwp-smoke` installed, in a scratch repository whose `AGENTS.md` holds a `## Delegation` table with the rows `Switch | on` and `Questions the orchestrator may decide | two-way, costly`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+
+1. Create a ticket agent titled `[mwp-smoke] ticket` (labels `wave=1`, `ticket=99`) in that repository whose prompt asks one `AskUserQuestion`, header `Colour`, text ending in a line `Door: two-way`, first option `Red (Recommended)`. Expected: within 30 seconds the question is answered with `Red (Recommended)` and the agent carries on with it; the plugin's log shows no question text.
+2. Repeat with `Door: costly` and then with the table row reduced to `two-way`. Expected: answered in the first run, left to the user in the second (the pill counts it).
+3. Repeat with a text that also holds `Yours: spend`. Expected: left to the user.
+4. Repeat with `Door: one-way`, with the table row listing `one-way`. Expected: left to the user.
+5. Repeat with the first option `Red` (no mark). Expected: left to the user.
+6. Set the row `Switch | off`, then delete the table. Expected: the step 1 question is left to the user both times.
+7. Ask two questions in one call, one answerable and one with `Yours: merge`. Expected: neither is answered.
+8. Ask the step 1 question from an agent with no labels. Expected: left to the user, and the daemon log names no read of `AGENTS.md`.
+9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+
+## Appetite
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with `mwp-smoke` installed, in a scratch repository whose `AGENTS.md` holds a `## Delegation` table with the rows `Questions the orchestrator may decide | two-way` and `Appetite | 0.05 USD`. Use a stream agent titled `[mwp-smoke] stream` (label `stream=mwp-smoke`) as the orchestrator. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Delete `stream-spend.json` in the plugin's state directory first.
+
+1. Create a ticket agent titled `[mwp-smoke] ticket` (labels `stream=mwp-smoke`, `wave=1`, `ticket=99`, parent the stream agent) and give it a prompt that asks for one short answer. Expected: after its turn ends, `stream-spend.json` holds `mwp-smoke` with `totalUsd` equal to the agent's `lastUsage.totalCostUsd` and `partial` false, and the repository's tree is unchanged.
+2. Ask the step 1 question `AskUserQuestion` (`Door: two-way`, first option `Red (Recommended)`) from the ticket agent while the total is under 0.05 USD. Expected: answered with `Red (Recommended)`.
+3. Prompt the ticket agent until the total passes 0.05 USD. Expected: the stream agent receives one message starting `Appetite passed: stream mwp-smoke` with a `Next:` line; further turns send no second one; no agent is cancelled or stopped.
+4. Ask the step 2 question again from the ticket agent and from the stream agent. Expected: both are left to the user (the pill counts them), and the plugin's log shows no question text.
+5. Raise the row to `Appetite | 50 USD` and end one more turn. Expected: the next question is answered again; the message is not repeated.
+6. Delete `stream-spend.json`, reduce the row to `Appetite | 0.01 USD`, then run a turn of an agent whose provider reports no cost. Expected: `partial` is true, the total is unchanged by that turn, and a later message reads `a partial total`.
+7. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+## Question budget
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with `mwp-smoke` installed and the daemon started with `MWP_QUESTION_BUDGET=2`, in the scratch repository of "Delegated answers" with the table row reduced to `Questions the orchestrator may decide | two-way`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Note `question-budget.json` under the state directory (`MWP_STATE_DIR` moves it) before you start, and delete it so the day starts at zero.
+
+1. Create a ticket agent titled `[mwp-smoke] ticket` (labels `wave=1`, `ticket=99`) under a stream agent titled `[mwp-smoke] stream` (label `stream=demo`), whose prompt asks one `AskUserQuestion` with `Door: one-way`. Expected: the question waits for the user, the pill of the stream agent reads "1 waiting" without the limit, the file holds today's date and `"count":1`, and the stream agent received no `Question budget spent:` message.
+2. Ask a second question the same way. Expected: within 30 seconds the stream agent receives one `Question budget spent: 2 questions reached the user today against a budget of 2.` message ending in a `Next:` line (held until its turn ends if it is mid-turn), the pill reads "2 waiting, daily question limit reached", and the file holds `"count":2` and `"notified":true`.
+3. Ask a third question with `Door: one-way`, then one with `Door: two-way`. Expected: the third still reaches the user and is counted (`"count":3`), no second message arrives, and the two-way question is answered with its recommendation as in "Delegated answers", not counted: the budget answers nothing and stops nothing, so questions still reach the user.
+4. Restart the daemon (reload the plugin) with the same setting. Expected: the pill still reads the limit while a question waits, and asking one more question raises the count to 4 with no new message.
+5. Change the machine's date past local midnight, or edit the file's `day` to yesterday, and ask one question. Expected: the count starts again at 1 and no message is sent until the budget is reached again.
+6. Start the daemon without `MWP_QUESTION_BUDGET`, and again with `MWP_QUESTION_BUDGET=many`, and ask two questions. Expected: both reach the user and are counted, no message is sent, the pill never reads the limit.
+7. Ask a question from an agent with no labels. Expected: it is not counted.
+8. Archive every `[mwp-smoke]` agent, delete `question-budget.json`, then `paseo plugin remove mwp-smoke`.
+
+## Report card
+
+Written, not run. Targets Paseo `0.10.1`. Run it after "Question budget", with `mwp-smoke` installed and the daemon started with `MWP_QUESTION_BUDGET=5`, in the scratch repository of "Appetite" (`Questions the orchestrator may decide | two-way`, `Appetite | 0.05 USD`). Use a stream agent titled `[mwp-smoke] stream` (label `stream=mwp-smoke`) as the orchestrator and a ticket agent titled `[mwp-smoke] ticket` (labels `stream=mwp-smoke`, `wave=1`, `ticket=99`, parent the stream agent). Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Delete `delegated-answers.jsonl`, `stream-spend.json` and `question-budget.json` in the plugin's state directory first.
+
+1. Let the ticket agent's turn end. Expected: the stream agent's chat holds one report card with an empty `decided` list, the spend as `totalUsd` against 0.05 USD, and `Questions today: 0 of 5`. It is drawn as a card, not as an unavailable placeholder: a "Plugin timeline item unavailable" row means the client renderer did not register or the schema rejected the data, and the step fails. The ticket agent's own chat holds no card.
+2. Ask a `Door: two-way` question from the ticket agent (header `Colour`, first option `Red (Recommended)`). Expected: it is answered, and the card in the stream agent's chat now lists `Colour` with `Red (Recommended)` and its time. It is the same row (one card, not two), and the plugin's log shows no question text.
+3. Ask a `Door: one-way` question. Expected: it waits for the user, the same row now reads `Questions today: 1 of 5`, and it lists no new decision.
+4. Prompt the ticket agent until the total passes 0.05 USD. Expected: the same row shows the higher spend past the appetite.
+5. Run a turn of an agent whose provider reports no cost. Expected: the spend on the card says it is partial.
+6. Look at the card in Paseo's window. Expected: it has no button of any kind. Take a screenshot of the card in Paseo's window and keep it with the milestone run's results.
+7. Reload the plugin and end a turn. Expected: the card comes back with the decisions and the question count as before (the records survive), and the daemon restart drops the old row without harm.
+8. Archive every `[mwp-smoke]` agent, delete the three files, then `paseo plugin remove mwp-smoke`.
 
 ## Results
 

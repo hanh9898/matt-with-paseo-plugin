@@ -137,3 +137,65 @@ test("a waiting-count handler that throws is recorded and counts as zero (T4)", 
   assert.equal(host.failures.length, 1);
   assert.equal(host.failures[0]?.hook, "waiting.count");
 });
+
+test("beforeSessionOpen handlers change the environment in order; a throwing one leaves it as it was", async () => {
+  const host = new FakeHost();
+  host.beforeSessionOpen(({ env }) => ({ env: { ...env, FIRST: "1" } }));
+  host.beforeSessionOpen(() => {
+    throw new Error("boom");
+  });
+  host.beforeSessionOpen(({ env }) => ({ env: { ...env, SECOND: env["FIRST"] ?? "missing" } }));
+  const opened = await host.openSession({ agentId: "worker", env: { KEPT: "yes" } });
+  assert.deepEqual(opened.env, { KEPT: "yes", FIRST: "1", SECOND: "1" });
+  assert.equal(host.failures.length, 1);
+  assert.equal(host.failures[0]?.hook, "agent.session_open");
+});
+
+test("beforeSessionOpen handlers see the agent id, the reason, the title and the labels the fake holds", async () => {
+  const host = new FakeHost();
+  const seen: unknown[] = [];
+  host.beforeSessionOpen((request) => {
+    seen.push(request);
+  });
+  host.setTitle("worker", "[Wave 1] 02 x");
+  host.setLabels("worker", { wave: "1", ticket: "02" });
+  await host.openSession({ agentId: "worker", env: { A: "b" }, reason: "resume" });
+  await host.openSession({ agentId: "ghost", env: {} });
+  assert.deepEqual(seen, [
+    { agentId: "worker", reason: "resume", env: { A: "b" }, title: "[Wave 1] 02 x", labels: { wave: "1", ticket: "02" } },
+    { agentId: "ghost", reason: "resume", env: {}, title: null, labels: {} },
+  ]);
+});
+
+test("with no beforeSessionOpen handler the environment is unchanged", async () => {
+  const host = new FakeHost();
+  assert.deepEqual((await host.openSession({ agentId: "worker", env: { A: "b" } })).env, { A: "b" });
+});
+
+test("the fake serves the budget's state to the pill's read, false when none is served or the handler throws (T4)", async () => {
+  const host = new FakeHost();
+  assert.deepEqual(await host.pill("a"), { count: 0, budgetSpent: false });
+  host.serveWaitingCount(() => 3);
+  host.serveBudgetSpent(() => true);
+  assert.deepEqual(await host.pill("a"), { count: 3, budgetSpent: true });
+  host.serveBudgetSpent(() => {
+    throw new Error("boom");
+  });
+  assert.deepEqual(await host.pill("a"), { count: 3, budgetSpent: false });
+  assert.equal(host.failures.length, 1);
+});
+
+test("a row appended again under the same id replaces the earlier one, and a row with no id stays beside it", async () => {
+  const host = new FakeHost();
+  await host.appendTimelineRow("worker", { id: "card", kind: "report", version: 1, data: { decided: 1 } });
+  await host.appendTimelineRow("worker", { kind: "note", version: 1, data: {} });
+  await host.appendTimelineRow("worker", { id: "card", kind: "report", version: 1, data: { decided: 2 } });
+  await host.appendTimelineRow("other", { id: "card", kind: "report", version: 1, data: { decided: 9 } });
+  assert.deepEqual(host.timeline("worker"), [
+    { id: "card", kind: "report", version: 1, data: { decided: 2 } },
+    { kind: "note", version: 1, data: {} },
+  ]);
+  assert.deepEqual(host.timeline("other"), [{ id: "card", kind: "report", version: 1, data: { decided: 9 } }]);
+  assert.deepEqual(host.timeline("nobody"), []);
+  assert.equal(host.rows.length, 4, "every append is still recorded in `rows`");
+});
