@@ -13,5 +13,14 @@ export const CONTRACT_VERSION = "1";
 export const REPORT_CARD = {
   kind: "report-card",
   version: 1,
+  /** The row id: appending again under it replaces the card in the chat, so there is one card, kept current. */
+  id: "report-card",
   fields: ["decided", "spend", "questions"],
+  /** What each entry of `decided` holds. */
+  decidedEntry: ["header", "answer", "at"],
+  /** What `spend` holds; `appetiteUsd` is null with no appetite, `partial` is true when a turn had no cost. */
+  spendFields: ["totalUsd", "appetiteUsd", "partial"],
+  /** What `questions` holds; `budget` is null with no budget set. */
+  questionsFields: ["count", "budget"],
+  buttons: "none",
 } as const;

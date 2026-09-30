@@ -177,14 +177,24 @@ The daily question budget is not in the table: it is a per-machine setting, read
 
 ## The report card
 
-The plugin appends one timeline row to the orchestrator's chat to show what was decided on the user's behalf. Its shape is `REPORT_CARD` in `shared/contract.ts`.
+The plugin appends one timeline row to the orchestrator's chat to show what was decided on the user's behalf: a ticket agent's change shows in its orchestrator's chat, the stream agent's in its own. Its shape is `REPORT_CARD` in `shared/contract.ts`.
 
 Kind: `report-card`
 Version: 1
+Row id: `report-card`
 Fields: `decided`, `spend`, `questions`
+Decided entry: `header`, `answer`, `at`
+Spend: `totalUsd`, `appetiteUsd`, `partial`
+Questions: `count`, `budget`
 Buttons: none
 
-`decided` lists the decisions made on the user's behalf, `spend` the spend against the appetite, and `questions` the questions against the budget. The card has no buttons: the button round trip is unproven (ADR 0001).
+The plugin appends the row again under its one row id each time a delegated answer is recorded, a question is left to the user, or a ticket agent or the stream agent ends a turn, so the chat holds one card, kept current.
+
+- `decided` lists the decisions made on the user's behalf for the stream, oldest first: each entry is the question's `header`, the `answer` given and the time `at` (ISO 8601), read from the delegated answers' record. A question left to the user is not an entry.
+- `spend` is the stream's summed turn cost in `totalUsd` against its `appetiteUsd`, which is `null` when the table has no appetite. `partial` is true when a turn had no cost, so the total may be short of the real spend.
+- `questions` is the day's `count` of questions left to the user against the `budget`, which is `null` when no budget is set.
+
+The card has no buttons: the button round trip is unproven (ADR 0001).
 
 ## What the skills declare
 
