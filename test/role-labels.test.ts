@@ -45,3 +45,22 @@ test("the relay and the waiting count read an agent's role from shared/role-labe
 test("the helper is a pure module: it imports nothing", () => {
   assert.doesNotMatch(read("shared/role-labels.ts"), /^\s*import\b/m);
 });
+
+test("a bundle agent carries the labels wave, bundle and tickets, and no ticket", () => {
+  assert.deepEqual(ticketOf({ wave: "1", bundle: "70", tickets: "70,71" }), { wave: "1", bundle: "70", tickets: "70,71" });
+  assert.deepEqual(ticketOf({ wave: "1", bundle: "70", tickets: "70,71", stream: "s", other: "x" }), { wave: "1", bundle: "70", tickets: "70,71" });
+  assert.equal(isTicketAgent({ wave: "1", bundle: "70", tickets: "70,71" }), true);
+  assert.equal(isStreamAgent({ wave: "1", bundle: "70", tickets: "70,71", stream: "s" }), false);
+});
+
+test("a bundle with no tickets label is a bundle of its own first ticket", () => {
+  assert.deepEqual(ticketOf({ wave: "1", bundle: "70" }), { wave: "1", bundle: "70", tickets: "70" });
+});
+
+test("wave and ticket win over a bundle label, and bundle needs a wave", () => {
+  assert.deepEqual(ticketOf({ wave: "1", ticket: "14", bundle: "70", tickets: "70,71" }), { wave: "1", ticket: "14" });
+  for (const labels of [{ bundle: "70" }, { bundle: "70", tickets: "70,71" }, { tickets: "70,71" }, { wave: "1", tickets: "70,71" }, { wave: undefined, bundle: "70" }]) {
+    assert.equal(ticketOf(labels), null, JSON.stringify(labels));
+    assert.equal(isTicketAgent(labels), false, JSON.stringify(labels));
+  }
+});

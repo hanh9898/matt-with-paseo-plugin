@@ -33,6 +33,9 @@ export class FakeHost implements Host, HostHooks {
   private readonly titles = new Map<string, string>();
   private readonly running = new Set<string>();
   private readonly costs = new Map<string, number | null>();
+  private readonly activity = new Map<string, string | null>();
+  private readonly parents = new Map<string, string>();
+  private readonly ticks: ((host: Host) => void | Promise<void>)[] = [];
   private readonly created: Handler<CreatedEvent>[] = [];
   private readonly archived: Handler<ArchivedEvent>[] = [];
   private readonly turnEnded: Handler<TurnEndedEvent>[] = [];
@@ -64,6 +67,16 @@ export class FakeHost implements Host, HostHooks {
     this.costs.set(agentId, usd);
   }
 
+  /** Sets the time `lastActivityAt` reports for an agent; an agent with none set, or null, has no activity time. */
+  setLastActivity(agentId: string, at: string | null): void {
+    this.activity.set(agentId, at);
+  }
+
+  /** Sets the agent `parentOf` reports for an agent; one with none set has no parent. */
+  setParent(agentId: string, parentAgentId: string): void {
+    this.parents.set(agentId, parentAgentId);
+  }
+
   onCreated(handler: Handler<CreatedEvent>): void {
     this.created.push(handler);
   }
@@ -82,6 +95,10 @@ export class FakeHost implements Host, HostHooks {
 
   onPermissionResolved(handler: Handler<PermissionResolvedEvent>): void {
     this.permissionResolved.push(handler);
+  }
+
+  onTick(handler: (host: Host) => void | Promise<void>): void {
+    this.ticks.push(handler);
   }
 
   serveWaitingCount(handler: (agentId: string) => number | Promise<number>): void {
@@ -118,6 +135,17 @@ export class FakeHost implements Host, HostHooks {
 
   emitPermissionResolved(event: PermissionResolvedEvent): Promise<void> {
     return this.run("agent.permission_resolved", this.permissionResolved, event);
+  }
+
+  /** One tick of the clock: every `onTick` handler runs with the fake as its host, and one that throws is recorded, not thrown (T4). */
+  async tick(): Promise<void> {
+    for (const handler of this.ticks) {
+      try {
+        await handler(this);
+      } catch (error) {
+        this.failures.push({ hook: "tick", error });
+      }
+    }
   }
 
   /** What the composer pill would read: the served count, zero when none is served or the handler throws (T4). */
@@ -183,6 +211,14 @@ export class FakeHost implements Host, HostHooks {
 
   async lastTurnCostUsd(agentId: string): Promise<number | null> {
     return this.costs.get(agentId) ?? null;
+  }
+
+  async lastActivityAt(agentId: string): Promise<string | null> {
+    return this.activity.get(agentId) ?? null;
+  }
+
+  async parentOf(agentId: string): Promise<string | null> {
+    return this.parents.get(agentId) ?? null;
   }
 
   async send(agentId: string, text: string): Promise<void> {

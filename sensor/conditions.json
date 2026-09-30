@@ -41,6 +41,15 @@
       "times": 2
     },
     {
+      "id": "quiet-running",
+      "says": "its turn has run 30 minutes with no new activity",
+      "check": "code",
+      "on": "running",
+      "fact": "quietMinutes",
+      "atLeast": 30,
+      "times": 1
+    },
+    {
       "id": "off-task",
       "says": "the agent drifted from its ticket",
       "check": "model",

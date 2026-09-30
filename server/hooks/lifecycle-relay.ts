@@ -12,7 +12,8 @@ import { combine, MESSAGES, type Relayed } from "../messages.ts";
  * message as the turn end.
  *
  * A ticket agent is recognised by its labels, `wave` and `ticket`, which the wave skill puts on every ticket
- * agent it starts; a stream agent by `stream` and no `wave`, and its turn end, pending permission and archive
+ * agent it starts, and a bundle agent by `wave`, `bundle` and `tickets`, relayed with the bundle clause; a stream
+ * agent by `stream` and no `wave`, and its turn end, pending permission and archive
  * are relayed too (creation and human words stay ticket-agent only). An agent with the ticket labels is a ticket
  * agent even when it carries `stream` as well; any other agent is left alone (T3). Its orchestrator is its `parentAgentId`; an agent with
  * none has nobody to tell. A message for an orchestrator that is mid-turn is held and goes out, as one message,

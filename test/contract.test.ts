@@ -80,7 +80,7 @@ test("a case the contract drops fails the check", () => {
 });
 
 test("a field the contract omits fails the check", () => {
-  const text = changed(/^Fields: `ticket`, `wave`, `agent`, `cap`, `running`$/m, "Fields: `ticket`, `wave`, `agent`");
+  const text = changed(/^Fields: `ticket`, `wave`, `agent`, `cap`, `running`, `bundle`, `tickets`$/m, "Fields: `ticket`, `wave`, `agent`");
   only(contractProblems(text), "gateCapPassed");
 });
 
@@ -134,9 +134,74 @@ test("the contract holds the stream agent's row of each of the three types, with
   for (const type of ["turnEnded", "permissionRequested", "archived"]) {
     assert.ok(doc.messages.find((message) => message.type === type)?.fields.includes("stream"), `${type} lists the stream field`);
   }
-  for (const type of ["created", "humanWords", "stallSuspected", "gateCapPassed"]) {
+  for (const type of ["created", "humanWords", "gateCapPassed"]) {
     assert.deepEqual(cases(type).filter((name) => name.startsWith("stream")), [], `${type} has no stream row`);
   }
+});
+
+test("the contract holds the stream agent's running Stall suspected row, with the `stream` field (#48)", () => {
+  const stall = parseContract(contract).messages.find((message) => message.type === "stallSuspected");
+  assert.deepEqual([...(stall?.cases.keys() ?? [])].filter((name) => name.startsWith("stream")), ["stream running"]);
+  assert.ok(stall?.fields.includes("stream"), "stallSuspected lists the stream field");
+  assert.equal(stall?.cases.get("stream running")?.body, "Stall suspected: stream <stream>, agent <agent>, the sensor flagged: <says>.");
+  assert.doesNotMatch(stall?.cases.get("stream running")?.next ?? "", /prompt agent/);
+});
+
+test("the contract holds the ticket and bundle running Stall suspected rows, named in the stream row's style (#49)", () => {
+  const stall = parseContract(contract).messages.find((message) => message.type === "stallSuspected");
+  assert.deepEqual([...(stall?.cases.keys() ?? [])].sort(), ["bundle", "bundle running", "stallSuspected", "stream running", "ticket running"]);
+  assert.equal(stall?.cases.get("ticket running")?.body, "Stall suspected: ticket <ticket> of wave <wave>, agent <agent>, the sensor flagged: <says>.");
+  assert.equal(
+    stall?.cases.get("bundle running")?.body,
+    "Stall suspected: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, the sensor flagged: <says>.",
+  );
+  for (const name of ["ticket running", "bundle running"]) {
+    const next = stall?.cases.get(name)?.next ?? "";
+    assert.match(next, /never prompt it, since a prompt queues behind the stuck call/, name);
+    assert.match(next, /within the restart budget under the wave skill's hung-agent table/, name);
+    assert.doesNotMatch(next, /prompt agent/, name);
+  }
+  assert.match(contract, /^Contract version: 1$/m);
+});
+
+test("the contract's relay paragraph says a ticket agent's stall comes from its turn end or from the tick (#49)", () => {
+  const relay = /^The relay covers .*$/m.exec(contract)?.[0] ?? "";
+  assert.match(relay, /ticket agent's stall[^.]*turn end[^.]*tick|ticket agent's stall[^.]*tick[^.]*turn end/i);
+  assert.match(/^The ticket and bundle rows come from .*$/m.exec(contract)?.[0] ?? "", /tick/);
+});
+
+test("ADR 0003 holds the running ticket-agent stall under what v1 holds, and cites #49 (#49)", () => {
+  const adr = read("docs/adr/0003-the-contract-between-the-plugin-and-the-skills.md");
+  const holds = /^- \*\*What v1 holds:\*\*.*$/m.exec(adr)?.[0] ?? "";
+  assert.match(holds, /ticket agent's running[^.]*Stall suspected|running ticket agent/i);
+  assert.match(holds, /#49/);
+});
+
+test("no Stall suspected row of the contract tells the orchestrator to prompt an agent (#48)", () => {
+  const stall = parseContract(contract).messages.find((message) => message.type === "stallSuspected");
+  assert.ok((stall?.cases.size ?? 0) >= 3, "the ticket, bundle and stream rows");
+  for (const [name, row] of stall?.cases ?? []) assert.doesNotMatch(row.next, /prompt agent/, `row ${name}`);
+});
+
+test("the contract's relay paragraph and its v1 leaves-out no longer keep stall suspected ticket-agent only (#48)", () => {
+  const relay = /^The relay covers .*$/m.exec(contract)?.[0] ?? "";
+  assert.ok(relay !== "", "the relay paragraph is there");
+  assert.doesNotMatch(relay, /stall suspected and gate cap passed stay/i);
+  assert.match(relay, /stall/i, "it says where the stream agent's stall comes from");
+  assert.match(relay, /tick/, "the stream agent's stall comes from the tick, not a turn end");
+  const leavesOut = /^- What v1 leaves out:.*$/m.exec(contract)?.[0] ?? "";
+  assert.ok(leavesOut !== "", "the versioning list names what v1 leaves out");
+  assert.doesNotMatch(leavesOut, /stall suspected/i);
+  assert.match(contract, /^Contract version: 1$/m);
+});
+
+test("ADR 0003 holds the stream agent's running stall and the reworded Next lines under what v1 holds, and cites #48 (#48)", () => {
+  const adr = read("docs/adr/0003-the-contract-between-the-plugin-and-the-skills.md");
+  const holds = /^- \*\*What v1 holds:\*\*.*$/m.exec(adr)?.[0] ?? "";
+  assert.match(holds, /Stall suspected/);
+  assert.match(holds, /tick/);
+  assert.match(holds, /hung-agent table/);
+  assert.match(holds, /#48/);
 });
 
 test("the contract no longer says the module builds no stream-agent message", () => {
@@ -148,7 +213,52 @@ test("a stream row the contract words differently, drops, or the module does not
   only(contractProblems(changed("`Turn ended: stream <stream>, agent <agent>, outcome completed.`", "`Turn ended: stream <stream>.`")), "stream completed");
   only(contractProblems(changed(/^\| stream canceled \|.*\n/m, "")), "turnEnded");
   only(contractProblems(changed(/^\| stream archived \|.*\n/m, "")), "archived");
-  only(contractProblems(changed(/^Fields: `ticket`, `wave`, `agent`, `request`, `name`, `stream`$/m, "Fields: `ticket`, `wave`, `agent`, `request`, `name`")), "permissionRequested");
+  only(contractProblems(changed(/^Fields: `ticket`, `wave`, `agent`, `request`, `name`, `stream`, `bundle`, `tickets`$/m, "Fields: `ticket`, `wave`, `agent`, `request`, `name`, `bundle`, `tickets`")), "permissionRequested");
   const invented = "| stream plan | `Permission pending: stream <stream>.` | `Next: wait.` |\n";
   only(contractProblems(changed(/^(\| stream tool \|.*\n)/m, "$1" + invented)), "stream plan");
+});
+
+test("the contract holds the bundle agent's rows of each of the seven ticket-agent types, with the `bundle` and `tickets` fields", () => {
+  const doc = parseContract(contract);
+  const cases = (type: string) => [...(doc.messages.find((message) => message.type === type)?.cases.keys() ?? [])].filter((name) => name.startsWith("bundle")).sort();
+  assert.deepEqual(cases("turnEnded"), ["bundle canceled", "bundle completed", "bundle failed"]);
+  assert.deepEqual(cases("permissionRequested"), ["bundle question", "bundle tool"]);
+  assert.deepEqual(cases("archived"), ["bundle archived"]);
+  for (const type of ["created", "humanWords", "gateCapPassed"]) assert.deepEqual(cases(type), ["bundle"], `${type} has a bundle row`);
+  assert.deepEqual(cases("stallSuspected"), ["bundle", "bundle running"], "stallSuspected has a bundle row and a bundle running row (#49)");
+  for (const type of ["turnEnded", "permissionRequested", "created", "archived", "humanWords", "stallSuspected", "gateCapPassed"]) {
+    const fields = doc.messages.find((message) => message.type === type)?.fields ?? [];
+    assert.ok(fields.includes("bundle") && fields.includes("tickets"), `${type} lists the bundle and tickets fields`);
+  }
+  assert.equal(parseContract(contract).version, "1");
+});
+
+test("the contract names the bundle labels, the bundle title and the two placeholders, and says bundle agents are relayed as ticket agents", () => {
+  assert.deepEqual(parseContract(contract).labels.sort(), ["bundle", "stream", "ticket", "tickets", "wave"]);
+  assert.equal(parseContract(contract).bundleTitle, "[Wave N] [<NN>+<NN>] <first ticket name>");
+  assert.match(contract, /`<bundle>`/);
+  assert.match(contract, /`<tickets>`/);
+  assert.match(contract, /bundle agent[^.]*relayed as a ticket agent/i);
+});
+
+test("a bundle row the contract words differently, drops, or the module does not build fails the check", () => {
+  only(contractProblems(changed("`Agent archived: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>.`", "`Agent archived: bundle <bundle>.`")), "bundle archived");
+  only(contractProblems(changed(/^\| bundle completed \|.*
+/m, "")), "turnEnded");
+  only(contractProblems(changed(/^\| `bundle` \|.*
+/m, "")), "labels");
+  only(contractProblems(changed(/^Bundle title: .*$/m, "Bundle title: `[Wave N] <NN>+<NN>`")), "bundle-agent title");
+  const invented = "| bundle plan | `Permission pending: bundle <bundle>.` | `Next: wait.` |
+";
+  only(contractProblems(changed(/^(\| bundle tool \|.*
+)/m, "$1" + invented)), "bundle plan");
+});
+
+test("ADR 0003 holds the bundle labels and the bundle title under what v1 holds, and cites #45", () => {
+  const adr = read("docs/adr/0003-the-contract-between-the-plugin-and-the-skills.md");
+  const holds = /^- \*\*What v1 holds:\*\*.*$/m.exec(adr)?.[0] ?? "";
+  assert.match(holds, /`bundle`/);
+  assert.match(holds, /`tickets`/);
+  assert.match(holds, /\[Wave N\] \[<NN>\+<NN>\]/);
+  assert.match(holds, /#45/);
 });

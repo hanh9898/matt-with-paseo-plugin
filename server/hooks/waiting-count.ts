@@ -5,7 +5,8 @@ import type { HostAgent, HostHooks } from "../host.ts";
  * The count of what waits for the user, per agent whose chat the user answers in: the composer pill reads it.
  *
  * A request counts toward the chat where the user sees it. A ticket agent, recognised by its labels `wave`
- * and `ticket`, is answered from its orchestrator's pill, so its request counts toward its `parentAgentId`.
+ * and `ticket` (or `wave` and `bundle`, for a bundle agent), is answered from its orchestrator's pill, so its
+ * request counts toward its `parentAgentId`.
  * The stream agent, recognised by its label `stream` and no `wave`, asks in its own chat, so its request
  * counts toward itself. Any other agent is left alone (T3). A request stops counting when Paseo resolves it,
  * when its agent's turn ends (a canceled turn leaves none open) or when the agent is archived.

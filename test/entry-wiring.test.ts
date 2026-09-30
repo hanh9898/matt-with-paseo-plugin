@@ -71,3 +71,22 @@ test("the client entry default-exports a contribution that starts the waiting pi
   assert.match(entry, /export default function contribute\(/);
   assert.match(entry, /return contributeWaitingPill\(client\)/);
 });
+
+test("the entry returns the adapter's stop as its cleanup, and the cleanup clears the one timer it started (#48)", async () => {
+  const { mock } = await import("node:test");
+  const server = { on: () => () => {}, before: () => () => {}, handle: () => () => {} };
+  const started = mock.method(globalThis, "setInterval");
+  const cleared = mock.method(globalThis, "clearInterval");
+  try {
+    const cleanup = contribute(server as unknown as Parameters<typeof contribute>[0]);
+    assert.equal(started.mock.calls.length, 1, "one clock for every handler that ticks");
+    assert.equal(cleared.mock.calls.length, 0);
+    cleanup();
+    assert.equal(cleared.mock.calls.length, 1, "the cleanup clears it, so a plugin reload leaves no timer behind");
+  } finally {
+    started.mock.restore();
+    cleared.mock.restore();
+  }
+  const entry = readFileSync(new URL("../index.server.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(entry, /return \(\) => \{\};/, "the cleanup is no longer a no-op");
+});

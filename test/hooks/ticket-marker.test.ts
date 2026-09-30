@@ -136,3 +136,36 @@ test("an agent that is read and is not a ticket agent logs nothing", async () =>
   const lines = await logged(async () => void (await host.openSession({ agentId: "plain", env: {} })));
   assert.deepEqual(lines, []);
 });
+
+test("a bundle agent is created with the marker, for the bundle title and for a bundle of one", async () => {
+  const host = marked();
+  for (const title of ["[Wave 1] [70+71] Relay and mark bundle agents", "[Wave 10] [05+06+07] x", "[Wave 2] 14 Export CSV"]) {
+    const created = await host.create({ env: { KEPT: "yes" }, title });
+    assert.deepEqual(created.env, { KEPT: "yes", [ROLE_ENV]: TICKET_ROLE }, title);
+  }
+});
+
+test("a title that only looks like a bundle title is left as Paseo made it", async () => {
+  const host = marked();
+  for (const title of ["[Wave 1] [70+] x", "[Wave 1] [+71] x", "[Wave 1] [70+71 x", "[Wave x] [70+71] y", " [Wave 1] [70+71] x", "notes on [Wave 1] [70+71] x", "[Wave 1] [] x"]) {
+    const created = await host.create({ env: {}, title });
+    assert.equal(hasTicketMarker(created.env), false, title);
+  }
+});
+
+test("a resumed bundle agent is marked when its session opens, by its title or by its labels", async () => {
+  const host = marked();
+  host.setTitle("titled", "[Wave 2] [35+36] Re-set the ticket marker");
+  assert.equal(hasTicketMarker((await host.openSession({ agentId: "titled", env: {} })).env), true);
+  host.setLabels("labelled", { wave: "2", bundle: "35", tickets: "35,36" });
+  assert.equal(hasTicketMarker((await host.openSession({ agentId: "labelled", env: {}, reason: "resume" })).env), true);
+  host.setLabels("streamed", { stream: "x", wave: "2", bundle: "35", tickets: "35,36" });
+  assert.equal(hasTicketMarker((await host.openSession({ agentId: "streamed", env: {} })).env), true);
+});
+
+test("an agent with a bundle label and no wave is not marked when its session opens", async () => {
+  const host = marked();
+  host.setTitle("plain", "Fix the login bug");
+  host.setLabels("plain", { bundle: "35", tickets: "35,36" });
+  assert.equal(hasTicketMarker((await host.openSession({ agentId: "plain", env: {} })).env), false);
+});

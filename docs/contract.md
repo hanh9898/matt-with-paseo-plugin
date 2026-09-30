@@ -14,21 +14,24 @@ A skill tells the plugin is present when `paseo plugin ls` lists the Paseo id `m
 
 Every text the plugin sends to an orchestrator is built in `server/messages.ts`. A text is one body line, then one last line starting `Next: ` that names the moves open to its reader, separated by `; ` and closed by a full stop. The moves are the plugin's suggestion: the judgement stays with the skills. A text carries ids and kinds, never a request's input or an error's message. When an orchestrator's own turn runs, the messages held for it arrive as one, the bodies in order, then one `Next:` line with each message's moves, a move two messages share written once.
 
-Placeholders below are the values a message names: `<ticket>` and `<wave>` from the agent's `ticket` and `wave` labels, `<stream>` from a stream agent's `stream` label, `<agent>` its id, `<request>` and `<name>` a pending request's id and tool name, `<code>` the error code of a failed turn (a failed turn without a code reads `outcome failed`), `<reason>` a cancel's reason, `<n>` the count of the user's messages and `<ids>` their ids (up to five, then `and N more`; one reads `1 message`), `<says>` the sensor's flagged conditions joined by `; `, `<cap>` the concurrent gates allowed, `<running>` the ticket agents running, `<count>` the questions that reached the user today and `<budget>` the day's question budget. A permission request of a kind other than `question` or `tool` (`plan`, `mode`, `other`) names that kind in its body and takes the `tool` moves.
+Placeholders below are the values a message names: `<ticket>` and `<wave>` from the agent's `ticket` and `wave` labels, `<bundle>` and `<tickets>` from a bundle agent's `bundle` and `tickets` labels (its first ticket, and every ticket of the bundle in order), `<stream>` from a stream agent's `stream` label, `<agent>` its id, `<request>` and `<name>` a pending request's id and tool name, `<code>` the error code of a failed turn (a failed turn without a code reads `outcome failed`), `<reason>` a cancel's reason, `<n>` the count of the user's messages and `<ids>` their ids (up to five, then `and N more`; one reads `1 message`), `<says>` the sensor's flagged conditions joined by `; `, `<cap>` the concurrent gates allowed, `<running>` the ticket agents running, `<count>` the questions that reached the user today and `<budget>` the day's question budget. A permission request of a kind other than `question` or `tool` (`plan`, `mode`, `other`) names that kind in its body and takes the `tool` moves.
 
-The relay covers the `wave`/`ticket` agents and, from v1, the stream agent too ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895097885)). The stream agent's turn end, pending permission and archive are the same types with `stream <stream>` in place of the `ticket <ticket> of wave <wave>` clause, each as a `stream` case below; an agent carrying the ticket labels is relayed as a ticket agent even when it carries `stream` too. Agent created, human words, stall suspected and gate cap passed stay ticket-agent only. Two types come with the delegation tickets, which add their rows: appetite passed (#40) and question budget spent (#39, below). The question budget message speaks of the machine's day, not of one ticket, so its body names no ticket or wave.
+The relay covers the `wave`/`ticket` agents, the bundle agents and, from v1, the stream agent too ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895097885)). The stream agent's turn end, pending permission and archive are the same types with `stream <stream>` in place of the `ticket <ticket> of wave <wave>` clause, each as a `stream` case below; an agent carrying the ticket labels is relayed as a ticket agent even when it carries `stream` too. A bundle agent, which works a bundle of tickets one turn per ticket and carries `wave`, `bundle` and `tickets` and no `ticket` (#45), is relayed as a ticket agent with the clause `bundle <bundle> (tickets <tickets>) of wave <wave>` in place of `ticket <ticket> of wave <wave>`, each as a `bundle` case below: every move names the bundle, never one ticket, since the plugin cannot tell which ticket of a bundle a turn end reports; it is relayed as a bundle agent when it carries `stream` too. Agent created, human words and gate cap passed stay ticket-agent and bundle-agent only. A ticket agent's stall suspected comes from its turn end or, while it runs, from a tick of the plugin's 5-minute clock, because an agent stuck in a call has no turn end (#49); a bundle agent's does the same. A stream agent's stall suspected comes from the tick alone (#48). The tick's cases are the `ticket running`, `bundle running` and `stream running` rows of stall suspected below. Two types come with the delegation tickets, which add their rows: appetite passed (#40) and question budget spent (#39, below). The question budget message speaks of the machine's day, not of one ticket, so its body names no ticket or wave.
 
 ### Turn ended
 
 Type: `turnEnded`
 Lead: `Turn ended`
-Fields: `ticket`, `wave`, `agent`, `code`, `reason`, `stream`
+Fields: `ticket`, `wave`, `agent`, `code`, `reason`, `stream`, `bundle`, `tickets`
 
 | Case | Body | Next line |
 |---|---|---|
 | completed | `Turn ended: ticket <ticket> of wave <wave>, agent <agent>, outcome completed.` | `Next: check ticket <ticket>'s report with get_agent_activity and its artifacts (commits on its branch, ticket status); prompt agent <agent> when the report is incomplete.` |
 | failed | `Turn ended: ticket <ticket> of wave <wave>, agent <agent>, outcome failed (<code>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or record ticket <ticket> as failed with the reason.` |
 | canceled | `Turn ended: ticket <ticket> of wave <wave>, agent <agent>, outcome canceled (<reason>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or leave ticket <ticket> stopped when the cancel was deliberate.` |
+| bundle completed | `Turn ended: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, outcome completed.` | `Next: check bundle <bundle>'s report with get_agent_activity and its artifacts (commits on its branch, ticket status); prompt agent <agent> when the report is incomplete.` |
+| bundle failed | `Turn ended: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, outcome failed (<code>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or record bundle <bundle> as failed with the reason.` |
+| bundle canceled | `Turn ended: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, outcome canceled (<reason>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or leave bundle <bundle> stopped when the cancel was deliberate.` |
 | stream completed | `Turn ended: stream <stream>, agent <agent>, outcome completed.` | `Next: check stream <stream>'s report with get_agent_activity and its artifacts (commits on its branch, its pull request); prompt agent <agent> when the report is incomplete.` |
 | stream failed | `Turn ended: stream <stream>, agent <agent>, outcome failed (<code>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or record stream <stream> as failed with the reason.` |
 | stream canceled | `Turn ended: stream <stream>, agent <agent>, outcome canceled (<reason>).` | `Next: read agent <agent>'s last activity with get_agent_activity; prompt agent <agent> to resume, or leave stream <stream> stopped when the cancel was deliberate.` |
@@ -37,12 +40,14 @@ Fields: `ticket`, `wave`, `agent`, `code`, `reason`, `stream`
 
 Type: `permissionRequested`
 Lead: `Permission pending`
-Fields: `ticket`, `wave`, `agent`, `request`, `name`, `stream`
+Fields: `ticket`, `wave`, `agent`, `request`, `name`, `stream`, `bundle`, `tickets`
 
 | Case | Body | Next line |
 |---|---|---|
 | question | `Permission pending: ticket <ticket> of wave <wave>, agent <agent>, request <request>, <name> (question).` | `Next: read ticket <ticket>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; leave the checkpoint to the user, who answers it in agent <agent>'s chat, or answer it with respond_to_permission when the delegation table lets you decide.` |
 | tool | `Permission pending: ticket <ticket> of wave <wave>, agent <agent>, request <request>, <name> (tool).` | `Next: read ticket <ticket>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; answer request <request> with respond_to_permission, or leave it to the user when the decision is theirs.` |
+| bundle question | `Permission pending: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, request <request>, <name> (question).` | `Next: read bundle <bundle>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; leave the checkpoint to the user, who answers it in agent <agent>'s chat, or answer it with respond_to_permission when the delegation table lets you decide.` |
+| bundle tool | `Permission pending: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, request <request>, <name> (tool).` | `Next: read bundle <bundle>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; answer request <request> with respond_to_permission, or leave it to the user when the decision is theirs.` |
 | stream question | `Permission pending: stream <stream>, agent <agent>, request <request>, <name> (question).` | `Next: read stream <stream>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; leave the checkpoint to the user, who answers it in agent <agent>'s chat, or answer it with respond_to_permission when the delegation table lets you decide.` |
 | stream tool | `Permission pending: stream <stream>, agent <agent>, request <request>, <name> (tool).` | `Next: read stream <stream>'s request <request> with list_pending_permissions, and treat it as settled when it is no longer listed; answer request <request> with respond_to_permission, or leave it to the user when the decision is theirs.` |
 
@@ -50,52 +55,62 @@ Fields: `ticket`, `wave`, `agent`, `request`, `name`, `stream`
 
 Type: `created`
 Lead: `Agent created`
-Fields: `ticket`, `wave`, `agent`
+Fields: `ticket`, `wave`, `agent`, `bundle`, `tickets`
 
 | Case | Body | Next line |
 |---|---|---|
 | created | `Agent created: ticket <ticket> of wave <wave>, agent <agent>.` | `Next: carry on with the wave while ticket <ticket>'s turn end and any pending permission reach you as messages.` |
+| bundle | `Agent created: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>.` | `Next: carry on with the wave while bundle <bundle>'s turn end and any pending permission reach you as messages.` |
 
 ### Agent archived
 
 Type: `archived`
 Lead: `Agent archived`
-Fields: `ticket`, `wave`, `agent`, `stream`
+Fields: `ticket`, `wave`, `agent`, `stream`, `bundle`, `tickets`
 
 | Case | Body | Next line |
 |---|---|---|
 | archived | `Agent archived: ticket <ticket> of wave <wave>, agent <agent>.` | `Next: finish step 8's clean-up of ticket <ticket> when you archived agent <agent>; check ticket <ticket>'s status before counting its work done when someone else archived agent <agent>.` |
+| bundle archived | `Agent archived: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>.` | `Next: finish step 8's clean-up of bundle <bundle> when you archived agent <agent>; check bundle <bundle>'s status before counting its work done when someone else archived agent <agent>.` |
 | stream archived | `Agent archived: stream <stream>, agent <agent>.` | `Next: finish the clean-up of stream <stream> when you archived agent <agent>; check stream <stream>'s status before counting its work done when someone else archived agent <agent>.` |
 
 ### Human words
 
 Type: `humanWords`
 Lead: `Human words`
-Fields: `ticket`, `wave`, `agent`, `n`, `ids`
+Fields: `ticket`, `wave`, `agent`, `n`, `ids`, `bundle`, `tickets`
 
 | Case | Body | Next line |
 |---|---|---|
 | humanWords | `Human words: ticket <ticket> of wave <wave>, agent <agent>, <n> messages typed in its chat (message <ids>).` | `Next: read what the user typed to agent <agent> with get_agent_activity; record in ticket <ticket>'s report that the user spoke to it, and whether it changed the plan.` |
+| bundle | `Human words: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, <n> messages typed in its chat (message <ids>).` | `Next: read what the user typed to agent <agent> with get_agent_activity; record in bundle <bundle>'s report that the user spoke to it, and whether it changed the plan.` |
 
 ### Stall suspected
 
 Type: `stallSuspected`
 Lead: `Stall suspected`
-Fields: `ticket`, `wave`, `agent`, `says`
+Fields: `ticket`, `wave`, `agent`, `says`, `bundle`, `tickets`, `stream`
 
 | Case | Body | Next line |
 |---|---|---|
-| stallSuspected | `Stall suspected: ticket <ticket> of wave <wave>, agent <agent>, the sensor flagged: <says>.` | `Next: judge whether ticket <ticket> is stalled: read agent <agent>'s recent activity with get_agent_activity; prompt agent <agent> to resume, or record ticket <ticket> as stalled with the reason, when it is stalled; leave ticket <ticket> alone when its agent is working.` |
+| stallSuspected | `Stall suspected: ticket <ticket> of wave <wave>, agent <agent>, the sensor flagged: <says>.` | `Next: judge whether ticket <ticket> is stalled: read agent <agent>'s recent activity with get_agent_activity; decide by the wave skill's hung-agent table, which says whether agent <agent> is replaced within the restart budget or prompted to resume, or record ticket <ticket> as stalled with the reason; leave ticket <ticket> alone when its agent is working.` |
+| bundle | `Stall suspected: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, the sensor flagged: <says>.` | `Next: judge whether bundle <bundle> is stalled: read agent <agent>'s recent activity with get_agent_activity; decide by the wave skill's hung-agent table, which says whether agent <agent> is replaced within the restart budget or prompted to resume, or record bundle <bundle> as stalled with the reason; leave bundle <bundle> alone when its agent is working.` |
+| ticket running | `Stall suspected: ticket <ticket> of wave <wave>, agent <agent>, the sensor flagged: <says>.` | `Next: judge whether ticket <ticket> is stalled: read agent <agent>'s recent activity with get_agent_activity; when agent <agent> is hung on a shell command or on no tool call, replace it within the restart budget under the wave skill's hung-agent table, and never prompt it, since a prompt queues behind the stuck call; leave ticket <ticket> alone when agent <agent> runs a subagent or another long tool.` |
+| bundle running | `Stall suspected: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, the sensor flagged: <says>.` | `Next: judge whether bundle <bundle> is stalled: read agent <agent>'s recent activity with get_agent_activity; when agent <agent> is hung on a shell command or on no tool call, replace it within the restart budget under the wave skill's hung-agent table, and never prompt it, since a prompt queues behind the stuck call; leave bundle <bundle> alone when agent <agent> runs a subagent or another long tool.` |
+| stream running | `Stall suspected: stream <stream>, agent <agent>, the sensor flagged: <says>.` | `Next: judge whether stream <stream> is stalled: read agent <agent>'s recent activity with get_agent_activity; when agent <agent> is hung on a shell command or on no tool call, replace it under the stream skill's restart budget, and never prompt it, since a prompt queues behind the stuck call; leave stream <stream> alone when agent <agent> runs a subagent or another long tool.` |
+
+The ticket and bundle rows come from the sensor's turn-end check. The `ticket running`, `bundle running` and `stream running` rows come from the tick: every 5 minutes the plugin flags a stream, ticket or bundle agent that has a parent, that Paseo reports running, and whose `lastActivityAt` is 30 minutes old (the `quiet-running` condition), once per idle stretch (#48, #49). The plugin names the skills' hung-agent table and never offers to prompt an agent that may still be inside a call: the plugin cannot tell a hung agent from a stopped one, and the skills decide (ADR 0002).
 
 ### Gate cap passed
 
 Type: `gateCapPassed`
 Lead: `Gate cap passed`
-Fields: `ticket`, `wave`, `agent`, `cap`, `running`
+Fields: `ticket`, `wave`, `agent`, `cap`, `running`, `bundle`, `tickets`
 
 | Case | Body | Next line |
 |---|---|---|
 | gateCapPassed | `Gate cap passed: ticket <ticket> of wave <wave>, agent <agent>, <running> ticket agents run against a cap of <cap> concurrent gates.` | `Next: hold every ready ticket after ticket <ticket> in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than <cap> running; leave ticket <ticket> running: agent <agent> is already created.` |
+| bundle | `Gate cap passed: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>, <running> ticket agents run against a cap of <cap> concurrent gates.` | `Next: hold every ready ticket after bundle <bundle> in a queue, and spawn the next one only when a ticket agent's turn end or archive shows fewer than <cap> running; leave bundle <bundle> running: agent <agent> is already created.` |
 
 ### Appetite passed
 
@@ -127,8 +142,10 @@ The plugin knows an agent by the labels Paseo holds for it, and leaves every oth
 
 | Label | Reads |
 |---|---|
-| `wave` | The wave a ticket agent belongs to; a ticket agent carries it with `ticket` |
+| `wave` | The wave a ticket agent belongs to; a ticket agent carries it with `ticket`, a bundle agent with `bundle` and `tickets` |
 | `ticket` | The ticket number of a ticket agent |
+| `bundle` | The first ticket number of a bundle agent, which the wave skill starts for a bundle of tickets; it carries it with `wave` and no `ticket` |
+| `tickets` | Every ticket number of a bundle agent's bundle, in order, separated by commas |
 | `stream` | The stream an agent belongs to; the stream agent carries it and no `wave` |
 
 ## The ticket-agent title
@@ -137,7 +154,9 @@ Labels are set only after `before('agent.create')` has run, so the title stands 
 
 Title: `[Wave N] <NN> <ticket name>`
 
-`N` and `NN` are whole numbers: the wave and the ticket. The plugin sets its ticket marker for an agent created with such a title.
+Bundle title: `[Wave N] [<NN>+<NN>] <first ticket name>`
+
+`N` and `NN` are whole numbers: the wave and the ticket. The plugin sets its ticket marker for an agent created with such a title. A bundle agent ([#45](https://github.com/hanh9898/matt-with-paseo-plugin/issues/45)) is titled with the bundle title, `<NN>+<NN>` being its tickets in order and the name its first ticket's; a bundle of one takes the plain title. The plugin sets its ticket marker for an agent created with either form and, when its session opens, for an agent labelled `wave` and `bundle` too.
 
 ## Checkpoint marks
 
@@ -208,4 +227,4 @@ The skills declare the contract version they require as a whole number, in a lin
 
 - Until `v0.1.0` is tagged, the contract is v1 in draft, and any `v0.1.0` ticket that adds or changes a message, a mark or a card field edits it in the same change.
 - From the tag on, removing or changing a message, label, mark or field raises the version; adding a message type or an optional field does not.
-- What v1 leaves out: buttons on the card, a custom checkpoint card, and a stream variant of agent created, human words, stall suspected and gate cap passed.
+- What v1 leaves out: buttons on the card, a custom checkpoint card, and a stream variant of agent created, human words and gate cap passed.

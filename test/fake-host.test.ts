@@ -199,3 +199,34 @@ test("a row appended again under the same id replaces the earlier one, and a row
   assert.deepEqual(host.timeline("nobody"), []);
   assert.equal(host.rows.length, 4, "every append is still recorded in `rows`");
 });
+
+test("lastActivityAt reports what a test sets, and null for an agent it does not know (#48)", async () => {
+  const host = new FakeHost();
+  host.setLastActivity("worker", "2026-01-01T00:00:00.000Z");
+  assert.equal(await host.lastActivityAt("worker"), "2026-01-01T00:00:00.000Z");
+  host.setLastActivity("worker", null);
+  assert.equal(await host.lastActivityAt("worker"), null);
+  assert.equal(await host.lastActivityAt("stranger"), null);
+});
+
+test("parentOf reports the parent a test sets, and null for an agent it does not know (#48)", async () => {
+  const host = new FakeHost();
+  host.setParent("worker", "orchestrator");
+  assert.equal(await host.parentOf("worker"), "orchestrator");
+  assert.equal(await host.parentOf("stranger"), null);
+});
+
+test("tick runs every onTick handler with the fake as its host, and keeps a throwing handler out of the caller (T4) (#48)", async () => {
+  const host = new FakeHost();
+  const seen: string[] = [];
+  host.onTick(() => {
+    throw new Error("boom");
+  });
+  host.onTick(async (given) => {
+    seen.push(given === host ? "fake" : "other");
+  });
+  await host.tick();
+  assert.deepEqual(seen, ["fake"]);
+  assert.equal(host.failures.length, 1);
+  assert.equal(host.failures[0]?.hook, "tick");
+});

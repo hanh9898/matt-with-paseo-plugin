@@ -14,8 +14,9 @@ export type Machine = { processors?: number; env?: Env };
  * `Gate cap passed:` message and its `Next:` line; holding the spawns back is the wave skill's part, in
  * `hanh9898/matt-with-paseo`. The plugin does not stop a spawn or a command itself.
  *
- * A ticket agent is recognised by its labels, `wave` and `ticket`; any other agent is left alone (T3), and one
- * with no `parentAgentId` has nobody to tell. The handler fails open (T4): a host that cannot say who runs counts
+ * A ticket agent is recognised by its labels, `wave` and `ticket`; a bundle agent by `wave`, `bundle` and
+ * `tickets`, and it takes one slot for the whole bundle (ADR 0010 of the skills). Any other agent is left alone
+ * (T3), and one with no `parentAgentId` has nobody to tell. The handler fails open (T4): a host that cannot say who runs counts
  * that agent as not running, so it never over-counts. A message for an orchestrator that is mid-turn is held and
  * goes out when that orchestrator's turn ends.
  */

@@ -102,3 +102,30 @@ test("an archived agent's history is forgotten: its next timeline starts over", 
   await host.emitTurnEnded({ agent: ticket, outcome: done, timeline: working });
   assert.deepEqual(host.sent, [], "the same timeline counts as new after the archive");
 });
+
+const bundleAgent: HostAgent = { ...ticket, id: "bnd-7", title: "[Wave 1] [70+71] x" };
+
+test("a bundle agent's stalled turn is sent to its orchestrator with the bundle clause", async () => {
+  const host = sensed();
+  host.setLabels("bnd-7", { stream: "demo", wave: "1", bundle: "70", tickets: "70,71" });
+  await host.emitTurnEnded({ agent: bundleAgent, outcome: done, timeline: working });
+  await host.emitTurnEnded({ agent: bundleAgent, outcome: done, timeline: working });
+  assert.equal(host.sent.length, 1);
+  assert.equal(host.sent[0]?.agentId, "stream-1");
+  assert.match(host.sent[0]?.text ?? "", /^Stall suspected: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7, the sensor flagged: the turn added nothing to the timeline\./);
+  assert.ok(host.sent[0]?.text.split("\n").at(-1)?.startsWith("Next: "));
+  assert.deepEqual(host.failures, []);
+});
+
+test("a ticket and a bundle agent's turn-end Next line names the hung-agent table and offers no bare prompt (#48)", async () => {
+  const host = sensed();
+  host.setLabels("bnd-7", { stream: "demo", wave: "1", bundle: "70", tickets: "70,71" });
+  await host.emitTurnEnded({ agent: ticket, outcome: { kind: "canceled", reason: "user" }, timeline: working });
+  await host.emitTurnEnded({ agent: bundleAgent, outcome: { kind: "canceled", reason: "user" }, timeline: working });
+  assert.equal(host.sent.length, 2);
+  for (const message of host.sent) {
+    const next = message.text.split("\n").at(-1) ?? "";
+    assert.match(next, /decide by the wave skill's hung-agent table/);
+    assert.doesNotMatch(next, /prompt agent/);
+  }
+});

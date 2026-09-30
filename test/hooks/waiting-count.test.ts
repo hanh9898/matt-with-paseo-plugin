@@ -152,3 +152,13 @@ test("the count never carries a request's input or a question's text (T6)", asyn
   assert.deepEqual(host.sent, []);
   assert.deepEqual(host.rows, []);
 });
+
+test("a checkpoint that opens on a bundle agent adds one to its orchestrator's count, and settling takes it off", async () => {
+  const host = counted();
+  const bundleAgent: HostAgent = { ...ticketAgent, id: "bnd-7", title: "[Wave 1] [70+71] x" };
+  host.setLabels("bnd-7", { stream: "demo", wave: "1", bundle: "70", tickets: "70,71" });
+  await host.emitPermissionRequested({ agent: bundleAgent, request: question("r1") });
+  assert.equal(await host.waitingCount("stream-1"), 1);
+  await host.emitPermissionResolved({ agent: bundleAgent, requestId: "r1" });
+  assert.equal(await host.waitingCount("stream-1"), 0);
+});

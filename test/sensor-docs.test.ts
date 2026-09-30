@@ -42,3 +42,63 @@ test("the changelog and the smoke test carry the sensor", () => {
 test("the entry registers the sensor", () => {
   assert.match(read("index.server.ts"), /registerStallSensor\(hooks\)/);
 });
+
+function cheapSensorSubsection(): string {
+  const section = developmentSection();
+  const start = section.indexOf("### The cheap sensor");
+  return section.slice(start).split("\n### ", 2)[0] ?? "";
+}
+
+test("the README no longer says the sensor sees turn ends only, and says it also watches a running stream agent every 5 minutes (#48)", () => {
+  assert.doesNotMatch(read("README.md"), /It sees turn ends only/);
+  assert.doesNotMatch(cheapSensorSubsection(), /The port has no clock/);
+  const words = cheapSensorSubsection();
+  assert.match(words, /every 5 minutes/);
+  assert.match(words, /running stream agent/);
+  assert.match(words, /quietMinutes/);
+  assert.match(words, /"running"/);
+});
+
+test("the smoke test's Cheap sensor section holds the two read-not-run facts of the running check as steps (#48)", () => {
+  const smoke = read("test/smoke/README.md");
+  const start = smoke.indexOf("## Cheap sensor");
+  const section = smoke.slice(start).split("\n## ", 2)[0] ?? "";
+  assert.match(section, /context\.paseo/, "a paseo kept from a hook call stays usable after the call returns");
+  assert.match(section, /lastActivityAt/, "refresh() carries lastActivityAt and it does not move while a tool call is stuck");
+  assert.match(section, /updatedAt/, "the fallback is named, and the step records which field was used");
+  assert.match(section, /quiet-running|30 minutes/);
+  assert.match(section, /paseo plugin remove mwp-smoke/, "the cleanup step stays last");
+});
+
+test("the changelog's Cheap sensor entry names the running stream-agent check (#48)", () => {
+  const entry = /^- Cheap sensor:.*$/m.exec(read("CHANGELOG.md"))?.[0] ?? "";
+  assert.ok(entry !== "", "the changelog has a Cheap sensor entry");
+  assert.match(entry, /running stream agent/);
+});
+
+test("the README says the tick watches ticket and bundle agents too, and no longer says the tick covers a stream agent alone (#49)", () => {
+  assert.doesNotMatch(read("README.md"), /It watches a ticket agent at its turn ends only/);
+  assert.doesNotMatch(read("README.md"), /The tick covers a running stream agent alone/);
+  const words = cheapSensorSubsection();
+  assert.match(words, /running ticket agent|ticket and bundle agents/);
+  assert.match(words, /bundle/);
+  assert.match(words, /parentAgentId|parent/);
+});
+
+test("the smoke test's Cheap sensor section holds a step where a ticket agent held in a long shell command is flagged once (#49)", () => {
+  const smoke = read("test/smoke/README.md");
+  const start = smoke.indexOf("## Cheap sensor");
+  const section = smoke.slice(start).split("\n## ", 2)[0] ?? "";
+  const step = /^\d+\. [^\n]*ticket agent[^\n]*(?:shell command|sleep)[^\n]*Stall suspected: ticket[^\n]*$/m.exec(section)?.[0] ?? "";
+  assert.ok(step !== "", "a step holds a ticket agent in a long shell command");
+  assert.match(step, /Stall suspected: ticket/);
+  assert.match(step, /once/);
+  assert.match(section, /paseo plugin remove mwp-smoke/, "the cleanup step stays last");
+  assert.match(section.trimEnd().split("\n").at(-1) ?? "", /paseo plugin remove mwp-smoke/);
+});
+
+test("the changelog's Cheap sensor entry names the running ticket-agent check (#49)", () => {
+  const entry = /^- Cheap sensor:.*$/m.exec(read("CHANGELOG.md"))?.[0] ?? "";
+  assert.match(entry, /running ticket agent|ticket and bundle agents/);
+  assert.match(entry, /running stream agent/);
+});
