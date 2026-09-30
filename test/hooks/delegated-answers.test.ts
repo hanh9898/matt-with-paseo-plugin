@@ -192,3 +192,15 @@ test("a bundle agent's decidable question is answered with its recommendation", 
   assert.equal(fake.answers.length, 1);
   assert.equal(fake.answers[0]?.agentId, "bnd-7");
 });
+
+test("an answer Paseo refuses leaves the question to the user, and `left` is told (#39)", async () => {
+  const fake = new FakeHost();
+  const told: string[] = [];
+  registerDelegatedAnswers(fake, { readTable: async () => TABLE, record: () => {}, left: async ({ request }) => void told.push(request.id) });
+  fake.setLabels("tkt-7", { stream: "demo", wave: "1", ticket: "07" });
+  fake.respondToPermission = async () => {
+    throw new Error("request no longer pending");
+  };
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.deepEqual(told, ["r1"], "the question stays the user's and is counted");
+});

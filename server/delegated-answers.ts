@@ -136,13 +136,19 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
   const now = reader.now ?? (() => new Date().toISOString());
   const left = reader.left;
   const answered = reader.answered;
-  /** The requests settled per agent: resolved by anyone, or answered here. */
+  /** The requests settled per agent: resolved by anyone, or answered here once Paseo took the answer. */
   const settled = new Map<string, Set<string>>();
+  /** The requests being answered here per agent: a second event for one waits on the first, and a refused answer is not settled. */
+  const answering = new Map<string, Set<string>>();
+
+  function mark(requests: Map<string, Set<string>>, agentId: string, requestId: string): void {
+    const ids = requests.get(agentId) ?? new Set<string>();
+    ids.add(requestId);
+    requests.set(agentId, ids);
+  }
 
   function settle(agentId: string, requestId: string): void {
-    const ids = settled.get(agentId) ?? new Set<string>();
-    ids.add(requestId);
-    settled.set(agentId, ids);
+    mark(settled, agentId, requestId);
   }
 
   hooks.onPermissionResolved(({ agent, requestId }) => settle(agent.id, requestId));
@@ -174,12 +180,17 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
         await leave();
         return;
       }
-      if (settled.get(agent.id)?.has(request.id)) return;
+      if (settled.get(agent.id)?.has(request.id) || answering.get(agent.id)?.has(request.id)) return;
+      mark(answering, agent.id, request.id);
+      try {
+        await host.respondToPermission(agent.id, request.id, {
+          behavior: "allow",
+          updatedInput: { ...objectOf(request.input), answers: decision.answers },
+        });
+      } finally {
+        answering.get(agent.id)?.delete(request.id);
+      }
       settle(agent.id, request.id);
-      await host.respondToPermission(agent.id, request.id, {
-        behavior: "allow",
-        updatedInput: { ...objectOf(request.input), answers: decision.answers },
-      });
       const at = now();
       try {
         for (const [header, answer] of Object.entries(decision.answers)) record({ stream, agent: agent.id, header, answer, at });
