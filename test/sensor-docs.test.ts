@@ -75,3 +75,30 @@ test("the changelog's Cheap sensor entry names the running stream-agent check (#
   assert.ok(entry !== "", "the changelog has a Cheap sensor entry");
   assert.match(entry, /running stream agent/);
 });
+
+test("the README says the tick watches ticket and bundle agents too, and no longer says the tick covers a stream agent alone (#49)", () => {
+  assert.doesNotMatch(read("README.md"), /It watches a ticket agent at its turn ends only/);
+  assert.doesNotMatch(read("README.md"), /The tick covers a running stream agent alone/);
+  const words = cheapSensorSubsection();
+  assert.match(words, /running ticket agent|ticket and bundle agents/);
+  assert.match(words, /bundle/);
+  assert.match(words, /parentAgentId|parent/);
+});
+
+test("the smoke test's Cheap sensor section holds a step where a ticket agent held in a long shell command is flagged once (#49)", () => {
+  const smoke = read("test/smoke/README.md");
+  const start = smoke.indexOf("## Cheap sensor");
+  const section = smoke.slice(start).split("\n## ", 2)[0] ?? "";
+  const step = /^\d+\. [^\n]*ticket agent[^\n]*(?:shell command|sleep)[^\n]*$/m.exec(section)?.[0] ?? "";
+  assert.ok(step !== "", "a step holds a ticket agent in a long shell command");
+  assert.match(step, /Stall suspected: ticket/);
+  assert.match(step, /once/);
+  assert.match(section, /paseo plugin remove mwp-smoke/, "the cleanup step stays last");
+  assert.match(section.trimEnd().split("\n").at(-1) ?? "", /paseo plugin remove mwp-smoke/);
+});
+
+test("the changelog's Cheap sensor entry names the running ticket-agent check (#49)", () => {
+  const entry = /^- Cheap sensor:.*$/m.exec(read("CHANGELOG.md"))?.[0] ?? "";
+  assert.match(entry, /running ticket agent|ticket and bundle agents/);
+  assert.match(entry, /running stream agent/);
+});
