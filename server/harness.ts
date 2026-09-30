@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import { isDescriptor, problemsOf, type HarnessDescriptor } from "../shared/harness.ts";
 
 /** The folder of descriptors, beside the entry: `harness/` is data the package ships, not a code module. */

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import { isCostLevels, problemsOf, type CostLevels } from "../shared/cost-levels.ts";
 
 /** The presets, beside the entry: `presets/` is data the package ships, not a code module. */

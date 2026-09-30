@@ -46,7 +46,7 @@ export type PermissionAnswer =
   | { behavior: "deny"; message?: string };
 
 /** A plugin-owned row in an agent's timeline; appending a row with the same `id` replaces the earlier one. */
-export type TimelineRow = { id?: string; kind: string; version: number; data: Json };
+export type TimelineRow = { id: string; kind: string; version: number; data: Json };
 
 export type CreatedEvent = { agent: HostAgent };
 export type ArchivedEvent = { agent: HostAgent };

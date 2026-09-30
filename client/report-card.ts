@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { FunctionComponent } from "react";
 import { z } from "zod";
 import { REPORT_CARD } from "../shared/contract.ts";
 import type { CardData } from "./report-card-text.ts";
@@ -20,7 +20,7 @@ export const CARD_RENDERER = { kind: REPORT_CARD.kind, version: REPORT_CARD.vers
 
 /** The slice of Paseo's client context the card uses; the entry hands it the real context. */
 export interface CardClient {
-  addTimelineRenderer(renderer: { kind: string; version: number; schema: z.ZodType<CardData>; Component: ComponentType<CardProps> }): void;
+  addTimelineRenderer(renderer: { kind: string; version: number; schema: z.ZodType<CardData>; Component: FunctionComponent<CardProps> }): void;
 }
 
 /**
@@ -28,6 +28,6 @@ export interface CardClient {
  * unavailable" for the row, so the daemon's row is the card only once this runs. The card has no buttons: the
  * round trip is unproven (ADR 0001), so the view is text only.
  */
-export function contributeReportCard(client: CardClient, Component: ComponentType<CardProps>): void {
+export function contributeReportCard(client: CardClient, Component: FunctionComponent<CardProps>): void {
   client.addTimelineRenderer({ ...CARD_RENDERER, Component });
 }

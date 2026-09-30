@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 
 /**
  * The cheap sensor in front of the orchestrator's stall judgement: conditions kept as data
