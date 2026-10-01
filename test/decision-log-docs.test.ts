@@ -22,6 +22,13 @@ test("the contract has a decision log section naming both files, the kinds and t
   assert.ok(!log.split("\n").some((line) => line.startsWith("## Pending")), "the section has no pending heading");
 });
 
+test("the decision log section lists the appetite and question budget kinds as rows of its kinds table", () => {
+  const rows = section(read("docs/contract.md"), "## The decision log").split("\n").filter((line) => line.startsWith("| `"));
+  for (const kind of ["`appetite passed`", "`question budget spent`"]) {
+    assert.ok(rows.some((row) => row.startsWith(`| ${kind} |`)), `a table row for ${kind}`);
+  }
+});
+
 test("the README lists the decision log module in the layout table, the state inventory and the delegated-answers section", () => {
   const readme = read("README.md");
   const rows = readme.split("\n").filter((line) => line.startsWith("| `server/decision-log.ts`"));
