@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { HUMAN_STEPS, PROBES, resultLine, scrubEnv, SECTIONS, withResults, type Result } from "./smoke-plan.ts";
+import { HUMAN_STEPS, PROBES, resultLine, scrubEnv, SECTIONS, withResults, withSectionResults, type Result } from "./smoke-plan.ts";
 
 const OWNER = {
   PATH: "/bin",
@@ -130,6 +130,25 @@ test("withResults twice gives the text of once with the second run's lines", () 
 test("withResults appends the heading when the README has none", () => {
   const next = withResults("# Smoke\n", [RESULT], []);
   assert.ok(next.includes("\n## Results\n"));
+});
+
+test("withSectionResults replaces only the named sections' lines and keeps every other line (#62)", () => {
+  const other = { ...RESULT, section: "Cheap sensor", status: "fail" as const };
+  const full = withResults(README, [RESULT, other], ["Type one message"]);
+  const next = withSectionResults(full, [{ ...other, status: "pass" }]);
+  assert.ok(next.includes(resultLine(RESULT)), "the Gate cap line is kept");
+  assert.equal(next.includes(resultLine(other)), false);
+  assert.ok(next.includes(resultLine({ ...other, status: "pass" })));
+  assert.ok(next.indexOf("- Gate cap |") < next.indexOf("- Cheap sensor |"), "the line keeps its place");
+  assert.ok(next.includes("- [ ] Type one message"));
+  assert.equal(next.split("\n").length, full.split("\n").length);
+});
+
+test("withSectionResults adds a section that has no line yet after the last result line (#62)", () => {
+  const full = withResults(README, [RESULT], ["Type one message"]);
+  const added = { ...RESULT, section: "Cheap sensor" };
+  const lines = withSectionResults(full, [added]).split("\n");
+  assert.equal(lines.indexOf(resultLine(added)), lines.indexOf(resultLine(RESULT)) + 1);
 });
 
 test("HUMAN_STEPS lists the four things a script cannot do", () => {

@@ -115,3 +115,25 @@ export function withResults(readme: string, results: readonly Result[], human: r
   const lines = [HEADING, "", ...results.map(resultLine), "", "Only a person can do:", "", ...human.map((step) => `- [ ] ${step}`)];
   return `${above}${lines.join("\n")}\n`;
 }
+
+/**
+ * `readme` with the `## Results` line of each result's section replaced by that result, and every other line kept:
+ * what an `--only` run writes. A section with no line yet goes after the last result line.
+ */
+export function withSectionResults(readme: string, results: readonly Result[]): string {
+  const lines = readme.split("\n");
+  const start = lines.findIndex((line) => line === HEADING);
+  for (const result of results) {
+    const at = lines.findIndex((line, i) => i > start && line.startsWith(`- ${oneLine(result.section)} | `));
+    if (at !== -1) {
+      lines[at] = resultLine(result);
+      continue;
+    }
+    let last = start;
+    lines.forEach((line, i) => {
+      if (i > start && line.startsWith("- ") && !line.startsWith("- [ ]")) last = i;
+    });
+    lines.splice(last === start ? start + 2 : last + 1, 0, resultLine(result));
+  }
+  return lines.join("\n");
+}

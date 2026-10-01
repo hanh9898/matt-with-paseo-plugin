@@ -13,7 +13,7 @@ import { createServer } from "node:net";
 import { availableParallelism, release, tmpdir, type as osType } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { HUMAN_STEPS, PROBES, SECTIONS, scrubEnv, withResults, type Result, type Status } from "./smoke-plan.ts";
+import { HUMAN_STEPS, PROBES, SECTIONS, scrubEnv, withResults, withSectionResults, type Result, type Status } from "./smoke-plan.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const README = join(ROOT, "test", "smoke", "README.md");
@@ -490,7 +490,8 @@ async function p7(): Promise<ProbeResult> {
   const o = await orchestrator("sensor");
   await waitIdle(o);
   const env = { BASH_MAX_TIMEOUT_MS: "1500000", BASH_DEFAULT_TIMEOUT_MS: "1500000" };
-  const prompt = 'Run exactly this shell command in the foreground: node -e "setTimeout(function(){},780000)" . Use a Bash tool timeout of 1200000 milliseconds. Then reply with exactly the word done.';
+  // #62: in #53's run two of the three agents were idle at minute 7, their call ended early; every parameter is named.
+  const prompt = 'Call the Bash tool exactly once, in the foreground (run_in_background false), with the parameter timeout set to 1200000 and this command: node -e "setTimeout(function(){},780000)" . The command takes 13 minutes: wait for it, do not stop it, call no other tool. When it returns, reply with exactly the word done.';
   const start = Date.now();
   const stream = await newAgent({ title: `${TAG} stream`, labels: { stream: "sensor7" }, parent: o, prompt, env });
   const ticket = await newAgent({ title: `${TAG} ticket`, labels: { wave: "1", ticket: "98" }, parent: o, prompt, env });
@@ -502,6 +503,9 @@ async function p7(): Promise<ProbeResult> {
   const at7 = await inspectField(stream, field);
   const states = await Promise.all([stream, ticket, bundle].map((id) => statusOf(id)));
   c.check("the three agents are still running at minute 7 (a stuck call, not a finished turn)", states.every((s) => s === "running"), states.join(","));
+  for (const [i, id] of [stream, ticket, bundle].entries()) {
+    if (states[i] !== "running") c.note(`${["stream", "ticket", "bundle"][i]} agent's timeline ends: ${brief((await logsOf(id)).slice(-600), 300)}`);
+  }
   c.check(`${field} read at minute 2 and minute 7 is equal while the call is stuck`, at2 !== "" && at2 === at7, `${at2} | ${at7}`);
   const wanted = [`Stall suspected: stream sensor7, agent ${stream}`, `Stall suspected: ticket 98 of wave 1, agent ${ticket}`, `Stall suspected: bundle 97 (tickets 97,98) of wave 1, agent ${bundle}`];
   await until(() => logsOf(o), (t) => wanted.every((w) => t.includes(w)), Math.max(30, (start + 700_000 - Date.now()) / 1000));
@@ -734,8 +738,14 @@ async function main(): Promise<void> {
     const status: Status = missing ? "fail" : mine.some((m) => m.result?.status === "fail") ? "fail" : (mine.find((m) => m.result?.status.startsWith("blocked"))?.result?.status ?? (mine.some((m) => m.result?.status === "human") ? "human" : "pass"));
     return { ...base, section: section.name, status, evidence: mine.map((m) => `${m.id}: ${m.result?.evidence ?? "not run"}`).join(" // ") };
   });
-  if (ONLY === null) writeFileSync(README, withResults(readFileSync(README, "utf8"), results, HUMAN_STEPS));
-  log(`done in ${Math.round((Date.now() - startedAt) / 60_000)} minutes; wrote ${ONLY === null ? "test/smoke/README.md" : "nothing (--only)"}`);
+  // An --only run rewrites only the lines of the sections whose every probe it ran.
+  const ran = ONLY === null ? results : results.filter((r) => {
+    const probes = SECTIONS.find((s) => s.name === r.section)?.probes ?? [];
+    return probes.length > 0 && probes.every((id) => ONLY.has(id));
+  });
+  const readme = readFileSync(README, "utf8");
+  writeFileSync(README, ONLY === null ? withResults(readme, results, HUMAN_STEPS) : withSectionResults(readme, ran));
+  log(`done in ${Math.round((Date.now() - startedAt) / 60_000)} minutes; wrote ${ran.map((r) => r.section).join(", ") || "nothing"} in test/smoke/README.md`);
   for (const r of results) console.log(`${r.status.padEnd(8)} ${r.section}`);
   console.log("Only a person can do:");
   for (const step of HUMAN_STEPS) console.log(`- ${step}`);
