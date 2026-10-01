@@ -268,7 +268,7 @@ test("v0.1.0 lists the issues it carries, the new tickets by number, the fourtee
   const tickets = listItems(section(v1, "### New tickets"));
   assert.deepEqual(
     tickets.map((item) => Number(item.match(/#(\d+)\s*$/)?.[1])),
-    [34, 33, 37, 35, 36, 38, 39, 40, 41, 43, 45, 48, 49],
+    [34, 33, 37, 35, 36, 38, 39, 40, 41, 43, 45, 48, 49, 57, 58],
   );
 
   const criteria = listItems(section(v1, "### Exit criteria"));
@@ -281,7 +281,7 @@ test("v0.1.0 lists the issues it carries, the new tickets by number, the fourtee
     "MIT, with a `NOTICE` crediting sting9k/seatworks",
     "The skills run with the plugin absent (skills side)",
     "Contract v1 exists and a skills release reads it",
-    "A delegated question is answered within the `## Delegation` table's rules and never outside them",
+    "A delegated question is answered within the `## Delegation` table's level and rules and never outside them",
     "The question budget and the appetite are counted",
     "The report card shows what was decided on the user's behalf",
     "An unattended stream runs end to end with no heartbeat and with delegation on",
