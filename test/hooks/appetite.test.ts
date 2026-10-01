@@ -69,6 +69,23 @@ test("each turn end adds the agent's cost to its stream's total", async () => {
   assert.deepEqual(fake.failures, []);
 });
 
+test("a send that fails leaves the stream untold, and the next turn end tells it once, as the budget path does", async () => {
+  const { fake, record } = host();
+  const send = fake.send.bind(fake);
+  fake.send = async () => {
+    throw new Error("socket closed");
+  };
+  fake.setLastTurnCost("tkt-7", 6);
+  await fake.emitTurnEnded(turn(ticket));
+  assert.equal(record()["demo"]?.notified, false, "nothing was told, so nothing is marked told");
+  fake.send = send;
+  fake.setLastTurnCost("tkt-7", 0.1);
+  await fake.emitTurnEnded(turn(ticket));
+  await fake.emitTurnEnded(turn(ticket));
+  assert.equal(fake.sent.filter((m) => m.text.startsWith("Appetite passed:")).length, 1);
+  assert.equal(record()["demo"]?.notified, true);
+});
+
 test("the stream agent's own turn counts toward the same stream", async () => {
   const { fake, record } = host();
   fake.setLastTurnCost("stream-1", 0.5);
@@ -250,7 +267,7 @@ test("the turn end that passes the appetite writes one appetite passed entry, an
     gate: "appetite passed",
     asked: "none: the stream's spend passed its appetite at a turn end of agent tkt-7",
     answer: MESSAGES.appetitePassed("demo", 6, 5, false),
-    grounds: "the Appetite row of the ## Delegation table in /repo-tkt/AGENTS.md reads 5.00 USD; spend 6.00 USD",
+    grounds: "the Appetite row of the ## Delegation table in /repo-tkt/AGENTS.md reads 5 USD; spend 6.00 USD",
     agent: "tkt-7",
     requestId: null,
     withoutEvidence: false,

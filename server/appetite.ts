@@ -78,10 +78,12 @@ export function registerAppetite(
     }
   }
 
-  async function appetiteOf(cwd: string): Promise<number | null | undefined> {
+  /** The `Appetite` row's amount and its text as written; undefined when the table cannot be read this turn. */
+  async function appetiteOf(cwd: string): Promise<{ usd: number | null; row: string | null } | undefined> {
     try {
       const text = await readTable(cwd);
-      return parseAppetite(text === null ? null : (readDelegation(text)?.appetite ?? null));
+      const row = text === null ? null : (readDelegation(text)?.appetite ?? null);
+      return { usd: parseAppetite(row), row };
     } catch {
       return undefined;
     }
@@ -110,7 +112,7 @@ export function registerAppetite(
     const known = store.read();
     let spend = addTurn(known[stream], await costOf(agent.id, host));
     const appetite = await appetiteOf(agent.cwd);
-    if (appetite !== undefined) spend = { ...spend, appetiteUsd: appetite };
+    if (appetite !== undefined) spend = { ...spend, appetiteUsd: appetite.usd };
 
     const orchestrator = agent.parentAgentId;
     const tell = isPast(spend) && !spend.notified && orchestrator !== null;
@@ -126,7 +128,15 @@ export function registerAppetite(
 
     const text = MESSAGES.appetitePassed(stream, spend.totalUsd, spend.appetiteUsd, spend.partial);
     if (await isBusy(orchestrator, host)) held.set(orchestrator, [...(held.get(orchestrator) ?? []), text]);
-    else await host.send(orchestrator, text);
+    else {
+      try {
+        await host.send(orchestrator, text);
+      } catch (error) {
+        // Nothing was told: unmark it, so the next turn end tells it, as the question budget does.
+        store.write({ ...store.read(), [stream]: { ...spend, notified: false } });
+        throw error;
+      }
+    }
 
     // The message is sent or held: the plugin has stopped answering this stream, and the log says so once (T4: a log that cannot be written changes nothing sent).
     try {
@@ -136,7 +146,7 @@ export function registerAppetite(
         agent: agent.id,
         asked: `none: the stream's spend passed its appetite at a turn end of agent ${agent.id}`,
         answer: text,
-        grounds: `the Appetite row of the ## Delegation table in ${agent.cwd}/AGENTS.md reads ${spend.appetiteUsd.toFixed(2)} USD; spend ${spend.totalUsd.toFixed(2)} USD${spend.partial ? " (partial)" : ""}`,
+        grounds: `the Appetite row of the ## Delegation table in ${agent.cwd}/AGENTS.md reads ${appetite?.row?.trim() ?? `${spend.appetiteUsd} USD`}; spend ${spend.totalUsd.toFixed(2)} USD${spend.partial ? " (partial)" : ""}`,
       });
     } catch {
       console.error(`[matt-with-paseo] decision log not written for agent ${agent.id}: appetite passed`);
