@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { decisionLogPath } from "../server/decision-log.ts";
@@ -7,7 +8,7 @@ import { createReportCard, reportCardRow } from "../server/report-card.ts";
 import { REPORT_CARD } from "../shared/contract.ts";
 
 const LOG = join("C:", "state", "decision-log.md");
-const STATE = "C:\\Users\\HBLAB_OPMS\\AppData\\Local\\Temp\\plugin-decision-log-56-state";
+const STATE = join(tmpdir(), "plugin-decision-log-56-state");
 
 const decided = [
   { stream: "demo", agent: "tkt-7", header: "Colour", answer: "Red (Recommended)", at: "2026-09-30T10:00:00.000Z" },
