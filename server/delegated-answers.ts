@@ -15,6 +15,11 @@ function objectOf(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
+/** The `Door:` of a question's text: the value of its first line that starts with the mark, or undefined when it has none. */
+export function doorOf(text: string): string | undefined {
+  return text.split(/\r?\n/).find((line) => line.startsWith("Door:"))?.slice("Door:".length).trim();
+}
+
 /** The answer to one question, or the reason it stays the user's. Narrows the untyped input as it goes (T1). */
 function answerOne(delegation: Delegation, raw: unknown): { header: string; label: string } | string {
   const question = objectOf(raw);
@@ -25,7 +30,7 @@ function answerOne(delegation: Delegation, raw: unknown): { header: string; labe
   if (multiSelect === true) return "a multi-select question has no single recommendation";
   const lines = text.split(/\r?\n/);
   if (lines.some((line) => line.startsWith("Yours:"))) return "one of the user's five";
-  const door = lines.find((line) => line.startsWith("Door:"))?.slice("Door:".length).trim();
+  const door = doorOf(text);
   if (door === undefined) return "no Door line";
   if (!delegation.decide.includes(door as DecidableDoor)) return "the table does not let the orchestrator decide this door";
   const first = Array.isArray(options) ? objectOf(options[0]) : null;
@@ -69,10 +74,10 @@ export type Reader = {
   /** Whether a stream is past its appetite; the appetite handler (`server/appetite.ts`) supplies it, and none is past when it is left out. */
   pastAppetite?: (stream: string) => boolean;
   now?: () => string;
-  /** Told of each question this handler leaves to the user, once, after the agent's role is known; the question budget (#39) counts them. It never changes what the handler answers. */
-  left?: (left: { agent: HostAgent; request: PermissionRequest; labels: Record<string, string> }, host: Host) => void | Promise<void>;
-  /** Told once after each request this handler answered and recorded, with the answering agent and its labels; the report card (#41) refreshes on it. It never changes what the handler answers. */
-  answered?: (answered: { agent: HostAgent; labels: Record<string, string> }, host: Host) => void | Promise<void>;
+  /** Told of each question this handler leaves to the user, once, after the agent's role is known; the question budget (#39) counts them. `reason` is the leave string, or the kind of failure when the handler failed open, never an error's message. It never changes what the handler answers. */
+  left?: (left: { agent: HostAgent; request: PermissionRequest; labels: Record<string, string>; reason: string }, host: Host) => void | Promise<void>;
+  /** Told once after each request this handler answered and recorded, with the answering agent, its labels, the request and the answers sent; the report card (#41) refreshes on it and the decision log writes it. It never changes what the handler answers. */
+  answered?: (answered: { agent: HostAgent; labels: Record<string, string>; request: PermissionRequest; answers: Record<string, string> }, host: Host) => void | Promise<void>;
 };
 
 const RECORD_FILE = "delegated-answers.jsonl";
@@ -160,14 +165,16 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
     /** The labels of a recognised agent, once known: a question that stays the user's is told to `left` from then on. */
     let known: Record<string, string> | null = null;
     /** Tells `left` that the question stays the user's, unless the request is settled meanwhile; `left` never throws into the answer. */
-    async function leave(): Promise<void> {
+    async function leave(reason: string): Promise<void> {
       if (left === undefined || known === null || settled.get(agent.id)?.has(request.id)) return;
       try {
-        await left({ agent, request, labels: known }, host);
+        await left({ agent, request, labels: known, reason }, host);
       } catch (error) {
         console.error(`[matt-with-paseo] question left to the user not told for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
+    /** Why the question stays the user's if the handler fails open from here on: a kind, never the error's message (T6). */
+    let cause = "the delegation table could not be read";
     try {
       const labels = await host.labelsOf(agent.id);
       if (!isTicketAgent(labels) && !isStreamAgent(labels)) return;
@@ -177,11 +184,12 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
       const text = await readTable(agent.cwd);
       const decision = decideAnswers(text === null ? null : readDelegation(text), request.input, { pastAppetite: pastAppetite(stream) });
       if (!("answers" in decision)) {
-        await leave();
+        await leave(decision.leave);
         return;
       }
       if (settled.get(agent.id)?.has(request.id) || answering.get(agent.id)?.has(request.id)) return;
       mark(answering, agent.id, request.id);
+      cause = "the answer could not be sent";
       try {
         await host.respondToPermission(agent.id, request.id, {
           behavior: "allow",
@@ -198,14 +206,14 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
         console.error(`[matt-with-paseo] delegated answer not recorded for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
       try {
-        await answered?.({ agent, labels }, host);
+        await answered?.({ agent, labels, request, answers: decision.answers }, host);
       } catch (error) {
         console.error(`[matt-with-paseo] delegated answer not told for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
     } catch (error) {
-      const cause = error instanceof Error ? error.message : String(error);
-      console.error(`[matt-with-paseo] delegated answer left to the user for agent ${agent.id}: ${cause}`);
-      await leave();
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[matt-with-paseo] delegated answer left to the user for agent ${agent.id}: ${detail}`);
+      await leave(cause);
     }
   });
 }

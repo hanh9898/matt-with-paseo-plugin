@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { addTurn, isPast, isSpend, parseAppetite, type Spend } from "../shared/appetite.ts";
 import { readDelegation } from "../shared/delegation.ts";
 import { isStreamAgent, isTicketAgent } from "../shared/role-labels.ts";
+import type { NewEntry } from "./decision-log.ts";
 import type { Host, HostAgent, HostHooks } from "./host.ts";
 import { MESSAGES } from "./messages.ts";
 import { readStateFile, writeStateFile } from "./state.ts";
@@ -20,6 +21,8 @@ export type Reader = {
   store?: Store;
   /** Told after each turn end of a ticket agent or the stream agent whose cost was summed and kept, so the report card (#41) reads the new total without depending on the order handlers run in. */
   updated?: (who: { agent: HostAgent; labels: Record<string, string> }, host: Host) => void | Promise<void>;
+  /** Told once per stream, after the `Appetite passed:` message was sent or held, with the decision-log entry that records the plugin no longer answering that stream; a throw is caught and logged with the agent's id and the kind only. */
+  passed?: (entry: NewEntry) => void;
 };
 
 const RECORD_FILE = "stream-spend.json";
@@ -122,11 +125,22 @@ export function registerAppetite(
     if (!tell || spend.appetiteUsd === null) return;
 
     const text = MESSAGES.appetitePassed(stream, spend.totalUsd, spend.appetiteUsd, spend.partial);
-    if (await isBusy(orchestrator, host)) {
-      held.set(orchestrator, [...(held.get(orchestrator) ?? []), text]);
-      return;
+    if (await isBusy(orchestrator, host)) held.set(orchestrator, [...(held.get(orchestrator) ?? []), text]);
+    else await host.send(orchestrator, text);
+
+    // The message is sent or held: the plugin has stopped answering this stream, and the log says so once (T4: a log that cannot be written changes nothing sent).
+    try {
+      reader.passed?.({
+        kind: "appetite passed",
+        stream,
+        agent: agent.id,
+        asked: `none: the stream's spend passed its appetite at a turn end of agent ${agent.id}`,
+        answer: text,
+        grounds: `the Appetite row of the ## Delegation table in ${agent.cwd}/AGENTS.md reads ${spend.appetiteUsd.toFixed(2)} USD; spend ${spend.totalUsd.toFixed(2)} USD${spend.partial ? " (partial)" : ""}`,
+      });
+    } catch {
+      console.error(`[matt-with-paseo] decision log not written for agent ${agent.id}: appetite passed`);
     }
-    await host.send(orchestrator, text);
   });
 
   hooks.onArchived(({ agent }) => void held.delete(agent.id));

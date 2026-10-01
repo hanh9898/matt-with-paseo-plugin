@@ -16,6 +16,8 @@ export function ReportCardView({ item, theme }: CardProps) {
     ...(lines.decided.length === 0
       ? [text(lines.none, foregroundMuted, "none")]
       : lines.decided.map((line, index) => text(line, foregroundMuted, `decided-${index}`))),
+    ...(lines.leftOut === null ? [] : [text(lines.leftOut, foregroundMuted, "left-out")]),
+    text(lines.log, foregroundMuted, "log"),
     text(lines.spend, foreground, "spend"),
     text(lines.questions, foreground, "questions"),
   );

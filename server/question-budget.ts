@@ -1,5 +1,6 @@
 import { isStreamAgent, isTicketAgent } from "../shared/role-labels.ts";
-import { budgetOf, dayOf, type Env } from "../shared/question-budget.ts";
+import { BUDGET_ENV, budgetOf, dayOf, type Env } from "../shared/question-budget.ts";
+import type { NewEntry } from "./decision-log.ts";
 import type { Host, HostAgent, HostHooks, PermissionRequest } from "./host.ts";
 import { MESSAGES } from "./messages.ts";
 import { readStateFile, writeStateFile } from "./state.ts";
@@ -11,7 +12,13 @@ export type BudgetRecord = { day: string; count: number; notified: boolean };
 export type BudgetStore = { load(): BudgetRecord | null; save(record: BudgetRecord): void };
 
 /** What the handler reads from outside; a test passes its own. */
-export type BudgetOptions = { env?: Env; now?: () => Date; store?: BudgetStore };
+export type BudgetOptions = {
+  env?: Env;
+  now?: () => Date;
+  store?: BudgetStore;
+  /** Told once a day, only after the `Question budget spent:` message was sent or held (never when the send failed), with the decision-log entry that records it; a throw is caught and logged with the agent's id and the kind only. */
+  spent?: (entry: NewEntry) => void;
+};
 
 const RECORD_FILE = "question-budget.json";
 
@@ -115,6 +122,20 @@ export function registerQuestionBudget(hooks: HostHooks, options: BudgetOptions 
       record.notified = false;
       save(record, agent.id);
       throw error;
+    }
+
+    // Sent or held: the log says once that the budget was spent and the orchestrator told (T4: a log that cannot be written changes nothing sent).
+    try {
+      options.spent?.({
+        kind: "question budget spent",
+        stream: labels["stream"] ?? "",
+        agent: agent.id,
+        asked: `none: the day's question count reached the budget with a question from agent ${agent.id}`,
+        answer: text,
+        grounds: `${BUDGET_ENV}=${budget}`,
+      });
+    } catch {
+      console.error(`[matt-with-paseo] decision log not written for agent ${agent.id}: question budget spent`);
     }
   }
 
