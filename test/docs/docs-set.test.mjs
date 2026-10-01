@@ -206,14 +206,11 @@ test("ADR 0002 points to ADR 0004 from its status line and from non-goals 3 and 
   hasNot(sixth, "merge stays with a human, and");
 });
 
-test("no sentence of ADR 0002 or ADR 0004 says the plugin writes git", () => {
-  for (const text of [read(ADR), read(ADR4_FILE)]) {
-    const sentences = flat(text).split(/(?<=[.:;])\s/);
-    for (const sentence of sentences) {
-      if (!/plugin (commits|pushes|merges|runs git|writes (to )?git)/i.test(sentence)) continue;
-      assert.match(sentence, /never|not|no\b|nor\b/i, `says the plugin writes git: ${sentence}`);
-    }
-  }
+// That the plugin runs no git is proven on the code (`test/state-outside-repo.test.ts` refuses `node:child_process`);
+// here only the structure: ADR 0004 links back to ADR 0002, whose non-goal 6 it amends.
+test("ADR 0004 links ADR 0002, and ADR 0002 keeps its non-goal 6 heading", () => {
+  assert.ok(linkTargets(read(ADR4_FILE)).some((target) => target.endsWith("0002-what-the-plugin-will-never-do.md")), "no link to ADR 0002");
+  assert.ok(read(ADR).split("\n").some((line) => line.startsWith("### 6. ")), "ADR 0002 has no non-goal 6 heading");
 });
 
 test("the README links ADR 0004 next to ADR 0002 and says the five items reach the owner below level 3", () => {
@@ -257,7 +254,7 @@ test("the roadmap lists v0.1.0 to v0.5.0 in order, each with its theme, and its 
   });
 });
 
-test("v0.1.0 lists the issues it carries, the new tickets by number, the fourteen exit criteria in order, the skills-side dependencies and the named fallback", () => {
+test("v0.1.0 lists the issues it carries, the new tickets by number, the fifteen exit criteria in order, the skills-side dependencies and the named fallback", () => {
   const v1 = milestone(read(ROADMAP), 1);
   const carried = section(v1, "### Carried by existing issues");
   for (let n = 1; n <= 19; n++) {
@@ -268,11 +265,11 @@ test("v0.1.0 lists the issues it carries, the new tickets by number, the fourtee
   const tickets = listItems(section(v1, "### New tickets"));
   assert.deepEqual(
     tickets.map((item) => Number(item.match(/#(\d+)\s*$/)?.[1])),
-    [34, 33, 37, 35, 36, 38, 39, 40, 41, 43, 45, 48, 49, 57, 58],
+    [34, 33, 37, 35, 36, 38, 39, 40, 41, 43, 45, 48, 49, 57, 58, 51, 52, 53, 54, 55, 56],
   );
 
   const criteria = listItems(section(v1, "### Exit criteria"));
-  assert.equal(criteria.length, 14);
+  assert.equal(criteria.length, 15);
   [
     "CI is green on Windows, macOS and Linux (#17)",
     "A smoke test passes on a real daemon",
@@ -284,6 +281,7 @@ test("v0.1.0 lists the issues it carries, the new tickets by number, the fourtee
     "A delegated question is answered within the `## Delegation` table's level and rules and never outside them",
     "The question budget and the appetite are counted",
     "The report card shows what was decided on the user's behalf",
+    "`decision-log.md`",
     "An unattended stream runs end to end with no heartbeat and with delegation on",
     "The README carries the vision, and ADR 0002 and `docs/roadmap.md` exist",
     "The README documents installing from git and says it was tested on Node 22, with no `engines` field",
@@ -292,7 +290,8 @@ test("v0.1.0 lists the issues it carries, the new tickets by number, the fourtee
 
   const dependencies = section(v1, "### Skills-side dependencies");
   has(dependencies, "listed, not filed");
-  assert.equal(listItems(dependencies).length, 7);
+  assert.equal(listItems(dependencies).length, 8);
+  has(dependencies, "`decisions.md`");
   has(dependencies, "hanh9898/matt-with-paseo#78");
   has(dependencies, "hanh9898/matt-with-paseo#91");
   has(dependencies, "the `## Delegation` table format");
@@ -300,7 +299,7 @@ test("v0.1.0 lists the issues it carries, the new tickets by number, the fourtee
   const fallback = section(v1, "### Named fallback");
   has(fallback, "ships the plugin alone");
   has(fallback, "proven against the contract on the fake host");
-  has(fallback, "Criteria 6, 7, 8, 10 and 11 then move to `v0.2.0`");
+  has(fallback, "Criteria 6, 7, 8, 10 and 12 then move to `v0.2.0`");
 });
 
 test("v0.2.0's watch carries the bundle-stop condition", () => {

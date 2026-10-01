@@ -39,6 +39,12 @@ Status: in progress (the milestone run, on `release/v0.1.0`)
 13. Stall suspected for a running ticket agent: #49
 14. ADR 0004, three autonomy levels: #57
 15. Read the `Level` row: answer and log per autonomy level: #58
+16. The shared bundle imports no Node module: move state-location to server: #51
+17. The plugin loads on a real Paseo 0.10.1 daemon: no module-level `import.meta.url`: #52
+18. A scripted smoke runner on a scratch Paseo home: #53
+19. The decision log: every delegated answer and every question left to the user, as `D<n>` entries numbered across restarts: #54
+20. The decision log records every appetite and question-budget stop: #55
+21. The report card links to the decision log and stays under the 64 KiB row cap: #56
 
 ### Exit criteria
 
@@ -54,10 +60,11 @@ In the order they are met:
 8. A delegated question is answered within the `## Delegation` table's level and rules and never outside them. At level 1 every question reaches the user; at level 2 the user's five items still do; at every level a question with no recommendation does, and the plugin runs no git.
 9. The question budget and the appetite are counted: a stream past its appetite sends its questions to the user, and a spent budget tells the user and widens no delegation (#39).
 10. The report card shows what was decided on the user's behalf.
-11. An unattended stream runs end to end with no heartbeat and with delegation on.
-12. The README carries the vision, and ADR 0002 and `docs/roadmap.md` exist.
-13. The README documents installing from git and says it was tested on Node 22, with no `engines` field.
-14. The `v0.1.0` milestone run.
+11. Every answer the plugin gives on the user's behalf, every question it leaves to the user, and every appetite or budget stop is written to the decision log (`decision-log.md` under the state directory) in the control folder's `decisions.md` shape (`D<n>`, `Asked:`, `Answer:`, `Grounds:`), numbered across daemon restarts, and the report card shows the log's path.
+12. An unattended stream runs end to end with no heartbeat and with delegation on.
+13. The README carries the vision, and ADR 0002 and `docs/roadmap.md` exist.
+14. The README documents installing from git and says it was tested on Node 22, with no `engines` field.
+15. The `v0.1.0` milestone run.
 
 ### Skills-side dependencies
 
@@ -69,11 +76,12 @@ These are listed, not filed: filing them in `hanh9898/matt-with-paseo` stays wit
 - the `## Delegation` table format;
 - hanh9898/matt-with-paseo#78 (recommendation, default while silent, door class);
 - hanh9898/matt-with-paseo#91 (report card from the record);
+- the control folder's `decisions.md` points to the plugin's decision log and does not log twice what the plugin logged;
 - criterion 6 above.
 
 ### Named fallback
 
-If the skills side is late, `v0.1.0` ships the plugin alone, with its delegation halves proven against the contract on the fake host. Criteria 6, 7, 8, 10 and 11 then move to `v0.2.0`. Contract v1 ships in `v0.1.0` either way.
+If the skills side is late, `v0.1.0` ships the plugin alone, with its delegation halves proven against the contract on the fake host. Criteria 6, 7, 8, 10 and 12 then move to `v0.2.0`. Contract v1 ships in `v0.1.0` either way.
 
 ## v0.2.0: The watch
 
