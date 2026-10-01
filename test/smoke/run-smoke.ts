@@ -206,7 +206,8 @@ class Checks {
   failed = false;
   check(name: string, ok: boolean, detail = ""): void {
     if (!ok) this.failed = true;
-    this.lines.push(`${ok ? "ok" : "FAIL"} ${name}${detail === "" ? "" : ` (${brief(detail, process.env["MWP_SMOKE_DEBUG"] === undefined ? 160 : 2000)})`}`);
+    const shown = !ok || detail.length <= 80 ? detail : "";
+    this.lines.push(`${ok ? "ok" : "FAIL"} ${name}${shown === "" ? "" : ` (${brief(shown, ok ? 80 : process.env["MWP_SMOKE_DEBUG"] === undefined ? 300 : 2000)})`}`);
   }
   note(text: string): void {
     this.lines.push(text);
@@ -499,6 +500,8 @@ async function p7(): Promise<ProbeResult> {
   const at2 = await inspectField(stream, field);
   await sleep(Math.max(0, start + 420_000 - Date.now()));
   const at7 = await inspectField(stream, field);
+  const states = await Promise.all([stream, ticket, bundle].map((id) => statusOf(id)));
+  c.check("the three agents are still running at minute 7 (a stuck call, not a finished turn)", states.every((s) => s === "running"), states.join(","));
   c.check(`${field} read at minute 2 and minute 7 is equal while the call is stuck`, at2 !== "" && at2 === at7, `${at2} | ${at7}`);
   const wanted = [`Stall suspected: stream sensor7, agent ${stream}`, `Stall suspected: ticket 98 of wave 1, agent ${ticket}`, `Stall suspected: bundle 97 (tickets 97,98) of wave 1, agent ${bundle}`];
   await until(() => logsOf(o), (t) => wanted.every((w) => t.includes(w)), Math.max(30, (start + 700_000 - Date.now()) / 1000));
@@ -728,7 +731,7 @@ async function main(): Promise<void> {
     }
     const mine = section.probes.map((id) => ({ id, result: probeResults.get(id) }));
     const missing = mine.some((m) => m.result === undefined);
-    const status: Status = missing ? "fail" : mine.some((m) => m.result?.status === "fail") ? "fail" : (mine.find((m) => m.result?.status.startsWith("blocked"))?.result?.status ?? "pass");
+    const status: Status = missing ? "fail" : mine.some((m) => m.result?.status === "fail") ? "fail" : (mine.find((m) => m.result?.status.startsWith("blocked"))?.result?.status ?? (mine.some((m) => m.result?.status === "human") ? "human" : "pass"));
     return { ...base, section: section.name, status, evidence: mine.map((m) => `${m.id}: ${m.result?.evidence ?? "not run"}`).join(" // ") };
   });
   if (ONLY === null) writeFileSync(README, withResults(readFileSync(README, "utf8"), results, HUMAN_STEPS));
