@@ -253,7 +253,7 @@ What it does not do:
 
 - No model is wired. `off-task` is a named slot (`check: "model"`, `model: null`): the data holds its question, and the sensor lists it and never flags it, until a later ticket gives it a caller.
 - The turn-end check sees a ticket agent at its turn ends only, and an agent stuck in a call has none. The tick covers that: it also watches a running ticket agent, a bundle agent included, that has a `parentAgentId`, with the same `quiet-running` condition and once per idle stretch, and the message goes to that parent.
-- `lastActivityAt` and a `context.paseo` kept from a hook call (the tick builds its host from the latest one) are read from the SDK's types and docs for Paseo `0.10.1`, not run; the smoke test ("Cheap sensor") confirms them, and records `updatedAt` if `lastActivityAt` is missing.
+- Paseo `0.10.1`'s agent snapshot has no `lastActivityAt`, so the adapter falls back to its `updatedAt`, which stands still while a call is stuck (#62); a snapshot that has `lastActivityAt` still uses it. That and a `context.paseo` kept from a hook call (the tick builds its host from the latest one) are confirmed by the smoke test ("Cheap sensor").
 - It does not judge: the flagged case goes to the orchestrator's stall judgement, which decides. The skill's part of the change is in `hanh9898/matt-with-paseo`.
 - The `tool_call` item type and the `text` and `name` fields it reads are those of Paseo `0.10.1`'s timeline as read, not run; the smoke test ("Cheap sensor") confirms them.
 - No eval case is written: `claude plugin eval` runs a Claude Code plugin's prompts, and this repository's Claude Code plugin holds one `PreToolUse` hook and no skill, so no eval prompt can reach the sensor, which lives in the Paseo plugin. The proof that a stalled agent is still caught is `test/hooks/stall-sensor.test.ts`, on the fake host, and the smoke test on a real one.
@@ -361,7 +361,7 @@ A public plugin should not litter the repositories it works in. The plugin keeps
 | `client/waiting-pill.ts` | The pill registered for each agent | In memory |
 | `server/decision-log.ts` | Every decision taken or left on the owner's behalf, numbered `D<n>` across restarts | `decision-log.jsonl` (the record) and `decision-log.md` (the file the owner reads) under the state directory |
 | `server/question-budget.ts` | The day's count of questions left to the user and whether the orchestrator was told; the requests seen this turn and the message held for a busy orchestrator | `question-budget.json` under the state directory; the rest in memory |
-| `server/harness.ts`, `server/sensor.ts` | Nothing: they read the plugin's own `harness/` and `sensor/` files | Read only |
+| `server/harness.ts`, `server/sensor.ts`, `server/cost-levels.ts` | Nothing: they read the embedded copies in `server/data/` of the plugin's own `harness/`, `sensor/` and `presets/` files | Read only |
 
 A restart of the plugin forgets what those hold and starts from the next event, as it did before; the holders that would need to survive one (a gate queue across a daemon restart, say) add their row here and write through `server/state.ts`.
 

@@ -1,6 +1,6 @@
 # Smoke test: the plugin loads on a real Paseo host
 
-Written, not run by the ticket that added it. The stream runs it once, at its end (`docs/agents/evidence-standards.md`).
+Run by the milestone run, scripted where a script can (`## The scripted run`), by hand for the rest (`docs/agents/evidence-standards.md`). A section headed "Written, not run" is the hand version of what the script runs.
 
 | Manifest range (`requirements.paseo`) | Paseo version this smoke test targets |
 |---|---|
@@ -12,7 +12,7 @@ Installing the plugin touches every session on the machine's daemon. Run it only
 
 ## The scripted run
 
-`node test/smoke/run-smoke.ts` runs every section a script can on a scratch Paseo daemon (its own home in the system temp folder, its own free port, the plugin installed from a `git archive HEAD` copy with `test/smoke/conditions.json` over `server/data/conditions.json`) and writes one line per section under `## Results`. It takes about 30 minutes, spends a few cents of the machine's own Claude Code login on `claude-haiku-4-5` turns, and needs `paseo` 0.10.1 and `claude` on the machine. `--only P1,P8` runs the named probes and writes nothing. It scrubs `PASEO_*` and every name holding `API_KEY`, `TOKEN` or `SECRET` from the environment of every child, passes `--home <scratch>` to every `paseo` call, and on exit, also after a failure or interrupt, removes `mwp-smoke`, stops the scratch daemon and deletes the scratch folder. The decisions it takes without a daemon are in `test/smoke/smoke-plan.ts`. The batches and sections below are the hand version of the same run.
+`node test/smoke/run-smoke.ts` runs every section a script can on a scratch Paseo daemon (its own home in the system temp folder, its own free port, the plugin installed from a `git archive HEAD` copy with `test/smoke/conditions.json` over `server/data/conditions.json`) and writes one line per section under `## Results`. It takes about 30 minutes, spends a few cents of the machine's own Claude Code login on `claude-haiku-4-5` turns, and needs `paseo` 0.10.1 and `claude` on the machine. `--only P1,P8` runs the named probes and rewrites only the `## Results` lines of the sections whose every probe it ran; every other line stays. The plugin it installs is the last commit, not the working tree: commit a fix before the run that proves it. It scrubs `PASEO_*` and every name holding `API_KEY`, `TOKEN` or `SECRET` from the environment of every child, passes `--home <scratch>` to every `paseo` call, and on exit, also after a failure or interrupt, removes `mwp-smoke`, stops the scratch daemon and deletes the scratch folder. The decisions it takes without a daemon are in `test/smoke/smoke-plan.ts`. The batches and sections below are the hand version of the same run.
 
 ## Daemon batches
 
@@ -195,7 +195,8 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Waiting pill", with `mwp
 3. Repeat with a text that also holds `Yours: spend`. Expected: left to the user, with `one of the user's five (level 2)` in the decision log.
 4. Repeat with `Door: one-way`, with the table row listing `one-way`. Expected: left to the user, at level 2 still.
 5. Repeat with the first option `Red` (no mark). Expected: left to the user.
-6. Set the row `Switch | off` in place of `Level | 2`, then delete the table. Expected: the step 1 question is left to the user both times.7. Set the rows `Level | 3` and `Questions the orchestrator may decide | two-way, costly, one-way`. Ask one question, header `Merge`, text with the lines `Door: one-way` and `Yours: merge`, first option `Merge (Recommended)`. Expected: answered with `Merge (Recommended)`, the decision log's grounds read `level 3 (the Level row)` and `Yours: merge answered at level 3`, and nothing is merged: the repository's branches and `git log` are unchanged until the orchestrator merges. With `one-way` removed from the row, the same question is left to the user.
+6. Set the row `Switch | off` in place of `Level | 2`, then delete the table. Expected: the step 1 question is left to the user both times.
+7. Set the rows `Level | 3` and `Questions the orchestrator may decide | two-way, costly, one-way`. Ask one question, header `Merge`, text with the lines `Door: one-way` and `Yours: merge`, first option `Merge (Recommended)`. Expected: answered with `Merge (Recommended)`, the decision log's grounds read `level 3 (the Level row)` and `Yours: merge answered at level 3`, and nothing is merged: the repository's branches and `git log` are unchanged until the orchestrator merges. With `one-way` removed from the row, the same question is left to the user.
 8. Ask two questions in one call, one answerable and one with `Yours: merge` (at `Level | 2`). Expected: neither is answered.
 9. Ask the step 1 question from an agent with no labels. Expected: left to the user, and the daemon log names no read of `AGENTS.md`.
 10. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
