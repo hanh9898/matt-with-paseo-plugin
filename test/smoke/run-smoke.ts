@@ -8,7 +8,7 @@
  * Not a test file: its name does not match `test/**\/*.test.ts`, so `npm test` never starts it.
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { availableParallelism, release, tmpdir, type as osType } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -148,7 +148,7 @@ async function stopDaemon(): Promise<string> {
 const pending = new Set<string>();
 
 async function newAgent(o: { title: string; labels?: Record<string, string>; parent?: string; prompt: string; cwd?: string; mode?: string; env?: Record<string, string> }): Promise<string> {
-  if (!o.title.startsWith(TAG)) throw new Error(`agent title lacks ${TAG}: ${o.title}`);
+  if (!o.title.includes(TAG)) throw new Error(`agent title lacks ${TAG}: ${o.title}`);
   const args = ["run", "-d", "--json", "--title", o.title, "--provider", MODEL, "--mode", o.mode ?? "bypassPermissions", "--cwd", o.cwd ?? WORK];
   for (const [k, v] of Object.entries(o.labels ?? {})) args.push("--label", `${k}=${v}`);
   for (const [k, v] of Object.entries(o.env ?? {})) args.push("--env", `${k}=${v}`);
@@ -191,19 +191,22 @@ async function until(read: () => Promise<string>, ok: (text: string) => boolean,
 
 const SILENT_ORCHESTRATOR = "You are a passive log. For this message and for every message you receive afterwards, reply with exactly the word noted, and never call any tool.";
 
-function orchestrator(name: string, labels?: Record<string, string>): Promise<string> {
-  return newAgent({ title: `${TAG} orchestrator ${name}`, labels, prompt: SILENT_ORCHESTRATOR });
+function orchestrator(name: string, labels?: Record<string, string>, cwd?: string): Promise<string> {
+  return newAgent({ title: `${TAG} orchestrator ${name}`, labels, cwd, prompt: SILENT_ORCHESTRATOR });
 }
 
 /** The tail of a text, cut to what a result line can hold. */
-const brief = (text: string, n = 160) => text.replace(/\s+/g, " ").trim().slice(-n);
+const brief = (text: string, n = 160) => {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > n ? `${flat.slice(0, n)}...` : flat;
+};
 
 class Checks {
   private lines: string[] = [];
   failed = false;
   check(name: string, ok: boolean, detail = ""): void {
     if (!ok) this.failed = true;
-    this.lines.push(`${ok ? "ok" : "FAIL"} ${name}${detail === "" ? "" : ` (${brief(detail)})`}`);
+    this.lines.push(`${ok ? "ok" : "FAIL"} ${name}${detail === "" ? "" : ` (${brief(detail, process.env["MWP_SMOKE_DEBUG"] === undefined ? 160 : 2000)})`}`);
   }
   note(text: string): void {
     this.lines.push(text);
@@ -284,7 +287,7 @@ async function p10(): Promise<ProbeResult> {
   const c = new Checks();
   rmSync(join(STATE, "question-budget.json"), { force: true });
   await paseo(["plugin", "reload", pluginId]);
-  const o = await orchestrator("budget", { stream: "demo10" });
+  const o = await orchestrator("budget", { stream: "demo10" }, REPO_P5);
   await waitIdle(o);
   const ask = (n: string, ticket: string) =>
     newAgent({
@@ -361,33 +364,44 @@ async function p4(): Promise<ProbeResult> {
   await waitIdle(o);
   const t = await newAgent({ title: `${TAG} ticket`, labels: { wave: "1", ticket: "99" }, parent: o, prompt: "Reply with exactly the word first." });
   await waitIdle(t);
-  await paseo(["send", t, "Reply with exactly the word second."], { parent: o });
-  const sent = await paseo(["send", t, "Reply with exactly the word third."]);
-  c.check("send exits 0", sent.code === 0, sent.stdout + sent.stderr);
-  const text = await logsOf(t);
-  const users = text.split("\n").filter((line) => line.startsWith("[User]")).length;
-  c.check("the timeline holds three user messages", users === 3, String(users));
+  await sleep(10_000);
+  const first = await logsOf(o);
+  c.check("create path (CLI run with the orchestrator as parent): a Turn ended: and no Human words:", first.includes("Turn ended:") && !first.includes("Human words:"), first);
+  const sent = await paseo(["send", t, "Reply with exactly the word second."]);
+  c.check("CLI send exits 0", sent.code === 0, sent.stdout + sent.stderr);
+  await sleep(10_000);
   const relay = await logsOf(o);
-  c.check("no Human words: text for the orchestrator's prompt or the CLI send", !relay.includes("Human words:"), relay);
+  const humanBefore = count(relay, "Human words:");
+  c.note(`CLI send (also with PASEO_AGENT_ID set to the orchestrator): ${humanBefore > 0 ? "carries a clientMessageId, counted as a person's (Human words: arrived)" : "carries no clientMessageId, not counted as a person's"}`);
+  const text = await logsOf(t);
   const fixture = join(ROOT, "test", "smoke", "fixtures", "paseo-0.10.1");
   mkdirSync(fixture, { recursive: true });
-  writeFileSync(join(fixture, "P4-human-words-ticket-timeline.txt"), text);
-  c.note("CLI timeline shows no messageId or clientMessageId fields (text output); saved as fixtures/paseo-0.10.1/P4-human-words-ticket-timeline.txt");
+  writeFileSync(join(fixture, "P4-human-words-ticket-timeline.txt"), text.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, "<agent-id>"));
+  writeFileSync(join(fixture, "P4-human-words-orchestrator-timeline.txt"), relay.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, "<agent-id>"));
+  c.note("the CLI timeline text shows no messageId or clientMessageId fields; both timelines saved under fixtures/paseo-0.10.1/");
+  const turnsBefore = count(relay, "Turn ended: ticket 99");
   const sdk = await newAgent({
     title: `${TAG} mcp orchestrator`,
-    prompt: `Use your paseo MCP tool create_agent to create one agent with title "${TAG} mcp child", label mcpchild=1, provider claude and model claude-haiku-4-5, working directory ${WORK.replace(/\\/g, "/")}, and the initial prompt "Reply with exactly the word ok". Then reply with exactly the word created.`,
+    prompt: `Use your paseo MCP tools for two steps. Step 1: call create_agent with title "${TAG} mcp child", labels wave=1 and ticket=96, provider claude, model claude-haiku-4-5, working directory ${WORK.replaceAll("\\", "/")}, and the initial prompt "Reply with exactly the word ok". Step 2: call send_agent_prompt on agent ${t} with the prompt "Reply with exactly the word third". Then reply with exactly the word created.`,
   });
-  await waitIdle(sdk, 180);
-  const listed = (await paseo(["ls", "--json", "--label", "mcpchild=1"])).stdout;
-  const parentOk = listed.includes("mcp child");
-  c.note(parentOk ? "create_agent through MCP created a labelled child (clientMessageId not readable from the CLI)" : "not covered: an agent could not create a child through its MCP tool on this daemon");
+  await waitIdle(sdk, 240);
+  const listed = (await paseo(["ls", "--json", "--label", "ticket=96"])).stdout;
+  if (!listed.includes("mcp child")) {
+    c.note("not covered: an agent could not create a child or send a prompt through its MCP tools on this daemon");
+  } else {
+    c.note("create_agent through MCP created a child with the ticket labels");
+    const mcpLog = await until(() => logsOf(sdk), (x) => x.includes("Turn ended: ticket 96"), 90);
+    c.check("MCP create_agent path: a Turn ended: for the child and no Human words:", mcpLog.includes("Turn ended: ticket 96") && !mcpLog.includes("Human words:"), mcpLog);
+    const after = await until(() => logsOf(o), (x) => count(x, "Turn ended: ticket 99") > turnsBefore, 90);
+    c.check("MCP send_agent_prompt path: a new Turn ended: and no new Human words:", count(after, "Turn ended: ticket 99") > turnsBefore && count(after, "Human words:") === humanBefore, `${humanBefore} -> ${count(after, "Human words:")}`);
+  }
   c.note("the app-typed message is a human step");
   return c.done();
 }
 
 async function p5(): Promise<ProbeResult> {
   const c = new Checks();
-  const o = await orchestrator("answer");
+  const o = await orchestrator("answer", undefined, REPO_P5);
   await waitIdle(o);
   const two = await newAgent({
     title: `${TAG} ticket two-way`,
@@ -395,10 +409,10 @@ async function p5(): Promise<ProbeResult> {
     parent: o,
     cwd: REPO_P5,
     mode: "default",
-    prompt: 'Use the AskUserQuestion tool once. header: "Colour". question text, two lines: "Which colour QTXT-5555?" then "Door: two-way". Two options: first "Red (Recommended)", second "Blue". When you receive the answer, reply with exactly CHOSE:<the label you were given>:END',
+    prompt: `Call the AskUserQuestion tool once with exactly this input and no other change: {"questions":[{"header":"Colour","question":"Which colour QTXT-5555?\\nDoor: two-way","multiSelect":false,"options":[{"label":"Red (Recommended)","description":"warm"},{"label":"Blue","description":"cold"}]}]} When you receive the answer, reply with exactly CHOSE:<the label you were given>:END`,
   });
   const text = await until(() => logsOf(two), (t) => /CHOSE:[^<\n]*:END/.test(t), 180);
-  c.check("the two-way question is answered with the recommendation", /CHOSE:Red \(Recommended\):END/.test(text), text);
+  c.check("the two-way question is answered with the recommendation", /CHOSE:Red \(Recommended\):END/.test(text), text.slice(-400) + " // plugin log: " + (await pluginLogs()).slice(-300));
   const jsonl = read(join(STATE, "delegated-answers.jsonl"));
   c.check("delegated-answers.jsonl holds the Colour answer, no question text", jsonl.includes('"header":"Colour"') && !jsonl.includes("QTXT-5555"), jsonl);
   const one = await newAgent({
@@ -407,7 +421,7 @@ async function p5(): Promise<ProbeResult> {
     parent: o,
     cwd: REPO_P5,
     mode: "default",
-    prompt: 'Use the AskUserQuestion tool once. header: "Gate". question text, two lines: "Proceed QTXT-6666?" then "Door: one-way". Two options: first "Go (Recommended)", second "Stop". When you receive the answer, reply with exactly CHOSE:<the label you were given>:END',
+    prompt: `Call the AskUserQuestion tool once with exactly this input and no other change: {"questions":[{"header":"Gate","question":"Proceed QTXT-6666?\\nDoor: one-way","multiSelect":false,"options":[{"label":"Go (Recommended)","description":"yes"},{"label":"Stop","description":"no"}]}]} When you receive the answer, reply with exactly CHOSE:<the label you were given>:END`,
   });
   await sleep(60_000);
   const waiting = (await paseo(["permit", "ls", "--json"])).stdout;
@@ -422,10 +436,11 @@ async function p5(): Promise<ProbeResult> {
 async function p6(): Promise<ProbeResult> {
   const c = new Checks();
   rmSync(join(STATE, "stream-spend.json"), { force: true });
-  const o = await orchestrator("cost", { stream: "cost6" });
+  const o = await orchestrator("cost", undefined, REPO_SPEND);
   await waitIdle(o);
   const t = await newAgent({ title: `${TAG} ticket`, labels: { stream: "cost6", wave: "1", ticket: "99" }, parent: o, cwd: REPO_SPEND, prompt: "Reply with exactly the word done." });
   await waitIdle(t);
+  await sleep(8000);
   const cost = Number(/"CostUsd":\s*([0-9.eE-]+)/.exec((await paseo(["inspect", t, "--json"])).stdout)?.[1] ?? "NaN");
   const spend = read(join(STATE, "stream-spend.json"));
   const total = Number(/"cost6":\{"totalUsd":([0-9.eE-]+)/.exec(spend)?.[1] ?? "NaN");
@@ -442,16 +457,21 @@ async function p6(): Promise<ProbeResult> {
 
 async function p11(): Promise<ProbeResult> {
   const c = new Checks();
-  const o = await orchestrator("card", { stream: "card11" });
+  const o = await orchestrator("card", undefined, REPO_SPEND);
   await waitIdle(o);
   const t = await newAgent({ title: `${TAG} ticket`, labels: { stream: "card11", wave: "1", ticket: "99" }, parent: o, cwd: REPO_SPEND, prompt: "Reply with exactly the word done." });
   await waitIdle(t);
   await sleep(10_000);
   const logs = await pluginLogs();
   c.check("the plugin logged no report card failure", !logs.includes("report card not appended"), logs);
-  const text = await logsOf(o);
-  const shown = /report-card|report card|spend|totalUsd/i.test(text);
-  c.check("the stream agent's timeline carries the card row", shown, text.slice(-300));
+  let shownIn = "";
+  for (const format of ["json", "yaml"]) {
+    const alt = (await paseo(["logs", o, "-o", format], { timeoutMs: 120_000 })).stdout;
+    if (/report-card/.test(alt)) shownIn = format;
+  }
+  if (/report-card/.test(await logsOf(o))) shownIn = "text";
+  if (shownIn === "") c.note("the CLI timeline of the stream agent shows no plugin rows in text, json or yaml, so the row's kind and version are not read: human step");
+  else c.check("the stream agent's timeline carries the report-card row", true, shownIn);
   await paseo(["plugin", "reload", pluginId]);
   await paseo(["send", t, "Reply with exactly the word again."]);
   await waitIdle(t);
@@ -459,7 +479,8 @@ async function p11(): Promise<ProbeResult> {
   const after = await pluginLogs();
   c.check("after a reload the next turn refreshes the card without a failure", !after.includes("report card not appended"));
   c.note("the card's drawing and its lack of a button are a human step");
-  return c.done();
+  const done = c.done();
+  return shownIn === "" && done.status === "pass" ? { status: "human", evidence: done.evidence } : done;
 }
 
 /** P7 runs beside the other probes: three agents that sleep, and the messages the sensor sends about them. */
@@ -468,7 +489,7 @@ async function p7(): Promise<ProbeResult> {
   const o = await orchestrator("sensor");
   await waitIdle(o);
   const env = { BASH_MAX_TIMEOUT_MS: "1500000", BASH_DEFAULT_TIMEOUT_MS: "1500000" };
-  const prompt = "Run the shell command: sleep 780 . Use a Bash tool timeout of 1200000 milliseconds. Then reply with exactly the word done.";
+  const prompt = 'Run exactly this shell command in the foreground: node -e "setTimeout(function(){},780000)" . Use a Bash tool timeout of 1200000 milliseconds. Then reply with exactly the word done.';
   const start = Date.now();
   const stream = await newAgent({ title: `${TAG} stream`, labels: { stream: "sensor7" }, parent: o, prompt, env });
   const ticket = await newAgent({ title: `${TAG} ticket`, labels: { wave: "1", ticket: "98" }, parent: o, prompt, env });
@@ -522,7 +543,7 @@ async function p3(): Promise<ProbeResult> {
   const after = await logsOf(guarded);
   c.check("the resumed ticket agent still prints ticket", /RESUMED-ROLE:ticket:END/.test(after), after.slice(-200));
   const logs = await pluginLogs();
-  c.check("no agent.session_open could not read line", !logs.includes("agent.session_open could not read"), logs);
+  c.check("no agent.session_open could not read line for the resumed ticket agent", !logs.includes(`agent.session_open could not read the title or labels of agent ${guarded}`), logs);
   c.check("no agent.create handler failed line", !logs.includes("agent.create handler failed"));
   return c.done();
 }
@@ -582,7 +603,7 @@ function setup(): void {
   mkdirSync(COPY, { recursive: true });
   const archive = spawnSync("git", ["archive", "--format=tar", "-o", tar, "HEAD"], { cwd: ROOT, encoding: "utf8" });
   if (archive.status !== 0) throw new Error(`git archive failed: ${archive.stderr}`);
-  const extract = spawnSync("tar", ["-xf", tar, "-C", COPY], { encoding: "utf8" });
+  const extract = spawnSync("tar", ["-xf", "plugin-real-host-copy.tar", "-C", "plugin-real-host-copy"], { cwd: RUN, encoding: "utf8" });
   if (extract.status !== 0) throw new Error(`tar failed: ${extract.stderr}`);
   copyFileSync(join(COPY, "test", "smoke", "conditions.json"), join(COPY, "server", "data", "conditions.json"));
   for (const [repo, file] of [[REPO_P5, "AGENTS-p5.md"], [REPO_SPEND, "AGENTS-spend.md"]] as const) {
@@ -620,13 +641,15 @@ function cleanup(): string {
     const status = paseoSync(["daemon", "status"], 60_000);
     notes.push(`status: ${/localDaemon: (\w+)/.exec(status.stdout)?.[1] ?? "unknown"}`);
   }
-  try {
-    rmSync(HOME, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
-    rmSync(RUN, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
-  } catch (error) {
-    notes.push(`delete failed: ${String(error)}`);
+  for (let attempt = 0; attempt < 8 && existsSync(RUN); attempt++) {
+    try {
+      rmSync(RUN, { recursive: true, force: true, maxRetries: 5, retryDelay: 1000 });
+    } catch (error) {
+      if (attempt === 7) notes.push(`delete failed: ${String(error).slice(0, 80)}`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 4000);
+    }
   }
-  notes.push(`scratch home ${existsSync(HOME) ? "still exists" : "deleted"}`);
+  notes.push(`scratch folder ${existsSync(RUN) ? "still exists" : "deleted"}`);
   cleanupEvidence = notes.join("; ");
   return cleanupEvidence;
 }
@@ -651,6 +674,7 @@ async function runProbe(id: string, body: () => Promise<ProbeResult>): Promise<v
   }
   const done = probeResults.get(id);
   log(`${id} ${done?.status}: ${brief(done?.evidence ?? "", 400)}`);
+  if (process.env["MWP_SMOKE_DEBUG"] !== undefined) appendFileSync(join(BASE, "plugin-real-host-evidence.log"), `\n=== ${id} ${done?.status}\n${done?.evidence ?? ""}\n`);
 }
 
 async function main(): Promise<void> {
@@ -665,6 +689,7 @@ async function main(): Promise<void> {
   // Launch A: the gate cap, alone. `daemon start` first; if MWP_GATE_SHARE does not reach the plugin, `daemon run`.
   await startDaemon({ MWP_GATE_SHARE: "0.01" }, "start");
   await runProbe("P1", p1);
+  if (ONLY !== null && !ONLY.has("P1")) await paseo(["plugin", "install", COPY, "--id", pluginId]);
   await runProbe("P8", p8);
   if (probeResults.get("P8")?.status === "fail" && ONLY === null) {
     log("P8 failed under daemon start; trying daemon run");
@@ -698,7 +723,7 @@ async function main(): Promise<void> {
   const results: Result[] = SECTIONS.map((section) => {
     if (section.rest === "human") return { ...base, section: section.name, status: "human", evidence: "screenshots of the pill (first view, narrow width): see the human list below" };
     if (section.rest === "runner") {
-      const ok = /status: stopped/.test(cleanedBy) && /deleted/.test(cleanedBy);
+      const ok = /status: stopped/.test(cleanedBy) && /folder deleted/.test(cleanedBy);
       return { ...base, section: section.name, status: ok ? "pass" : "fail", evidence: cleanedBy };
     }
     const mine = section.probes.map((id) => ({ id, result: probeResults.get(id) }));

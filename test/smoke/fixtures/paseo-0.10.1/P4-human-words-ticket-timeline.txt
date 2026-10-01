@@ -1,0 +1,6 @@
+[User] Reply with exactly the word first.
+first
+[User] Reply with exactly the word second.
+second
+[User] Reply with exactly the word third.
+third
