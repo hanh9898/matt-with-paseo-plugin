@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { mock, test } from "node:test";
+import { createDecisionLog, parseLog } from "../../server/decision-log.ts";
 import { registerDelegatedAnswers } from "../../server/delegated-answers.ts";
 import type { HostAgent, PermissionRequest } from "../../server/host.ts";
 import { registerWaitingCount } from "../../server/hooks/waiting-count.ts";
+import { MESSAGES } from "../../server/messages.ts";
+import { readStateFile } from "../../server/state.ts";
 import { registerQuestionBudget, type BudgetRecord, type BudgetStore } from "../../server/question-budget.ts";
 import { BUDGET_ENV } from "../../shared/question-budget.ts";
 import { FakeHost } from "../support/fake-host.ts";
@@ -11,7 +17,7 @@ const stream: HostAgent = { id: "stream-1", workspaceId: "w0", parentAgentId: nu
 const ticket: HostAgent = { ...stream, id: "tkt-7", workspaceId: "w1", parentAgentId: "stream-1", title: "[Wave 1] 07" };
 const stranger: HostAgent = { ...stream, id: "stranger", title: null };
 
-const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Questions the orchestrator may decide | two-way |", ""].join("\n");
+const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Level | 2 |", "| Questions the orchestrator may decide | two-way |", ""].join("\n");
 const ask = (id: string, door = "one-way"): PermissionRequest => ({
   id,
   name: "AskUserQuestion",
@@ -246,6 +252,105 @@ test("a send that fails leaves the orchestrator untold, so the next question tri
     await fake.emitPermissionRequested({ agent: ticket, request: ask("r2") });
     assert.equal(budgetMessages(fake).length, 1);
     assert.match(budgetMessages(fake)[0]?.text ?? "", /^Question budget spent: 2 questions/);
+  } finally {
+    errors.mock.restore();
+  }
+});
+
+/** A fresh state directory under the ticket's private temp directory, never the real per-user one. */
+function privateDir(): string {
+  const root = join(tmpdir(), "plugin-decision-log-55-state");
+  mkdirSync(root, { recursive: true });
+  return mkdtempSync(join(root, "budget-"));
+}
+
+const logged = (dir: string) => parseLog(readStateFile("decision-log.jsonl", dir));
+
+/** A host whose budget writes its stop to a decision log in `dir`, as `index.server.ts` wires it. */
+function withLog(dir: string, env: Record<string, string> = { [BUDGET_ENV]: "2" }) {
+  const fake = new FakeHost();
+  const log = createDecisionLog({ dir, now: () => "2026-10-01T03:04:05.000Z" });
+  const budget = registerQuestionBudget(fake, { env, now: () => DAY1, store: memoryStore(), spent: (entry) => void log.append(entry) });
+  registerDelegatedAnswers(fake, { readTable: async () => TABLE, record: () => {}, left: budget.left });
+  fake.setLabels("stream-1", { stream: "demo" });
+  fake.setLabels("tkt-7", { stream: "demo", wave: "1", ticket: "07" });
+  return fake;
+}
+
+test("the question that reaches the budget writes one question budget spent entry that day", async () => {
+  const dir = privateDir();
+  const fake = withLog(dir);
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.deepEqual(logged(dir), [], "one of two is not spent");
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r2") });
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r3") });
+  const entries = logged(dir);
+  assert.equal(entries.length, 1);
+  assert.deepEqual(entries[0], {
+    n: 1,
+    at: "2026-10-01T03:04:05.000Z",
+    stream: "demo",
+    kind: "question budget spent",
+    gate: "question budget spent",
+    asked: "none: the day's question count reached the budget with a question from agent tkt-7",
+    answer: MESSAGES.questionBudgetSpent(2, 2),
+    grounds: "MWP_QUESTION_BUDGET=2",
+    agent: "tkt-7",
+    requestId: null,
+    withoutEvidence: false,
+    what: "",
+  });
+  assert.equal(entries[0]?.answer, budgetMessages(fake)[0]?.text, "the entry holds the text as sent");
+});
+
+test("a message held for a busy orchestrator is logged once, when it is held", async () => {
+  const dir = privateDir();
+  const fake = withLog(dir, { [BUDGET_ENV]: "1" });
+  fake.setRunning("stream-1", true);
+  await fake.emitPermissionRequested({ agent: stream, request: ask("r1") });
+  assert.equal(logged(dir).length, 1);
+  fake.setRunning("stream-1", false);
+  await fake.emitTurnEnded({ agent: stream, outcome: { kind: "completed" }, timeline: [] });
+  assert.equal(budgetMessages(fake).length, 1);
+  assert.equal(logged(dir).length, 1, "the held message going out writes nothing more");
+});
+
+test("a send that fails writes no entry, and the retry that succeeds writes one", async () => {
+  const errors = mock.method(console, "error", () => {});
+  try {
+    const dir = privateDir();
+    const fake = withLog(dir, { [BUDGET_ENV]: "1" });
+    const send = fake.send.bind(fake);
+    let failing = true;
+    fake.send = async (agentId, text) => {
+      if (failing) throw new Error("send refused");
+      await send(agentId, text);
+    };
+    await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+    assert.deepEqual(logged(dir), []);
+    failing = false;
+    await fake.emitPermissionRequested({ agent: ticket, request: ask("r2") });
+    assert.equal(logged(dir).length, 1);
+    assert.equal(logged(dir)[0]?.answer, MESSAGES.questionBudgetSpent(2, 1));
+  } finally {
+    errors.mock.restore();
+  }
+});
+
+test("a log that cannot be written changes neither the message nor its sending, and logs one line (T4, T6)", async () => {
+  const blocker = join(privateDir(), "a-file");
+  writeFileSync(blocker, "not a directory");
+  const errors = mock.method(console, "error", () => {});
+  try {
+    const fake = withLog(join(blocker, "state"), { [BUDGET_ENV]: "1" });
+    await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+    assert.deepEqual(budgetMessages(fake), [{ agentId: "stream-1", text: MESSAGES.questionBudgetSpent(1, 1) }]);
+    assert.equal(errors.mock.callCount(), 1);
+    const line = String(errors.mock.calls[0]?.arguments[0]);
+    assert.ok(line.includes("tkt-7") && line.includes("question budget spent"), line);
+    assert.ok(!line.includes("Which?") && !line.includes(blocker), "no question, no path");
+    await fake.emitPermissionRequested({ agent: ticket, request: ask("r2") });
+    assert.equal(budgetMessages(fake).length, 1, "still once");
   } finally {
     errors.mock.restore();
   }

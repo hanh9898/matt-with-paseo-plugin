@@ -167,7 +167,7 @@ A checkpoint is Paseo's own `AskUserQuestion` (ADR 0001). Its marks are written 
 | Recommendation | The first option, its label ending ` (Recommended)`. A question with no such option has no recommendation, and the plugin never answers it. |
 | Default while silent | A line `Default while silent: <what goes ahead>` in the question text |
 | Door class | A line `Door: two-way`, `Door: costly` or `Door: one-way` in the question text |
-| One of the user's five | A line `Yours: <item>` in the question text, the item one of `concept`, `tickets`, `spend`, `irreversible`, `merge`. The plugin never answers it, delegation or not. |
+| One of the user's five | A line `Yours: <item>` in the question text, the item one of `concept`, `tickets`, `spend`, `irreversible`, `merge`. The plugin never answers it below level 3 ([ADR 0004](adr/0004-three-autonomy-levels.md)); at level 3 it answers one that has a recommendation. |
 
 ## Answers keyed by header
 
@@ -175,24 +175,97 @@ An answer to an `AskUserQuestion` is `updatedInput.answers`, keyed by the questi
 
 ## What the plugin reads from the delegation table
 
-The repository's `## Delegation` table is written by the skills, and its prose format stays a skills-side dependency. The plugin reads two things from it.
+The repository's `## Delegation` table is written by the skills, and its prose format stays a skills-side dependency. The plugin reads three things from it.
 
 | Reads | What it decides |
 |---|---|
+| Level | How much the plugin answers: nothing (level 1), all but the user's five (level 2), all the table lets it (level 3), as [ADR 0004](adr/0004-three-autonomy-levels.md) sets out |
 | Questions the orchestrator may decide | Whether the plugin answers a question with its recommendation |
 | Appetite | The spend past which a stream sends its questions to the user |
 
-The table sits under a `## Delegation` heading in the `AGENTS.md` at the root of the asking agent's folder, as rows of two cells, a rule and its value. The plugin reads three rules by name, ignoring case, and the first row of a name wins:
+The table sits under a `## Delegation` heading in the `AGENTS.md` at the root of the asking agent's folder, as rows of two cells, a rule and its value. The plugin reads four rules by name, ignoring case, and the first row of a name wins:
 
-- `Switch`: `on` or `off`. A table with no `Switch` row is on; any value but `on` is off. With no table, or the switch off, the plugin answers nothing.
-- `Questions the orchestrator may decide`: the door classes the orchestrator may decide, separated by `,` or `;`. Only `two-way` and `costly` count; `one-way` and any other word are dropped, so a `Door: one-way` question is never answered.
+- `Level`: `1`, `2` or `3`, trimmed. Any other value is level 1, and it does not fall back to `Switch`.
+- `Switch`: `on` or `off`, the contract v1 row, kept as a mapping when there is no `Level` row: `on` (ignoring case) is level 2, any other value is level 1. A `Level` row wins over `Switch`.
+- `Questions the orchestrator may decide`: the door classes the orchestrator may decide, separated by `,` or `;`. At levels 1 and 2 only `two-way` and `costly` count; at level 3 `one-way` counts too when the row lists it. Any other word is dropped. See "Doors per level".
 - `Appetite`: the spend as the table writes it, read as a dollar amount (`20 USD`, `$20`, `USD 20` or `20`). Any other value is no appetite, and a stream with none is never past it.
 
-The plugin answers an `AskUserQuestion` from a ticket agent or the stream agent only when every question in it carries a `Door:` line the table lets the orchestrator decide, no `Yours:` line and a first option marked ` (Recommended)`; the answer is that option's label, keyed by the question's `header`. One question that fails leaves the whole request to the user. A table the plugin cannot read leaves the question to the user, as does a stream past its appetite, and a request already resolved is settled and not answered. Each delegated answer is kept outside the repository, one line per question with the stream, agent, header, answer and time, in `delegated-answers.jsonl` under the plugin's state directory.
+The level resolves in this order:
+
+| The table holds | Level | `levelFrom` |
+|---|---|---|
+| A `Level` row whose value is `1`, `2` or `3` | that value | `Level` |
+| A `Level` row with any other value | 1 | `Level` |
+| No `Level` row, a `Switch` row reading `on` | 2 | `Switch` |
+| No `Level` row, a `Switch` row with any other value | 1 | `Switch` |
+| Neither row | 1 | `default` |
+| No `## Delegation` table | 1 (the handler reads a missing table as level 1) | none |
+
+This changes contract v1's "a table with no `Switch` row is on" to level 1: `v0.1.0` is untagged, so v1 is amended in place ([ADR 0003](adr/0003-the-contract-between-the-plugin-and-the-skills.md)), and the contract version stays `1`.
+
+**Doors per level.** The `Questions the orchestrator may decide` row says which door classes the orchestrator may decide, at every level. A level-3 table that wants irreversible questions answered writes `two-way, costly, one-way`; a level-3 table without `one-way` leaves `Door: one-way` questions to the user. Two example tables:
+
+```markdown
+## Delegation
+
+| Rule | Value |
+|---|---|
+| Level | 2 |
+| Questions the orchestrator may decide | two-way, costly |
+| Appetite | 20 USD |
+```
+
+```markdown
+## Delegation
+
+| Rule | Value |
+|---|---|
+| Level | 3 |
+| Questions the orchestrator may decide | two-way, costly, one-way |
+| Appetite | 20 USD |
+```
+
+At level 1 the plugin answers nothing and every question is left, with `level 1: nothing is delegated`. From level 2 the plugin answers an `AskUserQuestion` from a ticket agent or the stream agent only when every question in it carries a `Door:` line the table lets the orchestrator decide, a first option marked ` (Recommended)` and, below level 3, no `Yours:` line (a `Yours:` line is left with `one of the user's five (level 2)`); the answer is that option's label, keyed by the question's `header`. A question with no recommended first option is left with `no recommendation on the first option` at every level: choosing among options with no recommendation is judgement, and the plugin decides mechanics only. A `Door:` line the table does not let the orchestrator decide, no `Door:` line, a multi-select question, a question with no header and two questions sharing a header are left at every level. A stream past its appetite is left at every level, level 3 included (`the stream is past its appetite`). The daily question budget only informs and never widens delegation. At level 3 a `Yours: merge` question with a recommendation is answered with the host's permission answer and nothing else: the orchestrator carries out the merge, and the plugin runs no git at any level. One question that fails leaves the whole request to the user. A table the plugin cannot read leaves the question to the user, and a request already resolved is settled and not answered. Each delegated answer is kept outside the repository, one line per question with the stream, agent, header, answer and time, in `delegated-answers.jsonl` under the plugin's state directory, and once per request in the decision log (see "The decision log").
 
 The plugin sums the spend at each turn end: the agent's `lastUsage.totalCostUsd` is added to the total of its `stream` label, for a ticket agent and the stream agent alike, and the totals are kept in `stream-spend.json` under the plugin's state directory. A turn with no cost adds nothing and marks the total partial, which the report card reads. When a total passes the appetite, the orchestrator gets one "Appetite passed" message (see Message types) and the plugin answers no question of that stream any more, so every one reaches the user. The plugin cancels nothing and stops no agent: any Hold is the skills' decision.
 
 The daily question budget is not in the table: it is a per-machine setting, read from the environment variable `MWP_QUESTION_BUDGET` (a whole number of questions a day) like the plugin's other machine settings ([Decision on #34](https://github.com/hanh9898/matt-with-paseo-plugin/issues/34#issuecomment-5895102916), [Decision on #39](https://github.com/hanh9898/matt-with-paseo-plugin/issues/39#issuecomment-5902707853)). What the plugin does with it is the "Question budget spent" message.
+
+## The decision log
+
+The plugin writes one Markdown file the owner reads, in the shape of the control folder's `decisions.md`. Its place and shape are part of contract v1; the skills read it, and it never lives in a target repository.
+
+| File under the state directory | What it is |
+|---|---|
+| `decision-log.jsonl` | The record: one JSON line per entry, `{ n, at, stream, kind, gate, asked, answer, grounds, agent, requestId, withoutEvidence, what }`. The next `n` is the highest `n` in it plus one; a torn or foreign line is skipped and never counts |
+| `decision-log.md` | The file the owner reads, rendered whole from the record after each entry, oldest first |
+
+The rendered file has `# Decisions`, then `## Decided without evidence`, then `## Log`. There is no `## Pending for the user` section: nothing waits on the owner.
+
+```
+<a id="d<n>"></a>
+### D<n> — <YYYY-MM-DD HH:MM> [<stream>] <gate>
+Asked: <each question: header, its text with newlines folded to " / ", options offered by label>
+Answer: <exactly what was sent>
+Grounds: <the rule that decided it>
+```
+
+The time is the daemon's local time. `<stream>` is the agent's `stream` label. A field of several lines puts one question per line, the later lines indented. The log is the one place the plugin writes question text: only a question's `header`, its text and its option labels, never an error message, an environment value or a tool input other than an `AskUserQuestion`.
+
+`## Decided without evidence` is a reading list, one line per entry whose record has `withoutEvidence`, oldest first: `D<n>: <what> (smaller option taken)`, linking to `#d<n>`. That entry's `Grounds:` reads `no evidence; smaller option taken`. With no such entry the section reads `None.`. No kind below sets it: the plugin answers only under a table rule with a recommendation. The list blocks and queues nothing.
+
+| Kind (the `gate`) | `Answer:` | `Grounds:` |
+|---|---|---|
+| `delegated answer` | each `<header>: <label>` as sent in `updatedInput.answers` | the level and where it was read, then the `## Delegation` table in `<cwd>/AGENTS.md` lets the orchestrator decide each question's `Door:`, then each `Yours: <item>` answered at level 3, then the first option was marked `(Recommended)`, joined by `; `: `level 3 (the Level row); the ## Delegation table in <cwd>/AGENTS.md lets the orchestrator decide one-way; Yours: merge answered at level 3; the first option was marked (Recommended)` |
+| `left to the user` | `none: left to the user, who answers it in agent <id>'s chat` | the level and where it was read, then the reason the question stays the user's (`level 1: nothing is delegated`, `one of the user's five (level 2)`, `no Door line`, `no recommendation on the first option`, `the stream is past its appetite`, `no delegation table`, …), or `the delegation table could not be read` when the handler failed open: `level 2 (the Level row); one of the user's five (level 2)` |
+| `appetite passed` | the `Appetite passed:` message exactly as sent or held, its `Next:` line included | `the Appetite row of the ## Delegation table in <cwd>/AGENTS.md reads <value>; spend <total> USD`, with `(partial)` after a partial total |
+| `question budget spent` | the `Question budget spent:` message exactly as sent or held | `MWP_QUESTION_BUDGET=<n>` |
+
+The level opens `Grounds:` of both of the first two kinds, as `level <n> (the Level row)`, `level <n> (from Switch: on)` (or `not on` for level 1), `level 1 (default: no Level or Switch row)` or `level 1 (no delegation table)`. When the handler failed before it read the table, it reads `level unknown (the delegation table was not read)`. No entry sets `withoutEvidence`: a question with no recommendation is left, never answered with a smaller option. At level 1 every question is still logged, as `left to the user`.
+
+The last two kinds record that the plugin stopped answering, never that a stream or an agent stopped: the plugin cancels nothing. Each is written once, after its message is sent or held: `appetite passed` at the turn end that passes the appetite (`Asked:` reads `none: the stream's spend passed its appetite at a turn end of agent <id>`, `<stream>` is that agent's), `question budget spent` once a day (`Asked:` reads `none: the day's question count reached the budget with a question from agent <id>`, `<stream>` is that question's), and a send that failed and is retried writes it when it succeeds. They carry no `requestId`. The questions the appetite leaves to the user are logged one by one as `left to the user`.
+
+One entry per request, numbered across restarts: one `AskUserQuestion` with several questions is one `D<n>`, and a request already in the record (the same `agent` and `requestId`) is not written again. A log that cannot be written changes nothing the handler answers or leaves; it logs one line with the agent's id and the kind, never the question (T4, T6).
 
 ## The report card
 
@@ -201,15 +274,20 @@ The plugin appends one timeline row to the orchestrator's chat to show what was 
 Kind: `report-card`
 Version: 1
 Row id: `report-card`
-Fields: `decided`, `spend`, `questions`
+Fields: `decided`, `decidedCount`, `log`, `spend`, `questions`
 Decided entry: `header`, `answer`, `at`
+Decided cap: 20
+Text cap: 200
 Spend: `totalUsd`, `appetiteUsd`, `partial`
 Questions: `count`, `budget`
 Buttons: none
 
 The plugin appends the row again under its one row id each time a delegated answer is recorded, a question is left to the user, or a ticket agent or the stream agent ends a turn, so the chat holds one card, kept current.
 
-- `decided` lists the decisions made on the user's behalf for the stream, oldest first: each entry is the question's `header`, the `answer` given and the time `at` (ISO 8601), read from the delegated answers' record. A question left to the user is not an entry.
+- `decided` lists the latest decisions made on the user's behalf for the stream, oldest of those first, at most the decided cap (20): each entry is the question's `header`, the `answer` given (each cut to the text cap of 200 characters, ending `…` when cut) and the time `at` (ISO 8601), read from the delegated answers' record. A question left to the user is not an entry.
+- `decidedCount` is the total number of decisions for the stream, so the card's heading counts all of them and says how many earlier ones are only in the log.
+- `log` is the absolute path of `decision-log.md` under the state directory (see "The decision log"), shown as a line of text: nothing on the card can be pressed. The card never reads the log, so a log that cannot be written never blanks the card.
+- The list is capped because a plugin row's `data` is limited to 64 KiB serialised, and Paseo refuses an append above it: the record only grows, so an uncapped list would freeze the card. Every decision stays in the log.
 - `spend` is the stream's summed turn cost in `totalUsd` against its `appetiteUsd`, which is `null` when the table has no appetite. `partial` is true when a turn had no cost, so the total may be short of the real spend.
 - `questions` is the day's `count` of questions left to the user against the `budget`, which is `null` when no budget is set.
 

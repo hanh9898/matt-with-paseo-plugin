@@ -11,6 +11,7 @@ function read(name: string): string {
   return readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
 }
 
+const LOG = "C:\\state\\decision-log.md";
 const entry = { stream: "demo", agent: "tkt-7", header: "Colour", answer: "Red (Recommended)", at: "2026-09-30T10:00:00.000Z" };
 
 /** A client that records what `addTimelineRenderer` is given. */
@@ -36,12 +37,12 @@ test("the renderer's schema accepts the row the daemon builds, and rejects a row
   const schema = renderers[0]?.schema;
   assert.ok(schema);
   for (const input of [
-    { decided: [entry], spend: { totalUsd: 1, appetiteUsd: 5, partial: true, notified: false }, questions: { count: 2, budget: 5 } },
-    { decided: [], spend: undefined, questions: { count: 0, budget: null } },
+    { decided: [entry], spend: { totalUsd: 1, appetiteUsd: 5, partial: true, notified: false }, log: LOG, questions: { count: 2, budget: 5 } },
+    { decided: [], spend: undefined, log: LOG, questions: { count: 0, budget: null } },
   ]) {
     assert.equal(schema.safeParse(reportCardRow(input).data).success, true);
   }
-  const data = reportCardRow({ decided: [], spend: undefined, questions: { count: 0, budget: null } }).data as Record<string, unknown>;
+  const data = reportCardRow({ decided: [], spend: undefined, log: LOG, questions: { count: 0, budget: null } }).data as Record<string, unknown>;
   for (const field of REPORT_CARD.fields) {
     const { [field]: _dropped, ...rest } = data;
     assert.equal(schema.safeParse(rest).success, false, `a card without ${field} is rejected`);
@@ -49,7 +50,7 @@ test("the renderer's schema accepts the row the daemon builds, and rejects a row
 });
 
 test("the card's lines list each decision, the spend against the appetite, and the question count against the budget", () => {
-  const lines = cardLines(reportCardRow({ decided: [entry], spend: { totalUsd: 1.5, appetiteUsd: 5, partial: false, notified: false }, questions: { count: 2, budget: 5 } }).data as never);
+  const lines = cardLines(reportCardRow({ decided: [entry], spend: { totalUsd: 1.5, appetiteUsd: 5, partial: false, notified: false }, log: LOG, questions: { count: 2, budget: 5 } }).data as never);
   assert.equal(lines.title, "Report card");
   assert.deepEqual(lines.decided, ["Colour: Red (Recommended)"]);
   assert.equal(lines.spend, "Spend $1.50 of $5.00");
@@ -57,12 +58,46 @@ test("the card's lines list each decision, the spend against the appetite, and t
 });
 
 test("the card says when the total is partial, when there is no appetite or budget, and when nothing was decided", () => {
-  const lines = cardLines(reportCardRow({ decided: [], spend: { totalUsd: 0.5, appetiteUsd: null, partial: true, notified: false }, questions: { count: 3, budget: null } }).data as never);
+  const lines = cardLines(reportCardRow({ decided: [], spend: { totalUsd: 0.5, appetiteUsd: null, partial: true, notified: false }, log: LOG, questions: { count: 3, budget: null } }).data as never);
   assert.match(lines.spend, /partial/);
   assert.match(lines.spend, /no limit set/);
   assert.match(lines.questions, /no limit set/);
   assert.deepEqual(lines.decided, []);
   assert.match(lines.none, /Nothing decided/);
+});
+
+const idle = { spend: undefined, log: LOG, questions: { count: 0, budget: null } };
+const many = (count: number) => Array.from({ length: count }, (_, index) => ({ ...entry, header: `Q${index}` }));
+
+test("the card shows the log path as a line of text, and the heading counts every decision", () => {
+  const lines = cardLines(reportCardRow({ decided: many(3), ...idle }).data as never);
+  assert.equal(lines.log, `All decisions: ${LOG}`);
+  assert.equal(lines.decidedHeading, "Decided for you (3)");
+});
+
+test("with 3 answers the card has no only-in-the-log line", () => {
+  const lines = cardLines(reportCardRow({ decided: many(3), ...idle }).data as never);
+  assert.equal(lines.decided.length, 3);
+  assert.equal(lines.leftOut, null);
+});
+
+test("with 1,000 answers the card lists 20 and says 980 earlier ones are only in the log", () => {
+  const lines = cardLines(reportCardRow({ decided: many(1000), ...idle }).data as never);
+  assert.equal(lines.decidedHeading, "Decided for you (1000)");
+  assert.equal(lines.decided.length, 20);
+  assert.equal(lines.leftOut, "980 earlier decisions are only in the log");
+  const one = cardLines(reportCardRow({ decided: many(21), ...idle }).data as never);
+  assert.equal(one.leftOut, "1 earlier decision is only in the log");
+});
+
+test("the schema rejects a row without decidedCount or log", () => {
+  const { renderers, client } = fakeClient();
+  contributeReportCard(client, View);
+  const data = reportCardRow({ decided: [], ...idle }).data as Record<string, unknown>;
+  for (const field of ["decidedCount", "log"]) {
+    const { [field]: _dropped, ...rest } = data;
+    assert.equal(renderers[0]?.schema.safeParse(rest).success, false, `a card without ${field} is rejected`);
+  }
 });
 
 test("the card's client files hold nothing a person can press", () => {

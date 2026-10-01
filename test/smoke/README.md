@@ -188,17 +188,17 @@ Written, not run. Targets Paseo `0.10.1`. Run it with `mwp-smoke` installed. It 
 
 ## Delegated answers
 
-Written, not run. Targets Paseo `0.10.1`. Run it after "Waiting pill", with `mwp-smoke` installed, in a scratch repository whose `AGENTS.md` holds a `## Delegation` table with the rows `Switch | on` and `Questions the orchestrator may decide | two-way, costly`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+Written, not run. Targets Paseo `0.10.1`. Run it after "Waiting pill", with `mwp-smoke` installed, in a scratch repository whose `AGENTS.md` holds a `## Delegation` table with the rows `Level | 2` and `Questions the orchestrator may decide | two-way, costly`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
 
 1. Create a ticket agent titled `[mwp-smoke] ticket` (labels `wave=1`, `ticket=99`) in that repository whose prompt asks one `AskUserQuestion`, header `Colour`, text ending in a line `Door: two-way`, first option `Red (Recommended)`. Expected: within 30 seconds the question is answered with `Red (Recommended)` and the agent carries on with it; the plugin's log shows no question text.
 2. Repeat with `Door: costly` and then with the table row reduced to `two-way`. Expected: answered in the first run, left to the user in the second (the pill counts it).
-3. Repeat with a text that also holds `Yours: spend`. Expected: left to the user.
-4. Repeat with `Door: one-way`, with the table row listing `one-way`. Expected: left to the user.
+3. Repeat with a text that also holds `Yours: spend`. Expected: left to the user, with `one of the user's five (level 2)` in the decision log.
+4. Repeat with `Door: one-way`, with the table row listing `one-way`. Expected: left to the user, at level 2 still.
 5. Repeat with the first option `Red` (no mark). Expected: left to the user.
-6. Set the row `Switch | off`, then delete the table. Expected: the step 1 question is left to the user both times.
-7. Ask two questions in one call, one answerable and one with `Yours: merge`. Expected: neither is answered.
-8. Ask the step 1 question from an agent with no labels. Expected: left to the user, and the daemon log names no read of `AGENTS.md`.
-9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+6. Set the row `Switch | off` in place of `Level | 2`, then delete the table. Expected: the step 1 question is left to the user both times.7. Set the rows `Level | 3` and `Questions the orchestrator may decide | two-way, costly, one-way`. Ask one question, header `Merge`, text with the lines `Door: one-way` and `Yours: merge`, first option `Merge (Recommended)`. Expected: answered with `Merge (Recommended)`, the decision log's grounds read `level 3 (the Level row)` and `Yours: merge answered at level 3`, and nothing is merged: the repository's branches and `git log` are unchanged until the orchestrator merges. With `one-way` removed from the row, the same question is left to the user.
+8. Ask two questions in one call, one answerable and one with `Yours: merge` (at `Level | 2`). Expected: neither is answered.
+9. Ask the step 1 question from an agent with no labels. Expected: left to the user, and the daemon log names no read of `AGENTS.md`.
+10. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
 ## Appetite
 
@@ -229,12 +229,12 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Delegated answers", with
 
 Written, not run. Targets Paseo `0.10.1`. Run it after "Question budget", with `mwp-smoke` installed, in batch A (`MWP_QUESTION_BUDGET=2`), in the scratch repository of "Appetite" (`Questions the orchestrator may decide | two-way`, `Appetite | 0.05 USD`). Use a stream agent titled `[mwp-smoke] stream` (label `stream=mwp-smoke`) as the orchestrator and a ticket agent titled `[mwp-smoke] ticket` (labels `stream=mwp-smoke`, `wave=1`, `ticket=99`, parent the stream agent). Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone. Delete `delegated-answers.jsonl`, `stream-spend.json` and `question-budget.json` in the plugin's state directory first.
 
-1. Let the ticket agent's turn end. Expected: the stream agent's chat holds one report card with an empty `decided` list, the spend as `totalUsd` against 0.05 USD, and `Questions today: 0 of 2`. It is drawn as a card, not as an unavailable placeholder: a "Plugin timeline item unavailable" row means the client renderer did not register or the schema rejected the data, and the step fails. The ticket agent's own chat holds no card.
+1. Let the ticket agent's turn end. Expected: the stream agent's chat holds one report card with an empty `decided` list, the spend as `totalUsd` against 0.05 USD, and `Questions today: 0 of 2`, and the line `All decisions: <path>` with the absolute path of `decision-log.md` under `MWP_STATE_DIR` (text, not a link). It is drawn as a card, not as an unavailable placeholder: a "Plugin timeline item unavailable" row means the client renderer did not register or the schema rejected the data, and the step fails. The ticket agent's own chat holds no card.
 2. Ask a `Door: two-way` question from the ticket agent (header `Colour`, first option `Red (Recommended)`). Expected: it is answered, and the card in the stream agent's chat now lists `Colour` with `Red (Recommended)` and its time. It is the same row (one card, not two), and the plugin's log shows no question text.
 3. Ask a `Door: one-way` question. Expected: it waits for the user, the same row now reads `Questions today: 1 of 2`, and it lists no new decision.
 4. Prompt the ticket agent until the total passes 0.05 USD. Expected: the same row shows the higher spend past the appetite.
 5. Run a turn of an agent whose provider reports no cost. Expected: the spend on the card says it is partial.
-6. Look at the card in Paseo's window. Expected: it has no button of any kind. Take a screenshot of the card in Paseo's window and keep it with the milestone run's results.
+6. Look at the card in Paseo's window. Expected: it has no button of any kind, and it shows the `All decisions:` line. Take a screenshot of the card in Paseo's window and keep it with the milestone run's results.
 7. Reload the plugin and end a turn. Expected: the card comes back with the decisions and the question count as before (the records survive), and the daemon restart drops the old row without harm.
 8. Archive every `[mwp-smoke]` agent, delete the three files, then `paseo plugin remove mwp-smoke`.
 

@@ -8,7 +8,7 @@ matt-with-paseo-plugin is an optional Paseo plugin for people who run the `matt-
 
 The design case is the unattended stream; a single wave is helped too. The plugin supports Windows, macOS and Linux. Claude Code only; other agents prepared through descriptors, not promised.
 
-What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md). Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
+What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md); [ADR 0004](docs/adr/0004-three-autonomy-levels.md) sets three autonomy levels, and the five owner items (a change to the concept, adding or dropping tickets, spend past the appetite, irreversible actions, merging the PR) reach the owner below level 3. Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
 
 ## Development
 
@@ -34,6 +34,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
 | `server/hooks/` | The hook handlers, one module per handler |
 | `server/delegated-answers.ts` | The delegated-answers handler and its pure decision: answers a checkpoint with its recommendation when the `## Delegation` table lets the orchestrator decide |
+| `server/decision-log.ts` | The decision log: one `D<n>` entry per delegated answer and per question left to the user, in `decision-log.md` under the state directory |
 | `shared/delegation.ts` | The reader of the `## Delegation` table |
 | `server/appetite.ts` | The appetite handler: sums each stream's turn costs, tells the orchestrator once when a stream passes its appetite, and tells the delegated answers to stop for that stream |
 | `shared/appetite.ts` | The appetite reader (a dollar amount) and the sum of a stream's spend |
@@ -288,7 +289,13 @@ The checks are `test/appetite.test.ts`, `test/hooks/appetite.test.ts` and `test/
 
 ### Delegated answers
 
-When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. A question with a `Yours:` line, a `Door: one-way`, no recommendation, or any question in a request that fails one of these is left to the user, as is every question when the table is missing, unreadable or switched off. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository.
+When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. How much it answers is the `Level` row of the table ([ADR 0004](docs/adr/0004-three-autonomy-levels.md)):
+
+- **Level 1**: nothing is delegated, and every question reaches the owner.
+- **Level 2**: every question the table lets the orchestrator decide is answered, except one with a `Yours:` line (the five owner items) or a `Door: one-way`.
+- **Level 3**: the five items are answered too, and `one-way` counts when the row lists it.
+
+The default is level 1: a missing table, or a table with no `Level` and no `Switch` row, delegates nothing. The v1 row `Switch | on` still reads as level 2. At every level a question with no recommendation, a stream past its appetite and any question in a request that fails one of the rules is left to the user, and the plugin writes no git: a level-3 `Yours: merge` answer is one permission answer, and the orchestrator carries out the merge. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository. The owner reads the decisions, answered and left, in `decision-log.md` in the same directory (`server/decision-log.ts`; its shape is in `docs/contract.md`, "The decision log").
 
 The checks are `test/delegation.test.ts`, `test/delegated-answers.test.ts`, `test/hooks/delegated-answers.test.ts` and `test/delegated-answers-docs.test.ts`; the smoke test ("Delegated answers") runs it on Paseo `0.10.1`.
 
@@ -307,6 +314,8 @@ The checks are `test/question-budget.test.ts`, `test/hooks/question-budget.test.
 Nothing showed what was decided on the owner's behalf, so delegation could not be reviewed at a glance. `server/report-card.ts` appends one plugin timeline row (`kind: "report-card"`, its shape fixed by `REPORT_CARD` in `shared/contract.ts` and `docs/contract.md`) to the orchestrator's chat, under one row id, so each change replaces it and the chat holds one card. A ticket agent's change shows in its orchestrator's chat, the stream agent's in its own.
 
 Paseo draws a plugin row only through a renderer the plugin registers on the client for its kind and version, and shows "Plugin timeline item unavailable" otherwise; `client/report-card.ts` registers it (`addTimelineRenderer`, its schema the row's data), `client/report-card-view.ts` draws the text with the theme's colours, and `client/report-card-text.ts` holds the words. The view holds nothing to press.
+
+The card shows the latest 20 decisions (`decided`, each `header` and `answer` cut to 200 characters), the total as `decidedCount`, a line saying how many earlier ones are only in the log, and the line `All decisions: <path>` with the absolute path of `decision-log.md` (`log`, from `decisionLogPath` in `server/decision-log.ts`; it is text, not a link). The cap keeps the row's `data` under Paseo's 64 KiB limit however long a stream runs. The card never reads the log, so a log that cannot be written never blanks it.
 
 The card only reads. `decided` comes from the delegated answers' record (`readDelegatedAnswers` in `server/delegated-answers.ts`, through `server/state.ts`), `spend` from the appetite handler's record (`spendOf`, with `partial` when a turn had no cost), and `questions` from the budget's count (`count()`) and `MWP_QUESTION_BUDGET`. It is refreshed when a delegated answer is recorded (the `answered` member of the delegated-answers reader, the second hook the card needed out of it), when a question is left to the user (`left`, beside the budget), and when the appetite handler has summed a turn's cost (its `updated` member), so no refresh depends on the order Paseo runs handlers in. The card has no buttons: the round trip is unproven (ADR 0001), and buttons come with `v0.4.0`'s cards after a proof. A host that refuses the row logs one line with the agent's id and never a question or an answer (T4, T6).
 
@@ -350,6 +359,7 @@ A public plugin should not litter the repositories it works in. The plugin keeps
 | `server/hooks/stall-sensor.ts` | Each agent's last turn, its streaks per condition, the messages held | In memory |
 | `server/hooks/waiting-count.ts` | The requests open in each agent's chat | In memory |
 | `client/waiting-pill.ts` | The pill registered for each agent | In memory |
+| `server/decision-log.ts` | Every decision taken or left on the owner's behalf, numbered `D<n>` across restarts | `decision-log.jsonl` (the record) and `decision-log.md` (the file the owner reads) under the state directory |
 | `server/question-budget.ts` | The day's count of questions left to the user and whether the orchestrator was told; the requests seen this turn and the message held for a busy orchestrator | `question-budget.json` under the state directory; the rest in memory |
 | `server/harness.ts`, `server/sensor.ts` | Nothing: they read the plugin's own `harness/` and `sensor/` files | Read only |
 

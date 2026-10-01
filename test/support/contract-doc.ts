@@ -23,6 +23,8 @@ export interface CardDoc {
   decidedEntry: string[];
   spendFields: string[];
   questionsFields: string[];
+  decidedCap: string;
+  textCap: string;
   buttons: string;
 }
 
@@ -54,7 +56,7 @@ export const SECTIONS = [
 
 export const MARKS = ["Recommendation", "Default while silent", "Door class", "One of the user's five"] as const;
 export const LABELS = ["wave", "ticket", "bundle", "tickets", "stream"] as const;
-export const DELEGATION_READS = ["Questions the orchestrator may decide", "Appetite"] as const;
+export const DELEGATION_READS = ["Level", "Questions the orchestrator may decide", "Appetite"] as const;
 export const TITLE = "[Wave N] <NN> <ticket name>";
 export const BUNDLE_TITLE = "[Wave N] [<NN>+<NN>] <first ticket name>";
 
@@ -143,7 +145,16 @@ function ticks(line: string): string[] {
 
 function sectionsOf(text: string): Map<string, string> {
   const sections = new Map<string, string>();
-  const parts = text.split(/^## /m).slice(1);
+  // A `## ` line inside a fenced example (a sample `## Delegation` table) is not a heading.
+  let fenced = false;
+  const marked = text
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("```")) fenced = !fenced;
+      return fenced && line.startsWith("## ") ? ` ${line}` : line;
+    })
+    .join("\n");
+  const parts = marked.split(/^## /m).slice(1);
   for (const part of parts) {
     const newline = part.indexOf("\n");
     sections.set(part.slice(0, newline).trim(), part.slice(newline + 1));
@@ -158,9 +169,10 @@ function lineValue(body: string, key: string): string | null {
 
 /** The rows of the first table in `body`, each as its cells without the backticks that wrap them; the header and the rule are dropped. */
 function tableRows(body: string): string[][] {
-  return body
-    .split("\n")
-    .filter((line) => line.startsWith("|"))
+  const lines = body.split("\n");
+  const start = lines.findIndex((line) => line.startsWith("|"));
+  const end = start === -1 ? -1 : lines.findIndex((line, i) => i > start && !line.startsWith("|"));
+  return (start === -1 ? [] : lines.slice(start, end === -1 ? undefined : end))
     .slice(2)
     .map((line) =>
       line
@@ -196,8 +208,10 @@ function cardOf(section: string | undefined): CardDoc | null {
   const decidedEntry = ticks(lineValue(section, "Decided entry") ?? "");
   const spendFields = ticks(lineValue(section, "Spend") ?? "");
   const questionsFields = ticks(lineValue(section, "Questions") ?? "");
+  const decidedCap = lineValue(section, "Decided cap") ?? "";
+  const textCap = lineValue(section, "Text cap") ?? "";
   if (kind === undefined || version === null || buttons === null) return null;
-  return { id, kind, version, fields, decidedEntry, spendFields, questionsFields, buttons };
+  return { id, kind, version, fields, decidedEntry, spendFields, questionsFields, decidedCap, textCap, buttons };
 }
 
 /** Reads the contract document; a part it lacks comes back empty or null, and `contractProblems` names it. */
@@ -278,6 +292,8 @@ export function contractProblems(text: string): string[] {
     if (card.kind !== REPORT_CARD.kind) problems.push(`the contract card kind is "${card.kind}" but the plugin builds "${REPORT_CARD.kind}"`);
     if (card.version !== String(REPORT_CARD.version)) problems.push(`the contract card version is "${card.version}" but the plugin builds ${REPORT_CARD.version}`);
     if (!same(card.fields, REPORT_CARD.fields)) problems.push(`the contract card fields are [${card.fields.join(", ")}] but the plugin builds [${REPORT_CARD.fields.join(", ")}]`);
+    if (card.decidedCap !== String(REPORT_CARD.decidedCap)) problems.push(`the contract decided cap is "${card.decidedCap}" but the plugin builds ${REPORT_CARD.decidedCap}`);
+    if (card.textCap !== String(REPORT_CARD.textCap)) problems.push(`the contract text cap is "${card.textCap}" but the plugin builds ${REPORT_CARD.textCap}`);
     if (card.buttons !== "none") problems.push(`the contract card says buttons "${card.buttons}", and the card has none`);
   }
   return problems;

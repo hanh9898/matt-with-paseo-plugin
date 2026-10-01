@@ -15,7 +15,7 @@ const ticket: HostAgent = { ...stream, id: "tkt-7", workspaceId: "w1", parentAge
 const otherStream: HostAgent = { ...stream, id: "stream-2", title: "[Stream] other" };
 const stranger: HostAgent = { ...stream, id: "stranger", title: null };
 
-const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Questions the orchestrator may decide | two-way |", "| Appetite | 5 USD |", ""].join("\n");
+const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Level | 2 |", "| Questions the orchestrator may decide | two-way |", "| Appetite | 5 USD |", ""].join("\n");
 const ask = (id: string, header: string, door: string): PermissionRequest => ({
   id,
   name: "AskUserQuestion",
@@ -48,7 +48,7 @@ function wired(env: Record<string, string> = { [BUDGET_ENV]: "10" }) {
     decided: (name) => parseEntries(lines.map((line) => JSON.stringify(line)).join("\n")).filter((entry) => entry.stream === name),
     spend: appetite.spendOf,
     questions: () => ({ count: budget.count(), budget: budgetOf(env) }),
-  });
+  }, { log: LOG });
   registerDelegatedAnswers(fake, {
     readTable: async () => TABLE,
     record: (entry) => void lines.push(entry),
@@ -74,6 +74,7 @@ type Data = {
   spend: { totalUsd: number; appetiteUsd: number | null; partial: boolean };
   questions: { count: number; budget: number | null };
 };
+const LOG = "C:\\state\\decision-log.md";
 const cards = (fake: FakeHost, agentId = "stream-1") => fake.timeline(agentId).filter((row) => row.kind === REPORT_CARD.kind);
 const data = (fake: FakeHost, agentId = "stream-1"): Data => cards(fake, agentId)[0]?.data as unknown as Data;
 
@@ -125,6 +126,8 @@ test("a delegated answer, a turn cost and a question left all land under the one
   assert.ok(fake.rows.filter((entry) => entry.row.id === REPORT_CARD.id).length >= 3, "appended again on each change");
   assert.deepEqual(data(fake), {
     decided: [{ header: "Colour", answer: "Yes (Recommended)", at: "2026-09-30T10:00:00.000Z" }],
+    decidedCount: 1,
+    log: LOG,
     spend: { totalUsd: 0.75, appetiteUsd: 5, partial: false },
     questions: { count: 1, budget: 10 },
   });

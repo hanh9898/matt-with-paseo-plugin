@@ -1,4 +1,5 @@
 import { registerAppetite } from "./server/appetite.ts";
+import { createDecisionLog } from "./server/decision-log.ts";
 import { readDelegatedAnswers, registerDelegatedAnswers } from "./server/delegated-answers.ts";
 import { registerGateCap } from "./server/hooks/gate-cap.ts";
 import { registerLifecycleRelay } from "./server/hooks/lifecycle-relay.ts";
@@ -17,23 +18,28 @@ export default function contribute(server: PaseoServer) {
   registerTicketMarker(hooks);
   registerStallSensor(hooks);
   registerGateCap(hooks);
-  const appetite = registerAppetite(hooks, { updated: (who, host) => card.refresh(who, host) });
-  const budget = registerQuestionBudget(hooks);
+  const appetite = registerAppetite(hooks, { updated: (who, host) => card.refresh(who, host), passed: (entry) => void log.append(entry) });
+  const budget = registerQuestionBudget(hooks, { spent: (entry) => void log.append(entry) });
   const card = createReportCard({
     decided: readDelegatedAnswers,
     spend: appetite.spendOf,
     questions: () => ({ count: budget.count(), budget: budgetOf(process.env) }),
   });
+  const log = createDecisionLog();
   registerDelegatedAnswers(hooks, {
     pastAppetite: appetite.pastAppetite,
     left: async (question, host) => {
+      log.left(question);
       try {
         await budget.left(question, host);
       } finally {
         await card.refresh(question, host);
       }
     },
-    answered: card.refresh,
+    answered: async (answered, host) => {
+      log.answered(answered);
+      await card.refresh(answered, host);
+    },
   });
   return () => hooks.stop();
 }

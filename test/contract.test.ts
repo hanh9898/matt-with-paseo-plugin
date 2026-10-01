@@ -105,7 +105,15 @@ test("the report card's row id, entry fields and no-buttons rule are fixed by th
   only(contractProblems(changed(/^Decided entry: `header`, `answer`, `at`$/m, "Decided entry: `header`, `answer`")), "decided");
   only(contractProblems(changed(/^Spend: `totalUsd`, `appetiteUsd`, `partial`$/m, "Spend: `totalUsd`, `appetiteUsd`")), "spend");
   only(contractProblems(changed(/^Questions: `count`, `budget`$/m, "Questions: `count`")), "questions");
-  only(contractProblems(changed(/^Fields: `decided`, `spend`, `questions`$/m, "Fields: `decided`, `spend`")), "fields");
+  only(contractProblems(changed(/^Fields: `decided`, `decidedCount`, `log`, `spend`, `questions`$/m, "Fields: `decided`, `spend`")), "fields");
+  only(contractProblems(changed(/^Decided cap: 20$/m, "Decided cap: 50")), "decided cap");
+  only(contractProblems(changed(/^Text cap: 200$/m, "Text cap: 400")), "text cap");
+});
+
+test("the contract names the card's fields in REPORT_CARD's order and says why the list is capped", () => {
+  assert.deepEqual(parseContract(contract).card?.fields, ["decided", "decidedCount", "log", "spend", "questions"]);
+  const card = contract.slice(contract.indexOf("## The report card"), contract.indexOf("## What the skills declare"));
+  assert.match(card, /64 KiB/);
 });
 
 test("the contract says the card is one row kept current under one row id, and says when the total is partial", () => {

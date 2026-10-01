@@ -26,6 +26,14 @@ test("the smoke test has a report card part that ends with a screenshot of the c
   assert.match(smoke, /Questions today: 1 of 2/, "the steps read the card's own words");
 });
 
+test("the smoke test's report card screenshot shows the log line, and the README names the log line and the cap", () => {
+  assert.match(section(read("test/smoke/README.md"), "## Report card"), /All decisions:/);
+  const card = section(read("README.md"), "### The report card");
+  assert.match(card, /`decision-log\.md`/);
+  assert.match(card, /`decidedCount`/);
+  assert.match(card, /64 KiB/);
+});
+
 test("the smoke test says a card drawn as an unavailable placeholder fails, since the client renderer is the card", () => {
   const smoke = section(read("test/smoke/README.md"), "## Report card");
   assert.match(smoke, /unavailable/i);

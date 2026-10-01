@@ -12,6 +12,8 @@ export type CardProps = {
 /** The row's data, checked before anything is drawn; a row that fails it draws nothing wrong. */
 const schema: z.ZodType<CardData> = z.object({
   decided: z.array(z.object({ header: z.string(), answer: z.string(), at: z.string() })),
+  decidedCount: z.number(),
+  log: z.string(),
   spend: z.object({ totalUsd: z.number(), appetiteUsd: z.number().nullable(), partial: z.boolean() }),
   questions: z.object({ count: z.number(), budget: z.number().nullable() }),
 });

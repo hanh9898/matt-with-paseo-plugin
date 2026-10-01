@@ -47,6 +47,6 @@ test("the README names the setting, the record and the checks, and inventories t
 test("the changelog has a line for the question budget, and the entry registers it", () => {
   assert.match(read("CHANGELOG.md"), /Question budget:.*MWP_QUESTION_BUDGET/);
   const entry = read("index.server.ts");
-  assert.match(entry, /registerQuestionBudget\(hooks\)/);
+  assert.match(entry, /registerQuestionBudget\(hooks[,)]/);
   assert.match(entry, /left: /);
 });

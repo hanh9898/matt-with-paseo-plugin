@@ -160,6 +160,68 @@ test("ADR 0002 Consequences say placement questions and the parity table's \"out
   has(consequences, "the parity table's \"out\" rows are decided against this ADR");
 });
 
+// ADR 0004 (ticket #57): three autonomy levels, superseding non-goal 3 of ADR 0002 and amending non-goal 6
+
+const ADR4_FILE = "docs/adr/0004-three-autonomy-levels.md";
+const ADR4_LINK = "0004-three-autonomy-levels.md";
+
+test("ADR 0004 is accepted and holds the sections of an ADR, the three levels and what stays at every level", () => {
+  const adr = read(ADR4_FILE);
+  assert.ok(adr.startsWith("# Three autonomy levels\n"));
+  assert.match(adr, /^Status: accepted, 2026-10-01/m);
+  for (const heading of ["## Context", "## Decision", "## Consequences"]) section(adr, heading);
+  const levels = section(adr, "### The three levels");
+  for (const level of ["Level 1", "Level 2", "Level 3"]) has(levels, `**${level}**`);
+  has(adr, "`Level`");
+  has(adr, "`Switch`");
+  const stays = listItems(section(adr, "### What stays at every level"));
+  assert.equal(stays.length, 5);
+  has(stays[0], "no recommendation");
+  has(stays[1], "git");
+  has(stays[2], "appetite");
+  has(stays[3], "budget");
+  has(stays[4], "decision log");
+});
+
+test("ADR 0004 names the default, the Switch mapping, the owner's words, D120's reading and the appetite choice", () => {
+  const adr = read(ADR4_FILE);
+  has(section(adr, "### The default"), "level 1");
+  has(section(adr, "### The default"), "A `Level` row wins over `Switch`");
+  has(section(adr, "### The default"), "`on` is level 2");
+  const evidence = section(adr, "### Context and evidence");
+  has(evidence, "Cấp 3 là thả cửa");
+  has(evidence, "D120");
+  has(evidence, "without clear evidence");
+  has(adr, "hanh9898/matt-with-paseo#110");
+  has(adr, "Requires plugin contract: 1");
+});
+
+test("ADR 0002 points to ADR 0004 from its status line and from non-goals 3 and 6, and non-goal 6 reads \"below level 3\"", () => {
+  const adr = read(ADR);
+  assert.match(adr, /^Status: accepted, 2026-09-30; non-goal 3 superseded and non-goal 6 amended by ADR 0004$/m);
+  assert.ok(linkTargets(section(adr, "### 3. ")).includes(ADR4_LINK), "non-goal 3 has no link to ADR 0004");
+  const sixth = section(adr, "### 6. ");
+  assert.ok(linkTargets(sixth).includes(ADR4_LINK), "non-goal 6 has no link to ADR 0004");
+  has(sixth, "merge stays with a human below level 3");
+  hasNot(sixth, "merge stays with a human, and");
+});
+
+test("no sentence of ADR 0002 or ADR 0004 says the plugin writes git", () => {
+  for (const text of [read(ADR), read(ADR4_FILE)]) {
+    const sentences = flat(text).split(/(?<=[.:;])\s/);
+    for (const sentence of sentences) {
+      if (!/plugin (commits|pushes|merges|runs git|writes (to )?git)/i.test(sentence)) continue;
+      assert.match(sentence, /never|not|no\b|nor\b/i, `says the plugin writes git: ${sentence}`);
+    }
+  }
+});
+
+test("the README links ADR 0004 next to ADR 0002 and says the five items reach the owner below level 3", () => {
+  const readme = read("README.md");
+  assert.ok(linkTargets(readme).includes(`docs/adr/${ADR4_LINK}`), "no link to ADR 0004");
+  has(readme, "below level 3");
+});
+
 // The roadmap
 
 const ROADMAP = "docs/roadmap.md";
@@ -206,7 +268,7 @@ test("v0.1.0 lists the issues it carries, the new tickets by number, the fourtee
   const tickets = listItems(section(v1, "### New tickets"));
   assert.deepEqual(
     tickets.map((item) => Number(item.match(/#(\d+)\s*$/)?.[1])),
-    [34, 33, 37, 35, 36, 38, 39, 40, 41, 43, 45, 48, 49],
+    [34, 33, 37, 35, 36, 38, 39, 40, 41, 43, 45, 48, 49, 57, 58],
   );
 
   const criteria = listItems(section(v1, "### Exit criteria"));
@@ -219,7 +281,7 @@ test("v0.1.0 lists the issues it carries, the new tickets by number, the fourtee
     "MIT, with a `NOTICE` crediting sting9k/seatworks",
     "The skills run with the plugin absent (skills side)",
     "Contract v1 exists and a skills release reads it",
-    "A delegated question is answered within the `## Delegation` table's rules and never outside them",
+    "A delegated question is answered within the `## Delegation` table's level and rules and never outside them",
     "The question budget and the appetite are counted",
     "The report card shows what was decided on the user's behalf",
     "An unattended stream runs end to end with no heartbeat and with delegation on",
@@ -364,6 +426,7 @@ test("every relative link of the edited documents resolves", () => {
     "AGENTS.md",
     "GLOSSARY.md",
     ADR,
+    ADR4_FILE,
     ROADMAP,
     "docs/agents/domain.md",
     "docs/agents/evidence-standards.md",
