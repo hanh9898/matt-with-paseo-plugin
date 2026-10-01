@@ -18,8 +18,8 @@ export default function contribute(server: PaseoServer) {
   registerTicketMarker(hooks);
   registerStallSensor(hooks);
   registerGateCap(hooks);
-  const appetite = registerAppetite(hooks, { updated: (who, host) => card.refresh(who, host) });
-  const budget = registerQuestionBudget(hooks);
+  const appetite = registerAppetite(hooks, { updated: (who, host) => card.refresh(who, host), passed: (entry) => void log.append(entry) });
+  const budget = registerQuestionBudget(hooks, { spent: (entry) => void log.append(entry) });
   const card = createReportCard({
     decided: readDelegatedAnswers,
     spend: appetite.spendOf,

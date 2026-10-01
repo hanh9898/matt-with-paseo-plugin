@@ -221,6 +221,10 @@ The time is the daemon's local time. `<stream>` is the agent's `stream` label. A
 |---|---|---|
 | `delegated answer` | each `<header>: <label>` as sent in `updatedInput.answers` | the `## Delegation` table in `<cwd>/AGENTS.md` lets the orchestrator decide each question's `Door:`; the first option was marked `(Recommended)` |
 | `left to the user` | `none: left to the user, who answers it in agent <id>'s chat` | the reason the question stays the user's (`one of the user's five`, `no Door line`, `the stream is past its appetite`, `no delegation table`, …), or `the delegation table could not be read` when the handler failed open |
+| `appetite passed` | the `Appetite passed:` message exactly as sent or held, its `Next:` line included | `the Appetite row of the ## Delegation table in <cwd>/AGENTS.md reads <value>; spend <total> USD`, with `(partial)` after a partial total |
+| `question budget spent` | the `Question budget spent:` message exactly as sent or held | `MWP_QUESTION_BUDGET=<n>` |
+
+The last two kinds record that the plugin stopped answering, never that a stream or an agent stopped: the plugin cancels nothing. Each is written once, after its message is sent or held: `appetite passed` at the turn end that passes the appetite (`Asked:` reads `none: the stream's spend passed its appetite at a turn end of agent <id>`, `<stream>` is that agent's), `question budget spent` once a day (`Asked:` reads `none: the day's question count reached the budget with a question from agent <id>`, `<stream>` is that question's), and a send that failed and is retried writes it when it succeeds. They carry no `requestId`. The questions the appetite leaves to the user are logged one by one as `left to the user`.
 
 One entry per request, numbered across restarts: one `AskUserQuestion` with several questions is one `D<n>`, and a request already in the record (the same `agent` and `requestId`) is not written again. A log that cannot be written changes nothing the handler answers or leaves; it logs one line with the agent's id and the kind, never the question (T4, T6).
 
