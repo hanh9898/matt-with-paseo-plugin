@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
+import { registerStallSensor } from "../server/hooks/stall-sensor.ts";
 import { connectPaseo } from "../server/paseo-host.ts";
 
 /** Stands in for the SDK's server context: keeps each hook's registered function and fires it with a stub `paseo`. */
@@ -467,6 +468,61 @@ test("lastActivityAt reads the agent's lastActivityAt after a refresh, and null 
   });
   await fire("agent.created", { agent }, { paseo });
   assert.deepEqual(seen, ["2026-01-01T00:00:00.000Z", null, null, null]);
+});
+
+test("lastActivityAt falls back to updatedAt when the snapshot has no lastActivityAt, as Paseo 0.10.1's has none (#62)", async () => {
+  const { server, fire } = stubServer();
+  const snapshots: Record<string, Record<string, unknown>> = {
+    both: { lastActivityAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:05:00.000Z" },
+    updated: { updatedAt: "2026-01-01T00:05:00.000Z" },
+    neither: {},
+    odd: { updatedAt: 12 },
+  };
+  const paseo = {
+    agents: {
+      ref: (agentId: string) => ({
+        refresh: async () => ({ agent: { labels: {}, title: null, ...snapshots[agentId] } }),
+      }),
+    },
+  };
+  const seen: (string | null)[] = [];
+  connectPaseo(server).onCreated(async (_event, host) => {
+    for (const id of ["both", "updated", "neither", "odd"]) seen.push(await host.lastActivityAt(id));
+  });
+  await fire("agent.created", { agent }, { paseo });
+  assert.deepEqual(seen, ["2026-01-01T00:00:00.000Z", "2026-01-01T00:05:00.000Z", null, null]);
+});
+
+test("the tick flags a running ticket agent once from updatedAt alone, through the adapter (#62)", async () => {
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    const { server, fire } = stubServer();
+    const T0 = Date.parse("2026-01-01T00:00:00.000Z");
+    const sent: { agentId: string; text: string }[] = [];
+    const snapshots: Record<string, Record<string, unknown>> = {
+      orch: { labels: {}, status: "idle", updatedAt: "2026-01-01T00:00:00.000Z" },
+      "tkt-98": { labels: { wave: "1", ticket: "98" }, status: "running", parentAgentId: "orch", updatedAt: "2026-01-01T00:00:00.000Z" },
+    };
+    const paseo = {
+      agents: {
+        ref: (agentId: string) => ({
+          refresh: async () => ({ agent: { title: null, ...snapshots[agentId] } }),
+          send: async (text: string) => void sent.push({ agentId, text }),
+        }),
+      },
+    };
+    registerStallSensor(connectPaseo(server), undefined, () => T0 + 31 * 60_000);
+    await fire("agent.created", { agent: { ...agent, id: "tkt-98", parentAgentId: "orch" } }, { paseo });
+    mock.timers.tick(FIVE_MINUTES);
+    await settle();
+    mock.timers.tick(FIVE_MINUTES);
+    await settle();
+    assert.equal(sent.length, 1, "one idle stretch flags once");
+    assert.equal(sent[0]?.agentId, "orch");
+    assert.ok(sent[0]?.text.startsWith("Stall suspected: ticket 98 of wave 1, agent tkt-98"), sent[0]?.text);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test("parentOf reads the agent's parentAgentId after a refresh, and null when there is none (#48)", async () => {

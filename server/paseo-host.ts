@@ -53,7 +53,9 @@ function hostFor(paseo: Paseo): Host {
     },
     async lastActivityAt(agentId) {
       const found = await paseo.agents.ref(agentId).refresh();
-      const at = (found?.agent as { lastActivityAt?: unknown } | undefined)?.lastActivityAt;
+      // Paseo 0.10.1's snapshot has no `lastActivityAt`; its `updatedAt` stands still while a call is stuck (#62).
+      const snapshot = found?.agent as { lastActivityAt?: unknown; updatedAt?: unknown } | undefined;
+      const at = typeof snapshot?.lastActivityAt === "string" ? snapshot.lastActivityAt : snapshot?.updatedAt;
       return typeof at === "string" ? at : null;
     },
     async parentOf(agentId) {
