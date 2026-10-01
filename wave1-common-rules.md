@@ -142,3 +142,91 @@ Each item below holds for your ticket.
 ## Checkpoints
 - 2026-09-30, steps 0 and 2 in one Checkpoint (stage C, graph `51 → 52 → 53`, wave 1 = 51 with 52 and 53 by rolling start, quota 1; questions 1 to 4: scratch daemon for 51, 51's reproduction from the findings run plus its agent's red, the base discrepancy chosen for 53, 52's reproduction from 51's post-fix install). Answer D114: agreed, 1 to 4 as recommended; commit the common rules and spawn 51. changed the work: no. took the recommendation: yes.
 - The owner asked to commit this file before the first spawn, against step 8's rule that it stays uncommitted until the wave ends; the rules part is frozen, and every prompt names this checkout's absolute path, so a worktree's copy is never the one to read.
+
+## Incidents
+- 2026-09-30, ticket 51's agent ran `paseo daemon config` without `--home` once and read the structure of the owner's `~/.paseo/config.json` (string values masked, by its own report; nothing printed or copied). Sent to 52 and 53 as a trap in their prompts (the rules are frozen); the next wave's rules carry it.
+- 2026-09-30 about 20:30 to 2026-10-01 morning: the machine was overloaded; 53's `git commit` hung and its agent went idle with no commit and no report (D122). No scratch daemon was left running (port 6793 free, no process on its home).
+- 2026-10-01T04:42Z: the owner's daemon was restarted outside this wave (pid 16736 → 18276, worker 17208, port 6767, `0.10.1`); 53's agent was last active 2026-09-30 23:21 local. 53 was told the new pid as its "before" value.
+
+## Pending `gh` steps
+`gh` fails on this network since 2026-10-01 (FortiGate TLS inspection, D122). Each step below runs once `gh` works again, in order:
+- [ ] #53: post the agent's `Resolved:` comment, its full text under "Text of 53's `Resolved:` comment" at the end of this file (copy it to a file, then `gh issue comment 53 --body-file <that file>`). Its temp-folder copy is deleted with 53's private resources.
+- [ ] #53: post the orchestrator's merge comment: "Merged into `stream/plugin-real-host` at `a1b1361` (ticket tip `4536754`; merge tree equals the tip). Conflict-marker search: empty. Report checked by the orchestrator: `node --test test/smoke/smoke-plan.test.ts` re-run on `4536754`: tests 16, pass 16, fail 0; worktree clean; no control characters in tracked files; `## Results` committed (13 pass, 2 human, 1 fail: Cheap sensor)."
+- [ ] New ticket, once the owner agrees: the stall sensor never flags a running agent on Paseo 0.10.1 (`lastActivityAt` absent from the agent snapshot; fall back to `updatedAt` in `server/paseo-host.ts`), from 53's finding and the Cheap sensor `fail` line under `## Results`.
+- [ ] #51, #52, #53: close each issue as the stream's ship step decides (`gh issue close <n>`); their `Resolved:` comments for 51 and 52, and the merge comments for 51 and 52, are already posted.
+
+## Wave agents
+
+| Bundle tickets | Agent id | Workspace id | Branch | Base commit | Private resources | Merged SHAs | Cleaned |
+|---|---|---|---|---|---|---|---|
+| 51 | 332f4ef5-43ca-40a6-bef3-b7111e32ca1f | wks_e02a1f1feea51665 | plugin-real-host/wave1/51-state-location-to-server | 3a3de919bb5f62149206ab45ac3e3d2f2d73a94f | temp dir C:\Users\HBLAB_OPMS\AppData\Local\Temp\plugin-real-host-51 (scratch home inside), port 6791 | 51: 2a77ca4 (merge 0113175) | [x] |
+| 52 | 47363d91-d267-49c1-bf95-01c03ce48ace | wks_6830e858f6015e31 | plugin-real-host/wave1/52-no-import-meta-url | 0113175477d4161c12e3314bacb0a44d9eafcfc5 | temp dir C:\Users\HBLAB_OPMS\AppData\Local\Temp\plugin-real-host-52 (scratch home inside), port 6792 | 52: 7100bcd (merge cde4a73) | [x] |
+| 53 | e0212f3c-016d-45ea-a5b5-2887bc32f812 | wks_7e459b1d10a95faa | plugin-real-host/wave1/53-scripted-smoke-runner | cde4a738a69fc6d525b30db6ebe27ed462368995 | temp dir C:\Users\HBLAB_OPMS\AppData\Local\Temp\plugin-real-host-53 (scratch homes, copies, state dir, scratch repo, scratch CLAUDE_CONFIG_DIR inside), port 6793 | 53: 4536754 (merge a1b1361) | [x] |
+
+Heartbeat `e295a7f5` (every 15 min, expires 2026-10-01T12:15Z) watched 53 since its resume; deleted in step 8.
+
+## Review
+Deferred to milestone `v0.1.0` (evidence standards). Not a review run: no mark. Points for the milestone review: the three data files now live twice (`sensor/`, `presets/`, `harness/` and their embedded copies in `server/data/`, kept equal by tests only; 52's report); 53's agent edited `test/smoke/run-smoke.ts` once with `sed -i` against the Edit/Write rule (no backslash in the expression; the control-character check over tracked files printed nothing); the smoke runner spends real model quota through the machine's own Claude Code login (about 0.014 USD a turn, about a hundred turns a run).
+
+## Text of 53's `Resolved:` comment
+Copied verbatim from the agent's `resolved-53.md` on 2026-10-01, to post once `gh` works (see `## Pending gh steps`).
+
+````markdown
+Resolved: a scripted smoke runner (`node test/smoke/run-smoke.ts`) runs probes P1 to P12 on a scratch Paseo 0.10.1 daemon, cleans up after itself, and its first full run is committed under `## Results`: of its 16 sections 13 pass (the runner's own Clean-up included), 2 are `human` (Waiting pill, Report card) and 1 fails (Cheap sensor: a real finding on the plugin, below).
+
+Branch: `plugin-real-host/wave1/53-scripted-smoke-runner` at `4536754`, base `cde4a73`
+
+Acceptance criteria:
+- [x] A runner in `test/smoke/`, not matched by `test/**/*.test.ts`, started by one command at the top of `test/smoke/README.md`, runs on Windows: `test/smoke/run-smoke.ts`, command in the new "The scripted run" section of `test/smoke/README.md`. Its name does not match the `npm test` glob; `git ls-files test | grep run-smoke` lists it once.
+- [x] Scratch home and port, `PASEO_*` and `API_KEY`/`TOKEN`/`SECRET` keys removed from every child environment, values never printed, every `paseo` call carries `--home <scratch>`: `scrubEnv` in `test/smoke/smoke-plan.ts`, the single `paseo()` helper in `run-smoke.ts`. The run printed the names only: `CLAUDE_CODE_MESSAGING_TOKEN, GITLAB_WEBHOOK_SECRET, PASEO_AGENT_CWD, PASEO_AGENT_ID, PASEO_CLI, PASEO_HOME, PASEO_HUB_API_KEY`. The port is a free one the runner picks (49708 to 60386 in my runs), never 6767 or 6790.
+- [x] Probes P1 to P12, one result line per section under `## Results`: all 16 sections have a line. P11 and the Waiting pill are `human` (reason below), the Cheap sensor line is `fail`, nothing is `blocked`.
+- [x] Human list printed and written under `## Results`: four items (enable the Claude Code plugin, pill screenshots, report card screenshot, one message typed in the app). No provider login was needed (see Findings).
+- [x] On exit the runner removes `mwp-smoke`, stops the scratch daemon and deletes the scratch folder, also on failure (`main().catch`), on SIGINT/SIGTERM and in an `exit` handler; verified: the last run printed `cleanup: plugin remove exit 0; daemon stop: stopped; status: stopped; scratch folder deleted`, and afterwards no process listens on 6793, no scratch home is left in the temp folder. Owner's daemon before and after (`paseo daemon status`, `paseo --version`, read-only): pid `18276`, worker `17208`, `127.0.0.1:6767`, version `0.10.1`, unchanged. (The owner's daemon was restarted outside this wave at 2026-10-01T04:42Z; that is the "before" value the orchestrator gave me.)
+- [x] The module that decides without a daemon has its own test file: `test/smoke/smoke-plan.test.ts`, below.
+- [x] One full run on Paseo 0.10.1, `## Results` committed: `4536754`; output below.
+
+Checks written: `test/smoke/smoke-plan.test.ts` (16 cases: the scrub removes `PASEO_*` and `API_KEY`/`TOKEN`/`SECRET` keys and returns names only; scratch overrides are applied after the scrub and never let an owner value through; the input is not mutated; the probe table holds P1 to P12 once with their launch; the section table names 16 sections, each probe backs a section and each probe-less section says why; `resultLine` field order, one-line and pipe escaping; `withResults` replaces what follows `## Results`, is idempotent, appends the heading when missing; the human list).
+Test run:
+- `node --test test/smoke/smoke-plan.test.ts`: red on `cde4a73` (module absent, `ERR_MODULE_NOT_FOUND` for `test/smoke/smoke-plan.ts`; `tests 1, pass 0, fail 1`; log kept as `red.log`), green on `4536754` (`tests 16, pass 16, fail 0`).
+- `npx tsc --noEmit`: no output (the runner is typechecked under `strict` and `erasableSyntaxOnly`).
+
+Full run (Windows 11 10.0.26200, Node v24.19.0, Paseo daemon and CLI 0.10.1, 12 processors), `MWP_SMOKE_DEBUG=1 node test/smoke/run-smoke.ts`, 24 minutes:
+```
+pass     Steps
+pass     Lifecycle relay
+human    Waiting pill
+pass     Git guard
+pass     Claude Code plugin
+pass     Role identity
+pass     Human words
+fail     Cheap sensor
+pass     Gate cap
+pass     State outside the repository
+pass     Cost levels
+pass     Delegated answers
+pass     Appetite
+pass     Question budget
+human    Report card
+pass     Clean-up
+```
+The decisive output of each section is on its line under `## Results` of `test/smoke/README.md` (checks named `ok`/`FAIL`), and the raw relay timelines of P2 and P4 are saved in `test/smoke/fixtures/paseo-0.10.1/`.
+
+Findings (each tagged):
+- **reproduced, FAIL** The stall sensor never flags a running agent on Paseo 0.10.1. The agent snapshot a plugin gets from `paseo.agents.ref(id).refresh()` has no `lastActivityAt` (keys: `id, provider, cwd, workspaceId, model, thinkingOptionId, effectiveThinkingOptionId, runtimeInfo, createdAt, updatedAt, lastUserMessageAt, status, activeTurn, capabilities, currentModeId, availableModes, features, pendingPermissions, persistence, title, labels, lastUsage, requiresAttention, attentionReason, attentionTimestamp, archivedAt`), so `server/paseo-host.ts` `lastActivityAt()` returns null and the tick skips every agent. Found with a throwaway patched copy (two `console.log` lines, outside git, in my temp folder): `[diag] tick latest=true` at 09:24:17 and `[diag] lastActivityAt type=undefined value=undefined keys=... status=running`, while the stream agent ran a foreground 400 s command for 7 minutes and the orchestrator got no `Stall suspected:`. The smoke README's own fallback (`updatedAt`) is not implemented. In the committed run the stream agent was `running` at minute 7 and was not flagged; the ticket agent had already gone `idle` (haiku sometimes ended its turn early), so that check also reads FAIL; the cause of the missing flags is the one above. `UpdatedAt` read at minute 2 and minute 7 was equal while the call was stuck, so the field a fix would use behaves as the sensor needs. Not fixed here (outside my file zone): a ticket for `server/paseo-host.ts` is needed.
+- **reproduced** `MWP_*` reaches plugin code through `daemon start`, not only `daemon run`: P8 passed on a daemon launched by `paseo daemon start` with `MWP_GATE_SHARE=0.01` in the launching process's environment (message names `a cap of 1`); P10 and P9 passed likewise for `MWP_QUESTION_BUDGET=2` and `MWP_STATE_DIR`. The runner uses `start` and falls back to `run` only if P8 fails.
+- **reproduced** A script can create labelled agents and parent them: `paseo run -d --title ... --label k=v` with `PASEO_AGENT_ID=<scratch orchestrator id>` in the child environment gives `ParentAgentId` equal to that id (`paseo inspect`), and the plugin treats the orchestrator as the parent (relay messages arrive in its timeline).
+- **reproduced** A child created with `PASEO_AGENT_ID` set lands in the parent's workspace and takes the parent's `cwd`, whatever `--cwd` says (the plugin saw `cwd=<orchestrator's folder>`). So an orchestrator must be created in the folder its children need (the repo with the `## Delegation` table); the runner does that.
+- **reproduced** `paseo send` always carries a `clientMessageId`: with the orchestrator as `PASEO_AGENT_ID` or without, the ticket agent's next turn end reached the orchestrator as `Human words:` (one message id). An agent created with `paseo run` carries none (no `Human words:`). The MCP paths (`create_agent`, `send_agent_prompt` called by an agent) were attempted by a scratch orchestrator and are marked `not covered` in the P4 line: the orchestrator did not create the child (its model had no usable paseo MCP tools in the scratch daemon, reason not isolated). The CLI timeline text (`paseo logs`) shows no `messageId`/`clientMessageId` fields, so the per-path fact is read from the relay.
+- **reproduced** `paseo restart --home <scratch>` on a daemon started by `daemon start` works (supervisor pid kept, worker replaced), and the resumed ticket agent still printed `ROLE-IS:ticket`; in an earlier, overloaded probe the CLI hung after a restart on a `daemon run` launch (not reproduced in the full runs).
+- **reproduced** Every agent creation logs `[matt-with-paseo] agent.session_open could not read the title or labels of agent <id>; left unmarked` (the README's "if the agent was resumed" warning also fires at creation). Not a failure for the marker (the ticket marker is set by `beforeCreate`), but the line is noise in `paseo plugin logs`; the P3 check looks for it only for the resumed ticket agent.
+- **reproduced** A foreground `sleep N` of several minutes is not a stuck call under Claude Code: the agent ended its turn at once. The runner holds agents with `node -e "setTimeout(function(){},780000)"`, with `BASH_MAX_TIMEOUT_MS` raised through `paseo run --env`.
+- **reproduced** The CLI's `paseo logs` (text, `-o json`, `-o yaml`) shows no plugin timeline rows, so the report-card row (kind, version, in-place update) is not readable by a script: P11 checks that the plugin logged no `report card not appended` failure before and after `plugin reload`, and the section is `human` (the card's drawing is a human item anyway).
+- **decided: no `blocked: provider login`** because the scratch home's `claude` provider worked on the first try with the machine's own Claude Code login (nothing read, copied or logged in). Cost: agents spend that login's quota; a trivial haiku turn cost about 0.014 USD (`paseo inspect` `CostUsd`), a full run uses roughly a hundred turns.
+- **decided: `list_profiles` and "the `Next:` line names existing tools"** are not checked (they are MCP tools the CLI cannot call); P6 compares provider ids before and after the install instead, P2 checks the tool names are written in the line.
+
+Design: `test/smoke/smoke-plan.ts` holds what is decided without a daemon (scrub, probe table P1 to P12 with the launch each needs, section-to-probe table, human list, results writer); `test/smoke/run-smoke.ts` does the work: scratch folder under the system temp folder (`MWP_SMOKE_TEMP` moves it), `git archive HEAD` copy with `test/smoke/conditions.json` over `server/data/conditions.json`, two scratch git repos from `test/smoke/fixtures/AGENTS-p5.md` and `AGENTS-spend.md` (appetite `0.0001 USD`), launch A (`MWP_GATE_SHARE=0.01`: P1, P8) then launch B (`MWP_QUESTION_BUDGET=2`, `MWP_STATE_DIR=<scratch>`: P10, P2, P4, P5, P6, P11 one agent at a time, P7 beside them, P12 beside them, then P3 with the one restart, then P9). Every agent title carries `[mwp-smoke]`. `--only P1,P8` runs named probes and writes nothing.
+
+Code review: deferred to the milestone (docs/agents/evidence-standards.md)
+Open: (1) the Cheap sensor finding above needs a ticket (`lastActivityAt` absent on 0.10.1; fall back to `updatedAt`); (2) the MCP paths of P4 and "Next: names existing tools" are `not covered`; (3) the Waiting pill and Report card sections and the four human items stay with the owner; (4) the runner spends real model quota (about 0.01 USD per haiku turn); (5) the P7 sleepers are model-driven: an agent can end its turn early (seen once for the ticket agent), which the run reports as its own FAIL line.
+Outside the file zone: none in git (new files only under `test/smoke/`, and the "The scripted run" section plus `## Results` of `test/smoke/README.md`). Outside git, in `C:\Users\HBLAB_OPMS\AppData\Local\Temp\plugin-real-host-53`: logs of my runs (`dry*.log`, `full*.log`, `red.log`, `green.log`, `plugin-real-host-evidence.log`), the throwaway probe and diagnostic scripts (`probe.mjs`, `probe2.mjs`, `diag.mjs`, `diag3.mjs`, `diag.tar`), and this file. No scratch daemon or scratch home remains.
+````
