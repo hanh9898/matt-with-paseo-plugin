@@ -235,15 +235,20 @@ The plugin appends one timeline row to the orchestrator's chat to show what was 
 Kind: `report-card`
 Version: 1
 Row id: `report-card`
-Fields: `decided`, `spend`, `questions`
+Fields: `decided`, `decidedCount`, `log`, `spend`, `questions`
 Decided entry: `header`, `answer`, `at`
+Decided cap: 20
+Text cap: 200
 Spend: `totalUsd`, `appetiteUsd`, `partial`
 Questions: `count`, `budget`
 Buttons: none
 
 The plugin appends the row again under its one row id each time a delegated answer is recorded, a question is left to the user, or a ticket agent or the stream agent ends a turn, so the chat holds one card, kept current.
 
-- `decided` lists the decisions made on the user's behalf for the stream, oldest first: each entry is the question's `header`, the `answer` given and the time `at` (ISO 8601), read from the delegated answers' record. A question left to the user is not an entry.
+- `decided` lists the latest decisions made on the user's behalf for the stream, oldest of those first, at most the decided cap (20): each entry is the question's `header`, the `answer` given (each cut to the text cap of 200 characters, ending `…` when cut) and the time `at` (ISO 8601), read from the delegated answers' record. A question left to the user is not an entry.
+- `decidedCount` is the total number of decisions for the stream, so the card's heading counts all of them and says how many earlier ones are only in the log.
+- `log` is the absolute path of `decision-log.md` under the state directory (see "The decision log"), shown as a line of text: nothing on the card can be pressed. The card never reads the log, so a log that cannot be written never blanks the card.
+- The list is capped because a plugin row's `data` is limited to 64 KiB serialised, and Paseo refuses an append above it: the record only grows, so an uncapped list would freeze the card. Every decision stays in the log.
 - `spend` is the stream's summed turn cost in `totalUsd` against its `appetiteUsd`, which is `null` when the table has no appetite. `partial` is true when a turn had no cost, so the total may be short of the real spend.
 - `questions` is the day's `count` of questions left to the user against the `budget`, which is `null` when no budget is set.
 

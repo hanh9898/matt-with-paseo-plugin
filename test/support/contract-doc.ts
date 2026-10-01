@@ -23,6 +23,8 @@ export interface CardDoc {
   decidedEntry: string[];
   spendFields: string[];
   questionsFields: string[];
+  decidedCap: string;
+  textCap: string;
   buttons: string;
 }
 
@@ -196,8 +198,10 @@ function cardOf(section: string | undefined): CardDoc | null {
   const decidedEntry = ticks(lineValue(section, "Decided entry") ?? "");
   const spendFields = ticks(lineValue(section, "Spend") ?? "");
   const questionsFields = ticks(lineValue(section, "Questions") ?? "");
+  const decidedCap = lineValue(section, "Decided cap") ?? "";
+  const textCap = lineValue(section, "Text cap") ?? "";
   if (kind === undefined || version === null || buttons === null) return null;
-  return { id, kind, version, fields, decidedEntry, spendFields, questionsFields, buttons };
+  return { id, kind, version, fields, decidedEntry, spendFields, questionsFields, decidedCap, textCap, buttons };
 }
 
 /** Reads the contract document; a part it lacks comes back empty or null, and `contractProblems` names it. */
@@ -278,6 +282,8 @@ export function contractProblems(text: string): string[] {
     if (card.kind !== REPORT_CARD.kind) problems.push(`the contract card kind is "${card.kind}" but the plugin builds "${REPORT_CARD.kind}"`);
     if (card.version !== String(REPORT_CARD.version)) problems.push(`the contract card version is "${card.version}" but the plugin builds ${REPORT_CARD.version}`);
     if (!same(card.fields, REPORT_CARD.fields)) problems.push(`the contract card fields are [${card.fields.join(", ")}] but the plugin builds [${REPORT_CARD.fields.join(", ")}]`);
+    if (card.decidedCap !== String(REPORT_CARD.decidedCap)) problems.push(`the contract decided cap is "${card.decidedCap}" but the plugin builds ${REPORT_CARD.decidedCap}`);
+    if (card.textCap !== String(REPORT_CARD.textCap)) problems.push(`the contract text cap is "${card.textCap}" but the plugin builds ${REPORT_CARD.textCap}`);
     if (card.buttons !== "none") problems.push(`the contract card says buttons "${card.buttons}", and the card has none`);
   }
   return problems;
