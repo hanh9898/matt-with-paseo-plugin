@@ -184,17 +184,17 @@ Written, not run. Targets Paseo `0.10.1`. Run it with `mwp-smoke` installed. It 
 
 ## Delegated answers
 
-Written, not run. Targets Paseo `0.10.1`. Run it after "Waiting pill", with `mwp-smoke` installed, in a scratch repository whose `AGENTS.md` holds a `## Delegation` table with the rows `Switch | on` and `Questions the orchestrator may decide | two-way, costly`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
+Written, not run. Targets Paseo `0.10.1`. Run it after "Waiting pill", with `mwp-smoke` installed, in a scratch repository whose `AGENTS.md` holds a `## Delegation` table with the rows `Level | 2` and `Questions the orchestrator may decide | two-way, costly`. Mark every agent the run creates with the title prefix `[mwp-smoke]` and leave every other agent alone.
 
 1. Create a ticket agent titled `[mwp-smoke] ticket` (labels `wave=1`, `ticket=99`) in that repository whose prompt asks one `AskUserQuestion`, header `Colour`, text ending in a line `Door: two-way`, first option `Red (Recommended)`. Expected: within 30 seconds the question is answered with `Red (Recommended)` and the agent carries on with it; the plugin's log shows no question text.
 2. Repeat with `Door: costly` and then with the table row reduced to `two-way`. Expected: answered in the first run, left to the user in the second (the pill counts it).
-3. Repeat with a text that also holds `Yours: spend`. Expected: left to the user.
-4. Repeat with `Door: one-way`, with the table row listing `one-way`. Expected: left to the user.
+3. Repeat with a text that also holds `Yours: spend`. Expected: left to the user, with `one of the user's five (level 2)` in the decision log.
+4. Repeat with `Door: one-way`, with the table row listing `one-way`. Expected: left to the user, at level 2 still.
 5. Repeat with the first option `Red` (no mark). Expected: left to the user.
-6. Set the row `Switch | off`, then delete the table. Expected: the step 1 question is left to the user both times.
-7. Ask two questions in one call, one answerable and one with `Yours: merge`. Expected: neither is answered.
-8. Ask the step 1 question from an agent with no labels. Expected: left to the user, and the daemon log names no read of `AGENTS.md`.
-9. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
+6. Set the row `Switch | off` in place of `Level | 2`, then delete the table. Expected: the step 1 question is left to the user both times.7. Set the rows `Level | 3` and `Questions the orchestrator may decide | two-way, costly, one-way`. Ask one question, header `Merge`, text with the lines `Door: one-way` and `Yours: merge`, first option `Merge (Recommended)`. Expected: answered with `Merge (Recommended)`, the decision log's grounds read `level 3 (the Level row)` and `Yours: merge answered at level 3`, and nothing is merged: the repository's branches and `git log` are unchanged until the orchestrator merges. With `one-way` removed from the row, the same question is left to the user.
+8. Ask two questions in one call, one answerable and one with `Yours: merge` (at `Level | 2`). Expected: neither is answered.
+9. Ask the step 1 question from an agent with no labels. Expected: left to the user, and the daemon log names no read of `AGENTS.md`.
+10. Archive every `[mwp-smoke]` agent, then `paseo plugin remove mwp-smoke`.
 
 ## Appetite
 

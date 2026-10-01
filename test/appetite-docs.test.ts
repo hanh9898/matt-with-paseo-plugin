@@ -10,7 +10,17 @@ function read(name: string): string {
 function section(text: string, heading: string): string {
   const start = text.indexOf(heading);
   assert.ok(start !== -1, `a "${heading}" heading exists`);
-  return text.slice(start + heading.length).split(/\n#{1,3} /, 1)[0] ?? "";
+  // A heading-like line inside a fenced example (a sample `## Delegation` table) does not end the section.
+  let fenced = false;
+  const rest = text
+    .slice(start + heading.length)
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("```")) fenced = !fenced;
+      return fenced && /^#{1,3} /.test(line) ? ` ${line}` : line;
+    })
+    .join("\n");
+  return rest.split(/\n#{1,3} /, 1)[0] ?? "";
 }
 
 test("the contract lists the appetite passed message with its case for a partial total", () => {

@@ -29,7 +29,7 @@ function answerOne(delegation: Delegation, raw: unknown): { header: string; labe
   if (typeof text !== "string") return "a question has no text";
   if (multiSelect === true) return "a multi-select question has no single recommendation";
   const lines = text.split(/\r?\n/);
-  if (lines.some((line) => line.startsWith("Yours:"))) return "one of the user's five";
+  if (delegation.level < 3 && lines.some((line) => line.startsWith("Yours:"))) return "one of the user's five (level 2)";
   const door = doorOf(text);
   if (door === undefined) return "no Door line";
   if (!delegation.decide.includes(door as DecidableDoor)) return "the table does not let the orchestrator decide this door";
@@ -39,16 +39,26 @@ function answerOne(delegation: Delegation, raw: unknown): { header: string; labe
   return { header, label };
 }
 
+/** The level a decision was taken at and where it was read, as `Grounds:` of the decision log opens (`docs/contract.md`, "The decision log"). */
+export function levelGrounds(delegation: Delegation | null): string {
+  if (delegation === null) return "level 1 (no delegation table)";
+  const { level, levelFrom } = delegation;
+  if (levelFrom === "Level") return `level ${level} (the Level row)`;
+  if (levelFrom === "Switch") return `level ${level} (from Switch: ${level === 2 ? "on" : "not on"})`;
+  return `level ${level} (default: no Level or Switch row)`;
+}
+
 /**
- * Decides an `AskUserQuestion` input under a delegation table. A request is answered only when every question in it
- * carries a `Door:` the table lets the orchestrator decide, no `Yours:` line and a recommended first option; one
- * question that fails leaves the whole request to the user, so a partial answer never reaches the agent, and so
- * does a stream past its appetite. The answer
- * takes the recommended option's label, keyed by the question's `header` (T5).
+ * Decides an `AskUserQuestion` input under a delegation table (ADR 0004). Level 1 leaves every request. From level 2 a
+ * request is answered only when every question in it carries a `Door:` the table lets the orchestrator decide, a
+ * recommended first option and, below level 3, no `Yours:` line; one question that fails leaves the whole request to
+ * the user, so a partial answer never reaches the agent, and so does a stream past its appetite at every level. The
+ * answer takes the recommended option's label, keyed by the question's `header` (T5); a question with no
+ * recommendation is never answered, at any level (ADR 0002, non-goal 1).
  */
 export function decideAnswers(delegation: Delegation | null, input: unknown, stream: { pastAppetite?: boolean } = {}): Decision {
   if (delegation === null) return { leave: "no delegation table" };
-  if (!delegation.on) return { leave: "the delegation switch is off" };
+  if (delegation.level === 1) return { leave: "level 1: nothing is delegated" };
   if (stream.pastAppetite === true) return { leave: "the stream is past its appetite" };
   const questions = objectOf(input)?.["questions"];
   if (!Array.isArray(questions) || questions.length === 0) return { leave: "no questions in the request" };
@@ -75,9 +85,9 @@ export type Reader = {
   pastAppetite?: (stream: string) => boolean;
   now?: () => string;
   /** Told of each question this handler leaves to the user, once, after the agent's role is known; the question budget (#39) counts them. `reason` is the leave string, or the kind of failure when the handler failed open, never an error's message. It never changes what the handler answers. */
-  left?: (left: { agent: HostAgent; request: PermissionRequest; labels: Record<string, string>; reason: string }, host: Host) => void | Promise<void>;
+  left?: (left: { agent: HostAgent; request: PermissionRequest; labels: Record<string, string>; reason: string; level: string }, host: Host) => void | Promise<void>;
   /** Told once after each request this handler answered and recorded, with the answering agent, its labels, the request and the answers sent; the report card (#41) refreshes on it and the decision log writes it. It never changes what the handler answers. */
-  answered?: (answered: { agent: HostAgent; labels: Record<string, string>; request: PermissionRequest; answers: Record<string, string> }, host: Host) => void | Promise<void>;
+  answered?: (answered: { agent: HostAgent; labels: Record<string, string>; request: PermissionRequest; answers: Record<string, string>; level: string }, host: Host) => void | Promise<void>;
 };
 
 const RECORD_FILE = "delegated-answers.jsonl";
@@ -164,11 +174,13 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
     if (request.kind !== "question" || request.name !== "AskUserQuestion") return;
     /** The labels of a recognised agent, once known: a question that stays the user's is told to `left` from then on. */
     let known: Record<string, string> | null = null;
+    /** The level the table gave this request and where it was read (`levelGrounds`); not known until the table is read. */
+    let level = "level unknown (the delegation table was not read)";
     /** Tells `left` that the question stays the user's, unless the request is settled meanwhile; `left` never throws into the answer. */
     async function leave(reason: string): Promise<void> {
       if (left === undefined || known === null || settled.get(agent.id)?.has(request.id)) return;
       try {
-        await left({ agent, request, labels: known, reason }, host);
+        await left({ agent, request, labels: known, reason, level }, host);
       } catch (error) {
         console.error(`[matt-with-paseo] question left to the user not told for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -182,7 +194,9 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
       if (settled.get(agent.id)?.has(request.id)) return;
       const stream = labels["stream"] ?? "";
       const text = await readTable(agent.cwd);
-      const decision = decideAnswers(text === null ? null : readDelegation(text), request.input, { pastAppetite: pastAppetite(stream) });
+      const delegation = text === null ? null : readDelegation(text);
+      level = levelGrounds(delegation);
+      const decision = decideAnswers(delegation, request.input, { pastAppetite: pastAppetite(stream) });
       if (!("answers" in decision)) {
         await leave(decision.leave);
         return;
@@ -206,7 +220,7 @@ export function registerDelegatedAnswers(hooks: HostHooks, reader: Reader = {}):
         console.error(`[matt-with-paseo] delegated answer not recorded for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
       try {
-        await answered?.({ agent, labels, request, answers: decision.answers }, host);
+        await answered?.({ agent, labels, request, answers: decision.answers, level }, host);
       } catch (error) {
         console.error(`[matt-with-paseo] delegated answer not told for agent ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
