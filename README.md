@@ -8,7 +8,7 @@ matt-with-paseo-plugin is an optional Paseo plugin for people who run the `matt-
 
 The design case is the unattended stream; a single wave is helped too. The plugin supports Windows, macOS and Linux. Claude Code only; other agents prepared through descriptors, not promised.
 
-What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md). Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
+What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md); [ADR 0004](docs/adr/0004-three-autonomy-levels.md) sets three autonomy levels, and the five owner items (a change to the concept, adding or dropping tickets, spend past the appetite, irreversible actions, merging the PR) reach the owner below level 3. Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
 
 ## Development
 

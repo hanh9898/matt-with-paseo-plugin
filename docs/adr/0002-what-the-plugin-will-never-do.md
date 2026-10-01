@@ -1,6 +1,6 @@
 # What the plugin will never do
 
-Status: accepted, 2026-09-30
+Status: accepted, 2026-09-30; non-goal 3 superseded and non-goal 6 amended by ADR 0004
 
 ## Context
 
@@ -28,6 +28,8 @@ The skills always run without the plugin, on the heartbeat path with prose quest
 
 Five items stay the user's, even with delegation on: a change to the concept (spec, words, ADRs), adding or dropping tickets, spend past the appetite, irreversible actions, and merging the PR. Even then, a question with no recommendation is never answered for the user.
 
+Superseded by [ADR 0004](0004-three-autonomy-levels.md): the five items reach the owner below level 3, and a question with no recommendation is still never answered by the plugin.
+
 - Reason: delegation lets the plugin take a recommendation the owner already wrote a rule for; it never lets the plugin decide what the owner keeps for themselves.
 - Evidence: [Decisions that shaped the tickets](https://github.com/hanh9898/matt-with-paseo/blob/main/docs/lessons/sting9k-seatworks.md#decisions-that-shaped-the-tickets) (five items stay the user's); [ADR 0001](0001-checkpoints-use-paseo-native-questions-answered-by-the-plugin.md).
 
@@ -47,9 +49,11 @@ The plugin has no custom UI where Paseo has a native form, no sidebar settings p
 
 ### 6. Write to git itself
 
-The plugin never commits, pushes or merges. It only guards ticket agents' git ([#2](https://github.com/hanh9898/matt-with-paseo-plugin/issues/2)). Push stays with the orchestrator, and merge stays with a human.
+The plugin never commits, pushes or merges. It only guards ticket agents' git ([#2](https://github.com/hanh9898/matt-with-paseo-plugin/issues/2)). Push stays with the orchestrator, and merge stays with a human below level 3; at level 3 the orchestrator carries it out when the owner's table lets it answer the merge question.
 
-- Reason: merging the PR is always the user's, and a git write from the plugin would be an irreversible action taken outside the skills.
+Amended by [ADR 0004](0004-three-autonomy-levels.md): the plugin still never writes git at any level.
+
+- Reason: merging the PR is the user's below level 3, and a git write from the plugin would be an irreversible action taken outside the skills.
 - Evidence: [#2, git guard for ticket agents](https://github.com/hanh9898/matt-with-paseo-plugin/issues/2), and the fifth item of non-goal 3. This rests on thinner evidence than the other five: it was taken as the option that is easier to relax.
 
 ## Consequences
