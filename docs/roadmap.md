@@ -37,6 +37,8 @@ Status: in progress (the milestone run, on `release/v0.1.0`)
 11. Relay and mark bundle agents: #45
 12. Stall suspected for a running stream agent: #48
 13. Stall suspected for a running ticket agent: #49
+14. ADR 0004, three autonomy levels: #57
+15. Read the `Level` row: answer and log per autonomy level: #58
 
 ### Exit criteria
 
@@ -49,7 +51,7 @@ In the order they are met:
 5. MIT, with a `NOTICE` crediting sting9k/seatworks.
 6. The skills run with the plugin absent (skills side).
 7. Contract v1 exists and a skills release reads it.
-8. A delegated question is answered within the `## Delegation` table's rules and never outside them. The user's five items and any question with no recommendation still reach the user.
+8. A delegated question is answered within the `## Delegation` table's level and rules and never outside them. At level 1 every question reaches the user; at level 2 the user's five items still do; at every level a question with no recommendation does, and the plugin runs no git.
 9. The question budget and the appetite are counted: a stream past its appetite sends its questions to the user, and a spent budget tells the user and widens no delegation (#39).
 10. The report card shows what was decided on the user's behalf.
 11. An unattended stream runs end to end with no heartbeat and with delegation on.

@@ -8,7 +8,7 @@ matt-with-paseo-plugin is an optional Paseo plugin for people who run the `matt-
 
 The design case is the unattended stream; a single wave is helped too. The plugin supports Windows, macOS and Linux. Claude Code only; other agents prepared through descriptors, not promised.
 
-What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md). Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
+What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md); [ADR 0004](docs/adr/0004-three-autonomy-levels.md) sets three autonomy levels, and the five owner items (a change to the concept, adding or dropping tickets, spend past the appetite, irreversible actions, merging the PR) reach the owner below level 3. Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
 
 ## Development
 
@@ -289,7 +289,13 @@ The checks are `test/appetite.test.ts`, `test/hooks/appetite.test.ts` and `test/
 
 ### Delegated answers
 
-When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. A question with a `Yours:` line, a `Door: one-way`, no recommendation, or any question in a request that fails one of these is left to the user, as is every question when the table is missing, unreadable or switched off. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository. The owner reads the decisions, answered and left, in `decision-log.md` in the same directory (`server/decision-log.ts`; its shape is in `docs/contract.md`, "The decision log").
+When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. How much it answers is the `Level` row of the table ([ADR 0004](docs/adr/0004-three-autonomy-levels.md)):
+
+- **Level 1**: nothing is delegated, and every question reaches the owner.
+- **Level 2**: every question the table lets the orchestrator decide is answered, except one with a `Yours:` line (the five owner items) or a `Door: one-way`.
+- **Level 3**: the five items are answered too, and `one-way` counts when the row lists it.
+
+The default is level 1: a missing table, or a table with no `Level` and no `Switch` row, delegates nothing. The v1 row `Switch | on` still reads as level 2. At every level a question with no recommendation, a stream past its appetite and any question in a request that fails one of the rules is left to the user, and the plugin writes no git: a level-3 `Yours: merge` answer is one permission answer, and the orchestrator carries out the merge. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository. The owner reads the decisions, answered and left, in `decision-log.md` in the same directory (`server/decision-log.ts`; its shape is in `docs/contract.md`, "The decision log").
 
 The checks are `test/delegation.test.ts`, `test/delegated-answers.test.ts`, `test/hooks/delegated-answers.test.ts` and `test/delegated-answers-docs.test.ts`; the smoke test ("Delegated answers") runs it on Paseo `0.10.1`.
 

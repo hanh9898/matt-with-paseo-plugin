@@ -15,7 +15,7 @@ const ticket: HostAgent = { ...stream, id: "tkt-7", workspaceId: "w1", parentAge
 const otherStream: HostAgent = { ...stream, id: "stream-2", title: "[Stream] other" };
 const stranger: HostAgent = { ...stream, id: "stranger", title: null };
 
-const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Questions the orchestrator may decide | two-way |", "| Appetite | 5 USD |", ""].join("\n");
+const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Level | 2 |", "| Questions the orchestrator may decide | two-way |", "| Appetite | 5 USD |", ""].join("\n");
 const ask = (id: string, header: string, door: string): PermissionRequest => ({
   id,
   name: "AskUserQuestion",

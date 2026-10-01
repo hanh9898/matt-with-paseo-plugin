@@ -157,8 +157,23 @@ function askedOf(request: PermissionRequest): string {
   return lines.length === 0 ? "(the request held no readable question)" : lines.join("\n");
 }
 
-/** The clause of `Grounds:` for the doors of a request: one per question, named by its header when there are several. */
-function groundsOfAnswer(agent: HostAgent, request: PermissionRequest): string {
+/** The `Yours:` items a request's questions carry, in order and once each; none for a request with no `Yours:` line. */
+function yoursOf(questions: Record<string, unknown>[]): string[] {
+  const items: string[] = [];
+  for (const question of questions) {
+    const text = question["question"];
+    if (typeof text !== "string") continue;
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.startsWith("Yours:")) continue;
+      const item = fold(line.slice("Yours:".length));
+      if (!items.includes(item)) items.push(item);
+    }
+  }
+  return items;
+}
+
+/** The clause of `Grounds:` for a delegated answer: the level and where it was read, the doors (one per question, named by its header when there are several), any `Yours:` item answered, and the recommendation. */
+function groundsOfAnswer(agent: HostAgent, request: PermissionRequest, level: string): string {
   const questions = questionsOf(request.input);
   const doors = questions.map((question) => {
     const text = question["question"];
@@ -166,13 +181,19 @@ function groundsOfAnswer(agent: HostAgent, request: PermissionRequest): string {
     const header = question["header"];
     return questions.length > 1 && typeof header === "string" ? `${door ?? "an unread door"} (${fold(header)})` : (door ?? "an unread door");
   });
-  return `the ## Delegation table in ${agent.cwd}/AGENTS.md lets the orchestrator decide ${doors.join(", ")}; the first option was marked (Recommended)`;
+  const yours = yoursOf(questions).map((item) => `Yours: ${item} answered at level 3`);
+  return [
+    fold(level),
+    `the ## Delegation table in ${agent.cwd}/AGENTS.md lets the orchestrator decide ${doors.join(", ")}`,
+    ...yours,
+    "the first option was marked (Recommended)",
+  ].join("; ");
 }
 
 /** What the delegated-answers handler tells the log after it answered a request. */
-export type AnsweredRequest = { agent: HostAgent; labels: Record<string, string>; request: PermissionRequest; answers: Record<string, string> };
+export type AnsweredRequest = { agent: HostAgent; labels: Record<string, string>; request: PermissionRequest; answers: Record<string, string>; level: string };
 /** What it tells the log after it left a request to the user; `reason` is the leave string or a fail-open kind, never an error's message. */
-export type LeftRequest = { agent: HostAgent; labels: Record<string, string>; request: PermissionRequest; reason: string };
+export type LeftRequest = { agent: HostAgent; labels: Record<string, string>; request: PermissionRequest; reason: string; level: string };
 
 export type DecisionLog = {
   /** Writes one entry and renders the file; returns its number, or null when that agent's request is already in the record. Throws when the state directory cannot be written. */
@@ -228,7 +249,7 @@ export function createDecisionLog(options: DecisionLogOptions = {}): DecisionLog
 
   return {
     append,
-    answered: ({ agent, labels, request, answers }) =>
+    answered: ({ agent, labels, request, answers, level }) =>
       guarded(agent, "delegated answer", () => {
         append({
           kind: "delegated answer",
@@ -237,10 +258,10 @@ export function createDecisionLog(options: DecisionLogOptions = {}): DecisionLog
           requestId: request.id,
           asked: askedOf(request),
           answer: Object.entries(answers).map(([header, label]) => `${header}: ${label}`).join("\n"),
-          grounds: groundsOfAnswer(agent, request),
+          grounds: groundsOfAnswer(agent, request, level),
         });
       }),
-    left: ({ agent, labels, request, reason }) =>
+    left: ({ agent, labels, request, reason, level }) =>
       guarded(agent, "left to the user", () => {
         append({
           kind: "left to the user",
@@ -249,7 +270,7 @@ export function createDecisionLog(options: DecisionLogOptions = {}): DecisionLog
           requestId: request.id,
           asked: askedOf(request),
           answer: `none: left to the user, who answers it in agent ${agent.id}'s chat`,
-          grounds: reason,
+          grounds: `${fold(level)}; ${fold(reason)}`,
         });
       }),
   };

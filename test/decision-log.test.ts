@@ -139,7 +139,7 @@ test("a state directory that cannot be written throws from append, and nothing i
 // The handler's side: what the log is told, and that the log never changes an answer or a leave.
 
 const stream: HostAgent = { id: "stream-1", workspaceId: "w0", parentAgentId: null, provider: "sample", cwd: "/repo", title: "[Stream] demo" };
-const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Questions the orchestrator may decide | two-way, costly |", ""].join("\n");
+const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Level | 2 |", "| Questions the orchestrator may decide | two-way, costly |", ""].join("\n");
 const question = (header: string, door: string, extra = "") => ({
   header,
   question: `Which ${header}?\nDoor: ${door}${extra}`,
@@ -175,14 +175,14 @@ test("a request with three questions is one delegated-answer entry, each questio
     assert.ok(text.includes(`${header}: Yes (Recommended)`), `Answer lists ${header}`);
     assert.ok(text.includes(`${header}: Which ${header}? / Door:`), `Asked lists ${header}`);
   }
-  assert.ok(text.includes("the ## Delegation table in /repo/AGENTS.md lets the orchestrator decide two-way (Colour), costly (Size), two-way (Shape); the first option was marked (Recommended)"));
+  assert.ok(text.includes("level 2 (the Level row); the ## Delegation table in /repo/AGENTS.md lets the orchestrator decide two-way (Colour), costly (Size), two-way (Shape); the first option was marked (Recommended)"));
   assert.ok(text.includes("options: Yes (Recommended), No"));
 });
 
 test("a single question's grounds name the table, its file and the door", async () => {
   const dir = fresh();
   await wired(dir).emitPermissionRequested({ agent: stream, request: ask("r1", question("Colour", "two-way")) });
-  assert.match(markdown(dir), /^Grounds: the ## Delegation table in \/repo\/AGENTS\.md lets the orchestrator decide two-way; the first option was marked \(Recommended\)$/m);
+  assert.match(markdown(dir), /^Grounds: level 2 \(the Level row\); the ## Delegation table in \/repo\/AGENTS\.md lets the orchestrator decide two-way; the first option was marked \(Recommended\)$/m);
 });
 
 test("a question left to the user is one entry with its leave reason as the grounds", async () => {
@@ -193,7 +193,7 @@ test("a question left to the user is one entry with its leave reason as the grou
   const text = markdown(dir);
   assert.match(text, /^### D1 — .* \[demo\] left to the user$/m);
   assert.match(text, /^Answer: none: left to the user, who answers it in agent stream-1's chat$/m);
-  assert.match(text, /^Grounds: one of the user's five$/m);
+  assert.match(text, /^Grounds: level 2 \(the Level row\); one of the user's five \(level 2\)$/m);
 });
 
 test("a table that cannot be read is logged as left, with the fail-open grounds and no error text", async () => {
@@ -208,7 +208,7 @@ test("a table that cannot be read is logged as left, with the fail-open grounds 
   }
   const text = markdown(dir);
   assert.match(text, /^### D1 — .* \[demo\] left to the user$/m);
-  assert.match(text, /^Grounds: the delegation table could not be read$/m);
+  assert.match(text, /^Grounds: level unknown \(the delegation table was not read\); the delegation table could not be read$/m);
   assert.ok(!text.includes("secret-path"));
 });
 
@@ -239,4 +239,114 @@ test("a log that cannot be written leaves the answer as it was and logs the agen
   assert.deepEqual(fake.failures, []);
   assert.equal(errors.filter((line) => line.includes("stream-1")).length >= 2, true);
   assert.ok(errors.every((line) => !line.includes("Colour") && !line.includes("Which") && !line.includes("Hue")));
+});
+
+// Levels (ADR 0004): every entry's grounds name the level and where it was read; no new kind of entry.
+
+const delegation = (...rows: string[]) => ["## Delegation", "", "| Rule | Value |", "|---|---|", ...rows, ""].join("\n");
+const withRecommendation = (header: string, lines: string) => ({
+  header,
+  question: `Which ${header}?\n${lines}`,
+  options: [{ label: "Merge (Recommended)", description: "" }, { label: "Hold", description: "" }],
+  multiSelect: false,
+});
+const groundsLines = (text: string): string[] => text.split("\n").filter((line) => line.startsWith("Grounds: "));
+
+test("level 1 logs every question as left to the user with `level 1: nothing is delegated`", async () => {
+  const dir = fresh();
+  const fake = wired(dir, delegation("| Level | 1 |", "| Questions the orchestrator may decide | two-way |"));
+  await fake.emitPermissionRequested({ agent: stream, request: ask("r1", question("Colour", "two-way")) });
+  assert.deepEqual(fake.answers, []);
+  const text = markdown(dir);
+  assert.match(text, /^### D1 — .* \[demo\] left to the user$/m);
+  assert.deepEqual(groundsLines(text), ["Grounds: level 1 (the Level row); level 1: nothing is delegated"]);
+});
+
+test("level 3 answers a Yours: merge question, logs it as a delegated answer and the host sees only respondToPermission", async () => {
+  const dir = fresh();
+  const fake = new FakeHost();
+  const called: string[] = [];
+  for (const name of Object.getOwnPropertyNames(FakeHost.prototype)) {
+    const method = (fake as unknown as Record<string, unknown>)[name];
+    // The fake's own plumbing (`run`, `set…`, `emit…`, `on…`) is not a call the plugin makes on the host.
+    if (name === "constructor" || typeof method !== "function" || name === "run" || /^(set|emit|on)/.test(name)) continue;
+    (fake as unknown as Record<string, unknown>)[name] = (...args: unknown[]) => {
+      called.push(name);
+      return (method as (...a: unknown[]) => unknown).apply(fake, args);
+    };
+  }
+  const log = logOver(dir);
+  registerDelegatedAnswers(fake, {
+    readTable: async () => delegation("| Level | 3 |", "| Questions the orchestrator may decide | two-way, costly, one-way |"),
+    record: () => {},
+    left: (left) => void log.left(left),
+    answered: (answered) => void log.answered(answered),
+  });
+  fake.setLabels("stream-1", { stream: "demo" });
+  await fake.emitPermissionRequested({ agent: stream, request: ask("r1", withRecommendation("Merge", "Door: one-way\nYours: merge")) });
+  assert.deepEqual(fake.answers.map((answer) => answer.requestId), ["r1"]);
+  assert.deepEqual([...new Set(called)].sort(), ["labelsOf", "respondToPermission"], "the host saw a label read and the answer, nothing else");
+  assert.deepEqual(fake.sent, []);
+  const text = markdown(dir);
+  assert.match(text, /^### D1 — .* \[demo\] delegated answer$/m);
+  assert.deepEqual(groundsLines(text), [
+    "Grounds: level 3 (the Level row); the ## Delegation table in /repo/AGENTS.md lets the orchestrator decide one-way; Yours: merge answered at level 3; the first option was marked (Recommended)",
+  ]);
+});
+
+test("level 3 with one-way not listed leaves the merge question, with the level in its grounds", async () => {
+  const dir = fresh();
+  const fake = wired(dir, delegation("| Level | 3 |", "| Questions the orchestrator may decide | two-way, costly |"));
+  await fake.emitPermissionRequested({ agent: stream, request: ask("r1", withRecommendation("Merge", "Door: one-way\nYours: merge")) });
+  assert.deepEqual(fake.answers, []);
+  assert.deepEqual(groundsLines(markdown(dir)), ["Grounds: level 3 (the Level row); the table does not let the orchestrator decide this door"]);
+});
+
+test("a question with no recommended first option is left at levels 2 and 3 and no entry is decided without evidence", async () => {
+  for (const level of ["2", "3"]) {
+    const dir = fresh();
+    const fake = wired(dir, delegation(`| Level | ${level} |`, "| Questions the orchestrator may decide | two-way, costly |"));
+    const bare = { header: "Colour", question: "Which?\nDoor: two-way", options: [{ label: "Red", description: "" }, { label: "Blue", description: "" }], multiSelect: false };
+    await fake.emitPermissionRequested({ agent: stream, request: ask("r1", bare) });
+    assert.deepEqual(fake.answers, []);
+    const text = markdown(dir);
+    assert.deepEqual(groundsLines(text), [`Grounds: level ${level} (the Level row); no recommendation on the first option`]);
+    assert.match(text, /## Decided without evidence\n\nNone\.\n/);
+    assert.ok(!text.includes("smaller option taken"));
+  }
+});
+
+test("the grounds name where each level was read: the Level row, Switch, the default and no table", async () => {
+  const cases: [string | null, string, string][] = [
+    [delegation("| Switch | on |", "| Questions the orchestrator may decide | two-way |"), "answered", "level 2 (from Switch: on)"],
+    [delegation("| Switch | off |", "| Questions the orchestrator may decide | two-way |"), "left", "level 1 (from Switch: not on)"],
+    [delegation("| Level | 3 |", "| Switch | off |", "| Questions the orchestrator may decide | two-way |"), "answered", "level 3 (the Level row)"],
+    [delegation("| Questions the orchestrator may decide | two-way |"), "left", "level 1 (default: no Level or Switch row)"],
+    [null, "left", "level 1 (no delegation table)"],
+  ];
+  for (const [table, outcome, expected] of cases) {
+    const dir = fresh();
+    const fake = wired(dir, table);
+    await fake.emitPermissionRequested({ agent: stream, request: ask("r1", question("Colour", "two-way")) });
+    assert.equal(fake.answers.length, outcome === "answered" ? 1 : 0, expected);
+    const [grounds] = groundsLines(markdown(dir));
+    assert.ok(grounds !== undefined && grounds.startsWith(`Grounds: ${expected}; `), `${expected}: ${grounds}`);
+  }
+});
+
+test("a past-appetite stream is left at level 3 with the level in its grounds", async () => {
+  const dir = fresh();
+  const fake = new FakeHost();
+  const log = logOver(dir);
+  registerDelegatedAnswers(fake, {
+    readTable: async () => delegation("| Level | 3 |", "| Questions the orchestrator may decide | two-way, costly |"),
+    record: () => {},
+    pastAppetite: () => true,
+    left: (left) => void log.left(left),
+    answered: (answered) => void log.answered(answered),
+  });
+  fake.setLabels("stream-1", { stream: "demo" });
+  await fake.emitPermissionRequested({ agent: stream, request: ask("r1", withRecommendation("Spend", "Door: costly\nYours: spend")) });
+  assert.deepEqual(fake.answers, []);
+  assert.deepEqual(groundsLines(markdown(dir)), ["Grounds: level 3 (the Level row); the stream is past its appetite"]);
 });
