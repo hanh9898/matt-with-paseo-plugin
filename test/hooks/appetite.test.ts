@@ -18,7 +18,7 @@ const other: HostAgent = { ...stream, id: "tkt-8", workspaceId: "w2", parentAgen
 const stranger: HostAgent = { ...stream, id: "stranger", title: null };
 
 const table = (rows: string[]) => ["## Delegation", "", "| Rule | Value |", "|---|---|", ...rows, ""].join("\n");
-const TABLE = table(["| Questions the orchestrator may decide | two-way |", "| Appetite | 5 USD |"]);
+const TABLE = table(["| Level | 2 |", "| Questions the orchestrator may decide | two-way |", "| Appetite | 5 USD |"]);
 
 const turn = (agent: HostAgent) => ({ agent, outcome: { kind: "completed" as const }, timeline: [] });
 const ask = (id: string): PermissionRequest => ({

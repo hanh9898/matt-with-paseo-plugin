@@ -56,7 +56,7 @@ export const SECTIONS = [
 
 export const MARKS = ["Recommendation", "Default while silent", "Door class", "One of the user's five"] as const;
 export const LABELS = ["wave", "ticket", "bundle", "tickets", "stream"] as const;
-export const DELEGATION_READS = ["Questions the orchestrator may decide", "Appetite"] as const;
+export const DELEGATION_READS = ["Level", "Questions the orchestrator may decide", "Appetite"] as const;
 export const TITLE = "[Wave N] <NN> <ticket name>";
 export const BUNDLE_TITLE = "[Wave N] [<NN>+<NN>] <first ticket name>";
 
@@ -145,7 +145,16 @@ function ticks(line: string): string[] {
 
 function sectionsOf(text: string): Map<string, string> {
   const sections = new Map<string, string>();
-  const parts = text.split(/^## /m).slice(1);
+  // A `## ` line inside a fenced example (a sample `## Delegation` table) is not a heading.
+  let fenced = false;
+  const marked = text
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("```")) fenced = !fenced;
+      return fenced && line.startsWith("## ") ? ` ${line}` : line;
+    })
+    .join("\n");
+  const parts = marked.split(/^## /m).slice(1);
   for (const part of parts) {
     const newline = part.indexOf("\n");
     sections.set(part.slice(0, newline).trim(), part.slice(newline + 1));
@@ -160,9 +169,10 @@ function lineValue(body: string, key: string): string | null {
 
 /** The rows of the first table in `body`, each as its cells without the backticks that wrap them; the header and the rule are dropped. */
 function tableRows(body: string): string[][] {
-  return body
-    .split("\n")
-    .filter((line) => line.startsWith("|"))
+  const lines = body.split("\n");
+  const start = lines.findIndex((line) => line.startsWith("|"));
+  const end = start === -1 ? -1 : lines.findIndex((line, i) => i > start && !line.startsWith("|"));
+  return (start === -1 ? [] : lines.slice(start, end === -1 ? undefined : end))
     .slice(2)
     .map((line) =>
       line
