@@ -34,6 +34,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
 | `server/hooks/` | The hook handlers, one module per handler |
 | `server/delegated-answers.ts` | The delegated-answers handler and its pure decision: answers a checkpoint with its recommendation when the `## Delegation` table lets the orchestrator decide |
+| `server/decision-log.ts` | The decision log: one `D<n>` entry per delegated answer and per question left to the user, in `decision-log.md` under the state directory |
 | `shared/delegation.ts` | The reader of the `## Delegation` table |
 | `server/appetite.ts` | The appetite handler: sums each stream's turn costs, tells the orchestrator once when a stream passes its appetite, and tells the delegated answers to stop for that stream |
 | `shared/appetite.ts` | The appetite reader (a dollar amount) and the sum of a stream's spend |
@@ -288,7 +289,7 @@ The checks are `test/appetite.test.ts`, `test/hooks/appetite.test.ts` and `test/
 
 ### Delegated answers
 
-When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. A question with a `Yours:` line, a `Door: one-way`, no recommendation, or any question in a request that fails one of these is left to the user, as is every question when the table is missing, unreadable or switched off. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository.
+When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. A question with a `Yours:` line, a `Door: one-way`, no recommendation, or any question in a request that fails one of these is left to the user, as is every question when the table is missing, unreadable or switched off. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository. The owner reads the decisions, answered and left, in `decision-log.md` in the same directory (`server/decision-log.ts`; its shape is in `docs/contract.md`, "The decision log").
 
 The checks are `test/delegation.test.ts`, `test/delegated-answers.test.ts`, `test/hooks/delegated-answers.test.ts` and `test/delegated-answers-docs.test.ts`; the smoke test ("Delegated answers") runs it on Paseo `0.10.1`.
 
@@ -350,6 +351,7 @@ A public plugin should not litter the repositories it works in. The plugin keeps
 | `server/hooks/stall-sensor.ts` | Each agent's last turn, its streaks per condition, the messages held | In memory |
 | `server/hooks/waiting-count.ts` | The requests open in each agent's chat | In memory |
 | `client/waiting-pill.ts` | The pill registered for each agent | In memory |
+| `server/decision-log.ts` | Every decision taken or left on the owner's behalf, numbered `D<n>` across restarts | `decision-log.jsonl` (the record) and `decision-log.md` (the file the owner reads) under the state directory |
 | `server/question-budget.ts` | The day's count of questions left to the user and whether the orchestrator was told; the requests seen this turn and the message held for a busy orchestrator | `question-budget.json` under the state directory; the rest in memory |
 | `server/harness.ts`, `server/sensor.ts` | Nothing: they read the plugin's own `harness/` and `sensor/` files | Read only |
 
