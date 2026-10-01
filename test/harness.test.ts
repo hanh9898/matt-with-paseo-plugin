@@ -104,7 +104,7 @@ test("the default descriptors are embedded: one per file of harness/, and no pat
   const dir = fileURLToPath(new URL("../harness/", import.meta.url));
   const names = readdirSync(dir).filter((name) => name.endsWith(".json")).map((name) => name.replace(/\.json$/, "")).sort();
   assert.deepEqual([...loadHarnesses().keys()], names, "a descriptor added to harness/ is listed in server/harness.ts");
-  assert.deepEqual(loadHarnesses(), loadHarnesses(dir), "server/data/harness/ holds the same descriptors as harness/");
+  assert.deepEqual(loadHarnesses(), loadHarnesses(dir), "server/data/harnesses.json holds the same descriptors as harness/");
 });
 
 function inTempDir(files: Record<string, string>): { dir: string; done(): void } {

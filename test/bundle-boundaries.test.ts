@@ -71,7 +71,7 @@ test("the check sees a Node module or a server module, however it is imported", 
 test("the check lets shared code through", () => {
   assert.deepEqual(breachesIn("client/a.ts", 'import { ROLE } from "../shared/role-labels.ts";'), []);
   assert.deepEqual(breachesIn("shared/a.ts", 'import type { Thing } from "./b.ts";'), []);
-  assert.deepEqual(breachesIn("index.client.ts", 'import { definePlugin } from "@getpaseo/plugin-sdk";'), []);
+  assert.deepEqual(breachesIn("index.client.ts", 'import { z } from "zod";'), []);
 });
 
 test("the scan covers the shared folder, the client folder and the client entry", () => {
