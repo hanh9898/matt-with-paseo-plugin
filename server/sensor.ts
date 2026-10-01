@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath, URL } from "node:url";
+import shippedConditions from "./data/conditions.json" with { type: "json" };
 
 /**
  * The cheap sensor in front of the orchestrator's stall judgement: conditions kept as data
@@ -21,9 +21,6 @@ import { fileURLToPath, URL } from "node:url";
  * fact of a tick is `quietMinutes`, the whole minutes since the agent's `lastActivityAt`, and a `"running"`
  * condition names it and no other fact; a `"turn-end"` condition never names it.
  */
-
-/** The data file, beside the entry: `sensor/` is data the package ships, not a code module. */
-export const CONDITIONS_FILE = fileURLToPath(new URL("../sensor/conditions.json", import.meta.url));
 
 export type Facts = { outcome: string; newItems: number; newToolCalls: number; tailRepeats: number };
 /** The fact of a tick: what a turn end cannot know, since an agent stuck in a call has none. */
@@ -87,13 +84,20 @@ function problemsOf(raw: unknown): string[] {
   return problems;
 }
 
-/** The conditions in `file`; a file that is not JSON or breaks the shape throws, naming what is wrong. */
-export function loadConditions(file: string = CONDITIONS_FILE): readonly Condition[] {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(file, "utf8"));
-  } catch (error) {
-    throw new Error(`sensor conditions are not readable JSON: ${error instanceof Error ? error.message : String(error)}`);
+/**
+ * The conditions in `file`, or with no `file` the shipped conditions, embedded when the daemon builds the
+ * plugin from `server/data/conditions.json`, a copy of `sensor/conditions.json` that `test/sensor.test.ts` keeps equal
+ * (the daemon builds only files under `client/`, `server/` and `shared/`, and `import.meta.url` is `undefined` there).
+ * A file that is not JSON or breaks the shape throws, naming what is wrong.
+ */
+export function loadConditions(file?: string): readonly Condition[] {
+  let raw: unknown = shippedConditions;
+  if (file !== undefined) {
+    try {
+      raw = JSON.parse(readFileSync(file, "utf8"));
+    } catch (error) {
+      throw new Error(`sensor conditions are not readable JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   const problems = problemsOf(raw);
   if (problems.length > 0) throw new Error(`sensor conditions break their shape: ${problems.join("; ")}`);

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath, URL } from "node:url";
 import { GUARDS, HARNESS_FIELDS, isDescriptor, problemsOf } from "../shared/harness.ts";
+import * as harnessModule from "../server/harness.ts";
 import { loadHarnesses } from "../server/harness.ts";
 
 const valid = {
@@ -95,6 +97,14 @@ test("the shipped descriptors load, keyed by their file name", () => {
   const harnesses = loadHarnesses();
   assert.ok(harnesses.size > 0, "harness/ holds at least one descriptor");
   for (const descriptor of harnesses.values()) assert.equal(isDescriptor(descriptor), true);
+});
+
+test("the default descriptors are embedded: one per file of harness/, and no path to the folder is exported (#52)", () => {
+  assert.equal("HARNESS_DIR" in harnessModule, false, "no exported path built from import.meta.url");
+  const dir = fileURLToPath(new URL("../harness/", import.meta.url));
+  const names = readdirSync(dir).filter((name) => name.endsWith(".json")).map((name) => name.replace(/\.json$/, "")).sort();
+  assert.deepEqual([...loadHarnesses().keys()], names, "a descriptor added to harness/ is listed in server/harness.ts");
+  assert.deepEqual(loadHarnesses(), loadHarnesses(dir), "server/data/harnesses.json holds the same descriptors as harness/");
 });
 
 function inTempDir(files: Record<string, string>): { dir: string; done(): void } {

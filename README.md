@@ -57,7 +57,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `shared/role-labels.ts` | The role labels: what marks an agent as a ticket agent or the stream agent |
 | `shared/contract.ts` | The contract version between the skills and the plugin: `CONTRACT_VERSION`, and the report card row's shape |
 | `docs/contract.md` | Contract v1: what the plugin sends, reads and promises to the skills |
-| `shared/state-location.ts` | Where the plugin keeps its state (a per-user directory, one setting) and the one marked block it may write in a repository |
+| `server/state-location.ts` | Where the plugin keeps its state (a per-user directory, one setting) and the one marked block it may write in a repository |
 | `server/state.ts` | The one module that writes a file: under the state directory, or into the marked block |
 | `shared/gate-cap.ts` | The gate cap: the default share, the setting that adjusts it and the count it gives |
 | `server/harness.ts` | The loader of the descriptors |
@@ -258,7 +258,7 @@ What it does not do:
 - The `tool_call` item type and the `text` and `name` fields it reads are those of Paseo `0.10.1`'s timeline as read, not run; the smoke test ("Cheap sensor") confirms them.
 - No eval case is written: `claude plugin eval` runs a Claude Code plugin's prompts, and this repository's Claude Code plugin holds one `PreToolUse` hook and no skill, so no eval prompt can reach the sensor, which lives in the Paseo plugin. The proof that a stalled agent is still caught is `test/hooks/stall-sensor.test.ts`, on the fake host, and the smoke test on a real one.
 
-The checks are `test/sensor.test.ts`, `test/hooks/stall-sensor.test.ts` and `test/sensor-docs.test.ts`. `sensor/` is listed in `files` in `package.json`, and `loadConditions` reads it at run time from `new URL("../sensor/conditions.json", import.meta.url)`; whether that resolves in the daemon's compiled bundle is not verified yet (the same open point as `harness/`).
+The checks are `test/sensor.test.ts`, `test/hooks/stall-sensor.test.ts` and `test/sensor-docs.test.ts`. `sensor/` is listed in `files` in `package.json`, and `loadConditions` reads the copy in `server/data/conditions.json`, which the daemon builds into the plugin (it builds only files under `client/`, `server/` and `shared/`, and `import.meta.url` is `undefined` in its server bundle); `test/sensor.test.ts` keeps the copy equal to `sensor/conditions.json`, as `test/cost-levels.test.ts` and `test/harness.test.ts` do for `presets/` and `harness/`.
 
 ### The gate cap
 
@@ -348,7 +348,7 @@ The checks are `test/cost-levels.test.ts` and `test/cost-levels-docs.test.ts`.
 
 ### State outside the repository
 
-A public plugin should not litter the repositories it works in. The plugin keeps whatever must outlive a process in a per-user directory, and writes into a target repository at most one marked block. Both are named in one module, `shared/state-location.ts`: the directory is `matt-with-paseo` (`STATE_DIR_NAME`) under the platform's per-user data folder (`$XDG_DATA_HOME` or `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows), and the environment variable `MWP_STATE_DIR` set to an absolute path moves it. The one block is the text between `<!-- matt-with-paseo:begin -->` and `<!-- matt-with-paseo:end -->` in the repository's `AGENTS.md` (`MARKED_BLOCK`); `withMarkedBlock` replaces it in place, and refuses a file whose markers do not make exactly one block.
+A public plugin should not litter the repositories it works in. The plugin keeps whatever must outlive a process in a per-user directory, and writes into a target repository at most one marked block. Both are named in one module, `server/state-location.ts`: the directory is `matt-with-paseo` (`STATE_DIR_NAME`) under the platform's per-user data folder (`$XDG_DATA_HOME` or `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows), and the environment variable `MWP_STATE_DIR` set to an absolute path moves it. The one block is the text between `<!-- matt-with-paseo:begin -->` and `<!-- matt-with-paseo:end -->` in the repository's `AGENTS.md` (`MARKED_BLOCK`); `withMarkedBlock` replaces it in place, and refuses a file whose markers do not make exactly one block.
 
 `server/state.ts` is the one module that writes a file: `writeStateFile` and `readStateFile` take a name inside the state directory and refuse one that leaves it, and `writeMarkedBlock` sets the block. Nothing calls them yet, because nothing the plugin holds needs to persist:
 

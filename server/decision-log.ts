@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { defaultStateDir } from "../shared/state-location.ts";
+import { defaultStateDir } from "./state-location.ts";
 import { doorOf } from "./delegated-answers.ts";
 import type { HostAgent, PermissionRequest } from "./host.ts";
 import { readStateFile, writeStateFile } from "./state.ts";
