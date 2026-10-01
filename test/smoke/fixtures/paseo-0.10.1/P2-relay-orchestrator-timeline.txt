@@ -1,0 +1,20 @@
+[User] You are a passive log. For this message and for every message you receive afterwards, reply with exactly the word noted, and never call any tool.
+noted
+[User] Agent created: ticket 99 of wave 1, agent <agent-id>.
+Next: carry on with the wave while ticket 99's turn end and any pending permission reach you as messages.
+noted
+[User] Turn ended: ticket 99 of wave 1, agent <agent-id>, outcome completed.
+Next: check ticket 99's report with get_agent_activity and its artifacts (commits on its branch, ticket status); prompt agent <agent-id> when the report is incomplete.
+noted
+[User] Agent created: ticket 98 of wave 1, agent <agent-id>.
+Next: carry on with the wave while ticket 98's turn end and any pending permission reach you as messages.
+noted
+[User] Permission pending: ticket 98 of wave 1, agent <agent-id>, request permission-<agent-id>, AskUserQuestion (question).
+Next: read ticket 98's request permission-<agent-id> with list_pending_permissions, and treat it as settled when it is no longer listed; leave the checkpoint to the user, who answers it in agent <agent-id>'s chat, or answer it with respond_to_permission when the delegation table lets you decide.
+noted
+[User] Turn ended: ticket 98 of wave 1, agent <agent-id>, outcome canceled (Interrupted).
+Next: read agent <agent-id>'s last activity with get_agent_activity; prompt agent <agent-id> to resume, or leave ticket 98 stopped when the cancel was deliberate.
+noted
+[User] Stall suspected: ticket 98 of wave 1, agent <agent-id>, the sensor flagged: the turn was canceled.
+Next: judge whether ticket 98 is stalled: read agent <agent-id>'s recent activity with get_agent_activity; decide by the wave skill's hung-agent table, which says whether agent <agent-id> is replaced within the wave skill's restart budget or prompted to resume, or record ticket 98 as stalled with the reason; leave ticket 98 alone when its agent is working.
+noted
