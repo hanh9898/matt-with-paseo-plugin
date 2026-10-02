@@ -14,6 +14,19 @@ const WRITER = "server/state.ts";
 /** The one module that names where the state lives. */
 const LOCATION = "server/state-location.ts";
 
+/**
+ * The installer's folder (#65), exempt from two checks below and from no other:
+ * - the writer check, because setup is the owner's installer, not the plugin at run time; it writes only its
+ *   install folder and through the CLIs (`node:child_process`, in its runner);
+ * - "where the state lives", because it names `homedir` for `~/.matt-with-paseo`, and the install folder is not
+ *   the plugin's state.
+ */
+const INSTALLER = "setup/";
+
+function isInstaller(path: string): boolean {
+  return path.startsWith(INSTALLER);
+}
+
 /** What a read-only import of `node:fs` may name: nothing that creates, changes or removes a file. */
 const READ_ONLY = new Set(["readFileSync", "readFile", "readdirSync", "readdir", "existsSync", "statSync", "stat", "lstatSync", "lstat", "accessSync", "access", "realpathSync", "realpath", "createReadStream", "constants"]);
 /** Modules that can write anywhere, or run something that does. */
@@ -88,13 +101,27 @@ test("the plugin's code writes no file except in the state module, so the target
   assert.ok(files.length > 0, "the walk finds the plugin's code");
   assert.ok(files.includes(WRITER), "the state module is part of the plugin's code");
   const problems = files
-    .filter((path) => path !== WRITER)
+    .filter((path) => path !== WRITER && !isInstaller(path))
     .flatMap((path) =>
       writeApiIn(readFileSync(new URL(`../${path}`, import.meta.url), "utf8")).map(
         (what) => `${path} ${what}: write through ${WRITER}, which keeps it under the state directory`,
       ),
     );
   assert.deepEqual(problems, []);
+});
+
+test("the installer exception covers setup/ and nothing else", () => {
+  assert.equal(isInstaller("setup/cli.mjs"), true);
+  assert.equal(isInstaller("setup/run.mjs"), true);
+  for (const path of ["setupx/a.mjs", "server/setup/a.ts", "shared/setup.ts", "setup.mjs"]) assert.equal(isInstaller(path), false, path);
+});
+
+test("the installer is in the walk, and it is the one folder that starts a process", () => {
+  const files = product();
+  assert.ok(files.some(isInstaller), "the walk sees setup/");
+  const starters = files.filter((path) => writeApiIn(readFileSync(new URL(`../${path}`, import.meta.url), "utf8")).some((what) => what.includes("child_process")));
+  assert.ok(starters.length > 0, "the check would see setup/ start a process");
+  assert.deepEqual(starters.filter((path) => !isInstaller(path)), [], "no other folder imports node:child_process");
 });
 
 test("the state module is the one writer, and it does write", () => {
@@ -106,7 +133,7 @@ test("the state module is the one writer, and it does write", () => {
 test("where the state lives is named in one module", () => {
   const places = [STATE_DIR_ENV, "XDG_DATA_HOME", "LOCALAPPDATA", ".local", "homedir"];
   const problems = product()
-    .filter((path) => path !== LOCATION)
+    .filter((path) => path !== LOCATION && !isInstaller(path))
     .flatMap((path) => {
       const text = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
       return places.filter((place) => text.includes(place)).map((place) => `${path} names ${place}: ask ${LOCATION}`);
