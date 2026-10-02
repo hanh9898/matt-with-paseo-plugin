@@ -15,8 +15,12 @@
     "guard/",
     "hooks/",
     "sensor/",
+    "setup/",
     ".claude-plugin/"
   ],
+  "bin": {
+    "matt-with-paseo": "setup/cli.mjs"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/**/*.test.ts\"",
