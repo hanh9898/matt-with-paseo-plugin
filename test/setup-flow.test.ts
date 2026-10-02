@@ -102,7 +102,8 @@ function machine(options: Options = {}) {
       return {};
     },
     "paseo reload": { stdout: '{"appliedPaths":["pluginsEnabled"]}\n' },
-    "paseo plugin ls --json": () => ({ stdout: JSON.stringify(state.paseoPlugin ? [{ id: "matt-with-paseo" }] : []) }),
+    // The shape of `paseo plugin ls --json` on Paseo 0.10.1 (`runPluginListCommand`): one object per plugin.
+    "paseo plugin ls --json": () => ({ stdout: JSON.stringify(state.paseoPlugin ? [{ id: "matt-with-paseo", status: "running", enabled: true, path: "plugin" }] : []) }),
     "paseo plugin install": () => {
       state.paseoPlugin = true;
       return {};
@@ -411,6 +412,26 @@ test("a part that still fails its check after the install fails its row and the 
   assert.notEqual(await m.go(), 0);
   assert.ok(m.printed.includes("fail  Paseo plugin"), m.output());
   assert.ok(m.printed.some((line) => line.startsWith("Reload the Paseo app")));
+});
+
+test("a Paseo plugin that is listed but not running fails its verify row and names its status", async () => {
+  const m = machine({
+    state: { paseoPlugin: true },
+    answers: { "paseo plugin ls --json": { stdout: JSON.stringify([{ id: "matt-with-paseo", status: "failed", enabled: true, error: "load error" }]) } },
+  });
+  assert.notEqual(await m.go(), 0);
+  assert.ok(m.printed.includes("fail  Paseo plugin"), m.output());
+  assert.ok(m.printed.some((line) => line.includes("failed") && line.includes("paseo plugin logs matt-with-paseo")), m.output());
+  assert.ok(!m.changes().some((call) => call.line.startsWith("paseo plugin install")), "a listed plugin is not installed again");
+});
+
+test("a pluginsEnabled setup cannot read stops setup before any change, and never sets it", async () => {
+  for (const answer of [{ code: 1, stderr: "daemon not reachable" }, { stdout: "Error: unexpected\n" }]) {
+    const m = machine({ answers: { "paseo daemon config get pluginsEnabled": answer } });
+    assert.equal(await m.go(), 1, m.output());
+    assert.deepEqual(m.changes(), [], m.output());
+    assert.ok(m.printed.some((line) => line.startsWith("missing  Paseo plugins enabled:")), m.output());
+  }
 });
 
 test("a change command that fails stops setup with its command and exit code", async () => {
