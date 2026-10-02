@@ -20,7 +20,7 @@ const HINTS = {
   claude: { all: "install Claude Code from https://claude.com/claude-code" },
   paseo: { all: "install the Paseo CLI from https://paseo.sh" },
   daemon: { all: "paseo daemon start" },
-  mattpocock: { all: "claude plugin install mattpocock-skills (run by you, not by setup)" },
+  mattpocock: { all: "claude plugin marketplace add mattpocock/skills, then claude plugin install mattpocock-skills@mattpocock (run by you, not by setup)" },
 };
 
 /** The hint for `item` on `platform`. */
