@@ -737,7 +737,7 @@ async function main(): Promise<void> {
   const paseoVersion = "0.10.1";
   const base = { date, paseo: paseoVersion, os: `${osType()} ${release()}`, node: process.version };
   const results: Result[] = SECTIONS.map((section) => {
-    if (section.rest === "human") return { ...base, section: section.name, status: "human", evidence: "screenshots of the pill (first view, narrow width): see the human list below" };
+    if (section.rest === "human") return { ...base, section: section.name, status: "human", evidence: "screenshots of the pill (first view, scrolled, narrow width): see the human list below" };
     if (section.rest === "runner") {
       const ok = /status: stopped/.test(cleanedBy) && /folder deleted/.test(cleanedBy);
       return { ...base, section: section.name, status: ok ? "pass" : "fail", evidence: cleanedBy };

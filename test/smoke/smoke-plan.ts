@@ -75,7 +75,7 @@ export const SECTIONS: readonly Section[] = [
 /** What only a person can do; printed at the end of a run and written under `## Results`. */
 export const HUMAN_STEPS: readonly string[] = [
   "Enable the Claude Code plugin in your own Claude Code (the runner used a scratch configuration directory).",
-  "Waiting pill: take two screenshots in Paseo's window, the first view and a narrow width, and read the pill's words against `PLAIN_LABELS` in `client/pill-text.ts`.",
+  "Waiting pill: take three screenshots in Paseo's window, the first view, scrolled and a narrow width (step 9), and read the pill's words against `PLAIN_LABELS` in `client/pill-text.ts`.",
   "Report card: take one screenshot of the card in Paseo's window and check that no button is drawn.",
   "Human words: type one message in a ticket agent's chat in the Paseo app and keep its timeline item (it proves the app sets `clientMessageId`).",
 ];
