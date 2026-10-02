@@ -149,7 +149,7 @@ test("the count never carries a request's input or a question's text (T6)", asyn
     request: { id: "r1", name: "AskUserQuestion", kind: "question", input: { secret: "hunter2" } },
   });
   assert.equal(typeof (await host.waitingCount("stream-1")), "number");
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.rows, []);
 });
 

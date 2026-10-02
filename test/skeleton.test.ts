@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 
 function readJson(name: string): Record<string, unknown> {
   const parsed: unknown = JSON.parse(readFileSync(new URL(`../${name}`, import.meta.url), "utf8"));

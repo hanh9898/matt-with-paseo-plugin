@@ -3,9 +3,17 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath, URL } from "node:url";
+import * as sensorModule from "../server/sensor.ts";
 import { factsOf, flagged, loadConditions, modelSlots, type Condition, type Streaks } from "../server/sensor.ts";
 
 const shipped = loadConditions();
+
+test("the default conditions are embedded in the module, equal the file, and no path to the file is exported (#52)", () => {
+  assert.equal("CONDITIONS_FILE" in sensorModule, false, "no exported path built from import.meta.url");
+  const onDisk = JSON.parse(readFileSync(fileURLToPath(new URL("../sensor/conditions.json", import.meta.url)), "utf8"));
+  assert.deepEqual(shipped, onDisk.conditions);
+});
 
 function inTempFile(text: string): { file: string; done(): void } {
   const dir = mkdtempSync(join(tmpdir(), "mwp-sensor-"));
@@ -151,4 +159,13 @@ test("loadConditions refuses a running condition that names another fact, and a 
   } finally {
     fine.done();
   }
+});
+
+test("the smoke copy of the conditions loads and differs from the release file only in the quiet-running threshold", () => {
+  const smoke = loadConditions(fileURLToPath(new URL("./smoke/conditions.json", import.meta.url)));
+  const quiet = (list: readonly Condition[]) => list.find((condition) => condition.id === "quiet-running") as Record<string, unknown> | undefined;
+  assert.equal(quiet(shipped)?.["atLeast"], 30, "the release default stays 30 minutes");
+  assert.equal(quiet(smoke)?.["atLeast"], 1, "the smoke copy flags after 1 minute");
+  const rest = (list: readonly Condition[]) => list.filter((condition) => condition.id !== "quiet-running");
+  assert.deepEqual(rest(smoke), rest(shipped));
 });

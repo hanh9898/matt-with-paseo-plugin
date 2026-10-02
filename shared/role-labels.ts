@@ -28,6 +28,12 @@ export function isTicketAgent(labels: Labels): boolean {
   return ticketOf(labels) !== null;
 }
 
+/** The `stream` label of the stream agent; null for any other agent. */
+export function streamOf(labels: Labels): string | null {
+  const { stream, wave } = labels;
+  return stream !== undefined && wave === undefined ? stream : null;
+}
+
 export function isStreamAgent(labels: Labels): boolean {
-  return labels["stream"] !== undefined && labels["wave"] === undefined;
+  return streamOf(labels) !== null;
 }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import { test } from "node:test";
 import {
   choiceFor,
@@ -16,7 +16,11 @@ import {
   ROLES,
   type CostLevels,
 } from "../shared/cost-levels.ts";
-import { COST_LEVELS_FILE, loadCostLevels } from "../server/cost-levels.ts";
+import * as costLevelsModule from "../server/cost-levels.ts";
+import { loadCostLevels } from "../server/cost-levels.ts";
+
+/** The shipped presets on disk, read here by the test: the plugin itself embeds them (`import.meta.url` is `undefined` in the daemon's bundle). */
+const COST_LEVELS_FILE = fileURLToPath(new URL("../presets/cost-levels.json", import.meta.url));
 
 const sample: CostLevels = {
   default: "balanced",
@@ -54,6 +58,11 @@ test("the shipped presets pass the shape: three named levels, each setting every
     assert.deepEqual(Object.keys(level.roles), [...ROLES], `${level.id} sets each role, in the roles' order`);
   }
   assert.equal(levels.default, "balanced");
+});
+
+test("the default presets are embedded in the module, equal the file, and no path to the file is exported (#52)", () => {
+  assert.equal("COST_LEVELS_FILE" in costLevelsModule, false, "no exported path built from import.meta.url");
+  assert.deepEqual(loadCostLevels(), shipped());
 });
 
 test("every agent a preset names is a harness descriptor, and no preset names a Paseo profile", () => {

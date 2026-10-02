@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { mock, test } from "node:test";
 import { registerAppetite } from "../../server/appetite.ts";
+import { createDecisionLog, parseLog } from "../../server/decision-log.ts";
 import { registerDelegatedAnswers } from "../../server/delegated-answers.ts";
 import type { HostAgent, PermissionRequest } from "../../server/host.ts";
 import { MESSAGES } from "../../server/messages.ts";
+import { readStateFile } from "../../server/state.ts";
 import type { Spend } from "../../shared/appetite.ts";
 import { FakeHost } from "../support/fake-host.ts";
 
@@ -13,7 +18,7 @@ const other: HostAgent = { ...stream, id: "tkt-8", workspaceId: "w2", parentAgen
 const stranger: HostAgent = { ...stream, id: "stranger", title: null };
 
 const table = (rows: string[]) => ["## Delegation", "", "| Rule | Value |", "|---|---|", ...rows, ""].join("\n");
-const TABLE = table(["| Questions the orchestrator may decide | two-way |", "| Appetite | 5 USD |"]);
+const TABLE = table(["| Level | 2 |", "| Questions the orchestrator may decide | two-way |", "| Appetite | 5 USD |"]);
 
 const turn = (agent: HostAgent) => ({ agent, outcome: { kind: "completed" as const }, timeline: [] });
 const ask = (id: string): PermissionRequest => ({
@@ -62,6 +67,23 @@ test("each turn end adds the agent's cost to its stream's total", async () => {
   assert.equal(record()["demo"]?.totalUsd, 5);
   assert.equal(record()["demo"]?.partial, false);
   assert.deepEqual(fake.failures, []);
+});
+
+test("a send that fails leaves the stream untold, and the next turn end tells it once, as the budget path does", async () => {
+  const { fake, record } = host();
+  const send = fake.send.bind(fake);
+  fake.send = async () => {
+    throw new Error("socket closed");
+  };
+  fake.setLastTurnCost("tkt-7", 6);
+  await fake.emitTurnEnded(turn(ticket));
+  assert.equal(record()["demo"]?.notified, false, "nothing was told, so nothing is marked told");
+  fake.send = send;
+  fake.setLastTurnCost("tkt-7", 0.1);
+  await fake.emitTurnEnded(turn(ticket));
+  await fake.emitTurnEnded(turn(ticket));
+  assert.equal(fake.sent.filter((m) => m.text.startsWith("Appetite passed:")).length, 1);
+  assert.equal(record()["demo"]?.notified, true);
 });
 
 test("the stream agent's own turn counts toward the same stream", async () => {
@@ -116,7 +138,7 @@ test("the orchestrator gets one appetite passed message when the total passes th
   const { fake } = host();
   fake.setLastTurnCost("tkt-7", 3);
   await fake.emitTurnEnded(turn(ticket));
-  assert.deepEqual(fake.sent, [], "within the appetite: nothing is sent");
+  assert.deepEqual([...fake.sent], [], "within the appetite: nothing is sent");
   await fake.emitTurnEnded(turn(ticket));
   assert.deepEqual(fake.sent, [{ agentId: "stream-1", text: MESSAGES.appetitePassed("demo", 6, 5, false) }]);
   await fake.emitTurnEnded(turn(ticket));
@@ -130,7 +152,7 @@ test("the message is held while the orchestrator is in a turn and goes out when 
   fake.setRunning("stream-1", true);
   fake.setLastTurnCost("tkt-7", 6);
   await fake.emitTurnEnded(turn(ticket));
-  assert.deepEqual(fake.sent, []);
+  assert.deepEqual([...fake.sent], []);
   fake.setRunning("stream-1", false);
   await fake.emitTurnEnded(turn(stream));
   assert.equal(fake.sent.length, 1);
@@ -153,7 +175,7 @@ test("no message when the table has no appetite, or none can be read", async () 
     const { fake, appetite } = host({ table: text });
     fake.setLastTurnCost("tkt-7", 1000);
     await fake.emitTurnEnded(turn(ticket));
-    assert.deepEqual(fake.sent, []);
+    assert.deepEqual([...fake.sent], []);
     assert.equal(appetite.pastAppetite("demo"), false);
     assert.deepEqual(fake.failures, []);
   }
@@ -201,6 +223,111 @@ test("a stream's total survives a new registration, read back from the record", 
   await fake.emitTurnEnded(turn(ticket));
   assert.equal(saved["demo"]?.totalUsd, 6);
   assert.equal(again.pastAppetite("demo"), true);
+});
+
+/** A fresh state directory under the ticket's private temp directory, never the real per-user one. */
+function privateDir(): string {
+  const root = join(tmpdir(), "plugin-decision-log-55-state");
+  mkdirSync(root, { recursive: true });
+  return mkdtempSync(join(root, "appetite-"));
+}
+
+const logged = (dir: string) => parseLog(readStateFile("decision-log.jsonl", dir));
+
+/** A host whose appetite handler writes its stops to a decision log in `dir`, as `index.server.ts` wires it. */
+function withLog(dir: string) {
+  const fake = new FakeHost();
+  let saved: Record<string, Spend> = {};
+  const log = createDecisionLog({ dir, now: () => "2026-10-01T03:04:05.000Z" });
+  registerAppetite(fake, {
+    readTable: async () => TABLE,
+    store: { read: () => saved, write: (all) => void (saved = all) },
+    passed: (entry) => void log.append(entry),
+  });
+  fake.setLabels("stream-1", { stream: "demo" });
+  fake.setLabels("tkt-7", { stream: "demo", wave: "1", ticket: "07" });
+  return fake;
+}
+
+test("the turn end that passes the appetite writes one appetite passed entry, and a later one writes none", async () => {
+  const dir = privateDir();
+  const fake = withLog(dir);
+  fake.setLastTurnCost("tkt-7", 3);
+  await fake.emitTurnEnded(turn(ticket));
+  assert.deepEqual(logged(dir), [], "within the appetite: nothing is written");
+  await fake.emitTurnEnded(turn(ticket));
+  await fake.emitTurnEnded(turn(ticket));
+  const entries = logged(dir);
+  assert.equal(entries.length, 1);
+  assert.deepEqual(entries[0], {
+    n: 1,
+    at: "2026-10-01T03:04:05.000Z",
+    stream: "demo",
+    kind: "appetite passed",
+    gate: "appetite passed",
+    asked: "none: the stream's spend passed its appetite at a turn end of agent tkt-7",
+    answer: MESSAGES.appetitePassed("demo", 6, 5, false),
+    grounds: "the Appetite row of the ## Delegation table in /repo-tkt/AGENTS.md reads 5 USD; spend 6.00 USD",
+    agent: "tkt-7",
+    requestId: null,
+    withoutEvidence: false,
+    what: "",
+  });
+  assert.equal(fake.sent.length, 1);
+  assert.equal(entries[0]?.answer, fake.sent[0]?.text, "the entry holds the text as sent");
+});
+
+test("a partial total is marked in the entry's grounds", async () => {
+  const dir = privateDir();
+  const fake = withLog(dir);
+  fake.setLastTurnCost("tkt-7", null);
+  await fake.emitTurnEnded(turn(ticket));
+  fake.setLastTurnCost("tkt-7", 6);
+  await fake.emitTurnEnded(turn(ticket));
+  assert.ok(logged(dir)[0]?.grounds.endsWith("spend 6.00 USD (partial)"));
+});
+
+test("a message held for a busy orchestrator is logged once, when it is held", async () => {
+  const dir = privateDir();
+  const fake = withLog(dir);
+  fake.setRunning("stream-1", true);
+  fake.setLastTurnCost("tkt-7", 6);
+  await fake.emitTurnEnded(turn(ticket));
+  assert.equal(logged(dir).length, 1);
+  assert.deepEqual([...fake.sent], []);
+  fake.setRunning("stream-1", false);
+  await fake.emitTurnEnded(turn(stream));
+  assert.equal(fake.sent.length, 1);
+  assert.equal(logged(dir).length, 1, "the held message going out writes nothing more");
+});
+
+test("a stream with no orchestrator to tell writes no entry", async () => {
+  const dir = privateDir();
+  const fake = withLog(dir);
+  fake.setLastTurnCost("stream-1", 6);
+  await fake.emitTurnEnded(turn(stream));
+  assert.deepEqual(logged(dir), []);
+});
+
+test("a log that cannot be written changes neither the message nor its sending, and logs one line (T4, T6)", async () => {
+  const blocker = join(privateDir(), "a-file");
+  writeFileSync(blocker, "not a directory");
+  const errors = mock.method(console, "error", () => {});
+  try {
+    const fake = withLog(join(blocker, "state"));
+    fake.setLastTurnCost("tkt-7", 6);
+    await fake.emitTurnEnded(turn(ticket));
+    assert.deepEqual(fake.sent, [{ agentId: "stream-1", text: MESSAGES.appetitePassed("demo", 6, 5, false) }]);
+    assert.deepEqual(fake.failures, []);
+    assert.equal(errors.mock.callCount(), 1);
+    const line = String(errors.mock.calls[0]?.arguments[0]);
+    assert.ok(line.includes("tkt-7") && line.includes("appetite passed"), line);
+    assert.ok(!line.includes("USD") && !line.includes(blocker), "no spend, no path");
+    await fake.emitTurnEnded(turn(ticket));
+    assert.equal(fake.sent.length, 1, "still once");
+  } finally {
+    errors.mock.restore();
+  }
 });
 
 test("a bundle agent's turn counts toward its stream's total", async () => {

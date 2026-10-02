@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import { test } from "node:test";
 import { registerTicketMarker } from "../server/hooks/ticket-marker.ts";
 import { hasTicketMarker, ROLE_ENV, TICKET_ROLE } from "../shared/role-marker.ts";

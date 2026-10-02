@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 
 const DIR = ".github/workflows";
 
@@ -47,12 +48,12 @@ test("a failure on one system does not cancel the other two", () => {
   assert.match(workflow(), /fail-fast:\s*false/);
 });
 
-test("the workflow runs npm ci, npm run typecheck and npm test, in that order", () => {
+test("the workflow runs npm ci, then npm run check", () => {
   const runs = workflow()
     .split("\n")
     .map((line) => /^\s*-?\s*run:\s*(.+)$/.exec(line)?.[1].trim())
     .filter((command): command is string => command !== undefined);
-  assert.deepEqual(runs, ["npm ci", "npm run typecheck", "npm test"]);
+  assert.deepEqual(runs, ["npm ci", "npm run check"]);
 });
 
 test("the workflow starts only on a push to release/v* and a pull request into main", () => {
@@ -64,8 +65,9 @@ test("the workflow starts only on a push to release/v* and a pull request into m
   assert.deepEqual(flowList(block(text, /^ {2}pull_request:/), "branches"), ["main"]);
 });
 
-test("a pull request runs the jobs only when it comes from a release/v* branch", () => {
-  assert.match(workflow(), /if:\s*.*github\.event_name\s*==\s*'push'.*startsWith\(github\.head_ref,\s*'release\/v'\)/);
+test("every pull request into main runs the jobs, whatever branch it comes from", () => {
+  assert.doesNotMatch(workflow(), /^\s*if:/m, "no condition skips a job");
+  assert.doesNotMatch(workflow(), /head_ref/, "no job depends on the pull request's branch");
 });
 
 test("the workflow adds no dependency of its own and installs from the lockfile", () => {

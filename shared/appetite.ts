@@ -17,6 +17,13 @@ export type Spend = {
   notified: boolean;
 };
 
+/** Whether a value read back from the record file has the shape of one stream's spend. */
+export function isSpend(value: unknown): value is Spend {
+  if (typeof value !== "object" || value === null) return false;
+  const { totalUsd, partial, appetiteUsd, notified } = value as Record<string, unknown>;
+  return typeof totalUsd === "number" && typeof partial === "boolean" && (appetiteUsd === null || typeof appetiteUsd === "number") && typeof notified === "boolean";
+}
+
 const AMOUNT = /^(?:\$\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:usd)?|usd\s*(\d+(?:\.\d+)?))$/i;
 
 /** The appetite in USD from the table's value (`20 USD`, `$20`, `USD 20`, `20`); null for anything else. */

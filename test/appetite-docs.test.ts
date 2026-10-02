@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 
 function read(name: string): string {
   return readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
@@ -9,7 +10,17 @@ function read(name: string): string {
 function section(text: string, heading: string): string {
   const start = text.indexOf(heading);
   assert.ok(start !== -1, `a "${heading}" heading exists`);
-  return text.slice(start + heading.length).split(/\n#{1,3} /, 1)[0] ?? "";
+  // A heading-like line inside a fenced example (a sample `## Delegation` table) does not end the section.
+  let fenced = false;
+  const rest = text
+    .slice(start + heading.length)
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("```")) fenced = !fenced;
+      return fenced && /^#{1,3} /.test(line) ? ` ${line}` : line;
+    })
+    .join("\n");
+  return rest.split(/\n#{1,3} /, 1)[0] ?? "";
 }
 
 test("the contract lists the appetite passed message with its case for a partial total", () => {
@@ -23,7 +34,7 @@ test("the contract lists the appetite passed message with its case for a partial
 test("the contract says how the appetite is summed and where the total is kept", () => {
   const reads = section(read("docs/contract.md"), "## What the plugin reads from the delegation table");
   assert.match(reads, /turn end/i, "the total is summed at a turn end");
-  assert.match(reads, /`totalCostUsd`/);
+  assert.match(reads, /`(?:lastUsage\.)?totalCostUsd`/);
   assert.match(reads, /`stream-spend\.json`/, "the total is kept outside the repository");
   assert.doesNotMatch(reads, /until #40/, "the appetite is wired");
 });

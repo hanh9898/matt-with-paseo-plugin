@@ -8,11 +8,11 @@ matt-with-paseo-plugin is an optional Paseo plugin for people who run the `matt-
 
 The design case is the unattended stream; a single wave is helped too. The plugin supports Windows, macOS and Linux. Claude Code only; other agents prepared through descriptors, not promised.
 
-What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md). Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
+What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md); [ADR 0004](docs/adr/0004-three-autonomy-levels.md) sets three autonomy levels, and the five owner items (a change to the concept, adding or dropping tickets, spend past the appetite, irreversible actions, merging the PR) reach the owner below level 3. Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
 
 ## Development
 
-The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step; the plugin was tested on Node 22, and `package.json` has no `engines` field, so npm does not refuse another version.
+The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step, since from 22.18 Node strips TypeScript types by default; the plugin was tested on Node 22 and Node 24, and `package.json` has no `engines` field, so npm does not refuse another version.
 
 Install from a clone: `git clone https://github.com/hanh9898/matt-with-paseo-plugin`, `cd matt-with-paseo-plugin`, `npm ci`, then `paseo plugin install <path to the clone>` (the smoke test runs the same command with a plugin id, `--id`). The Claude Code half installs as `matt-with-paseo-plugin@matt-with-paseo-plugin` (see the Claude Code plugin paragraph below). Nothing is published to npm.
 
@@ -34,6 +34,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `server/paseo-host.ts` | The one adapter of the port that imports the Paseo SDK |
 | `server/hooks/` | The hook handlers, one module per handler |
 | `server/delegated-answers.ts` | The delegated-answers handler and its pure decision: answers a checkpoint with its recommendation when the `## Delegation` table lets the orchestrator decide |
+| `server/decision-log.ts` | The decision log: one `D<n>` entry per delegated answer and per question left to the user, in `decision-log.md` under the state directory |
 | `shared/delegation.ts` | The reader of the `## Delegation` table |
 | `server/appetite.ts` | The appetite handler: sums each stream's turn costs, tells the orchestrator once when a stream passes its appetite, and tells the delegated answers to stop for that stream |
 | `shared/appetite.ts` | The appetite reader (a dollar amount) and the sum of a stream's spend |
@@ -56,7 +57,7 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `shared/role-labels.ts` | The role labels: what marks an agent as a ticket agent or the stream agent |
 | `shared/contract.ts` | The contract version between the skills and the plugin: `CONTRACT_VERSION`, and the report card row's shape |
 | `docs/contract.md` | Contract v1: what the plugin sends, reads and promises to the skills |
-| `shared/state-location.ts` | Where the plugin keeps its state (a per-user directory, one setting) and the one marked block it may write in a repository |
+| `server/state-location.ts` | Where the plugin keeps its state (a per-user directory, one setting) and the one marked block it may write in a repository |
 | `server/state.ts` | The one module that writes a file: under the state directory, or into the marked block |
 | `shared/gate-cap.ts` | The gate cap: the default share, the setting that adjusts it and the count it gives |
 | `server/harness.ts` | The loader of the descriptors |
@@ -140,7 +141,7 @@ Each handler in `server/hooks/` needs a `test/hooks/<name>.test.ts` that uses `F
 | `agent.created` | `Agent created:` |
 | `agent.archived` | `Agent archived:` |
 
-A ticket agent is the one that carries the labels `wave` and `ticket`, as the wave skill starts every ticket agent; any other agent is left alone. Its orchestrator is its `parentAgentId`; an agent with none has nobody to tell. When `isRunning` reports the orchestrator mid-turn, the message is held and all held messages go out as one when that orchestrator's `agent.turn_ended` fires; an orchestrator that is archived loses what was held. A host that cannot say whether the orchestrator runs is treated as idle, and the message goes out at once.
+A ticket agent is the one that carries the labels `wave` and `ticket`, as the wave skill starts every ticket agent, or, for a bundle agent, `wave`, `bundle` and `tickets`; the stream agent carries `stream` and no `wave` (`shared/role-labels.ts`); any other agent is left alone. Its orchestrator is its `parentAgentId`; an agent with none has nobody to tell. When `isRunning` reports the orchestrator mid-turn, the message is held and all held messages go out as one when that orchestrator's `agent.turn_ended` fires; an orchestrator that is archived loses what was held. A host that cannot say whether the orchestrator runs is treated as idle, and the message goes out at once.
 
 Every text lives in `server/messages.ts`: its body on one line, then a last `Next:` line that names the moves open to the orchestrator, in the wave skill's tools and words (`get_agent_activity`, `list_pending_permissions`, `respond_to_permission`, checkpoint). A check fails when a message type or case has no `Next:` line. `combine` takes the held messages apart at their `Next:` lines and writes one at the end with each message's moves, a shared move once, so a held message ends with one `Next:` line; each move names its ticket for that reason. The git guard's refusal, the one other text that reaches an agent (a ticket agent, on stderr), ends with a `Next:` line too; the guard is a standalone script, so its wording lives in `guard/git-guard.mjs` and a check reads its last line. The heartbeat path in the skills stays the fallback while the plugin is off; that is a change in `hanh9898/matt-with-paseo`, not here.
 
@@ -160,7 +161,7 @@ A checkpoint is Paseo's own `AskUserQuestion` prompt (ADR 0001), so the plugin d
 
 | Agent, recognised by its labels | Its request counts toward |
 |---|---|
-| a ticket agent: `wave` and `ticket` | its orchestrator (`parentAgentId`); none when it has no parent |
+| a ticket agent: `wave` and `ticket`, or a bundle agent: `wave`, `bundle` and `tickets` | its orchestrator (`parentAgentId`); none when it has no parent |
 | the stream agent: `stream` and no `wave` | itself |
 | any other agent | nothing (T3) |
 
@@ -203,7 +204,7 @@ A role is what an agent is to the plugin: a ticket agent, the stream agent, or n
 
 | Where the plugin sees the agent | How it tells the role | Read by |
 |---|---|---|
-| An event hook (`onCreated`, `onTurnEnded`, `onPermissionRequested`, ...) | The labels: a ticket agent carries `wave` and `ticket`, the stream agent `stream` and no `wave`; `shared/role-labels.ts` names them | `lifecycle-relay.ts`, `waiting-count.ts` |
+| An event hook (`onCreated`, `onTurnEnded`, `onPermissionRequested`, ...) | The labels: a ticket agent carries `wave` and `ticket`, a bundle agent `wave`, `bundle` and `tickets`, the stream agent `stream` and no `wave`; `shared/role-labels.ts` names them | `lifecycle-relay.ts`, `waiting-count.ts` |
 | A hook that runs inside the agent | The env marker `MWP_ROLE=ticket`: `hasTicketMarker(env)` in `shared/role-marker.ts` reads it, and the standalone `guard/git-guard.mjs` repeats its two words | the git guard |
 | `beforeCreate` | The title `[Wave N] <NN> <ticket name>`: Paseo `0.10.1` sets labels only after this hook, and gives it no agent id | `ticket-marker.ts`, which sets the marker |
 | `beforeSessionOpen` | The title or the `wave` and `ticket` labels, when Paseo can read them before a resumed agent is registered; otherwise neither, and the agent stays unmarked | `ticket-marker.ts`, which sets the marker again |
@@ -252,12 +253,12 @@ What it does not do:
 
 - No model is wired. `off-task` is a named slot (`check: "model"`, `model: null`): the data holds its question, and the sensor lists it and never flags it, until a later ticket gives it a caller.
 - The turn-end check sees a ticket agent at its turn ends only, and an agent stuck in a call has none. The tick covers that: it also watches a running ticket agent, a bundle agent included, that has a `parentAgentId`, with the same `quiet-running` condition and once per idle stretch, and the message goes to that parent.
-- `lastActivityAt` and a `context.paseo` kept from a hook call (the tick builds its host from the latest one) are read from the SDK's types and docs for Paseo `0.10.1`, not run; the smoke test ("Cheap sensor") confirms them, and records `updatedAt` if `lastActivityAt` is missing.
+- Paseo `0.10.1`'s agent snapshot has no `lastActivityAt`, so the adapter falls back to its `updatedAt`, which stands still while a call is stuck (#62); a snapshot that has `lastActivityAt` still uses it. That and a `context.paseo` kept from a hook call (the tick builds its host from the latest one) are confirmed by the smoke test ("Cheap sensor").
 - It does not judge: the flagged case goes to the orchestrator's stall judgement, which decides. The skill's part of the change is in `hanh9898/matt-with-paseo`.
 - The `tool_call` item type and the `text` and `name` fields it reads are those of Paseo `0.10.1`'s timeline as read, not run; the smoke test ("Cheap sensor") confirms them.
 - No eval case is written: `claude plugin eval` runs a Claude Code plugin's prompts, and this repository's Claude Code plugin holds one `PreToolUse` hook and no skill, so no eval prompt can reach the sensor, which lives in the Paseo plugin. The proof that a stalled agent is still caught is `test/hooks/stall-sensor.test.ts`, on the fake host, and the smoke test on a real one.
 
-The checks are `test/sensor.test.ts`, `test/hooks/stall-sensor.test.ts` and `test/sensor-docs.test.ts`. `sensor/` is listed in `files` in `package.json`, and `loadConditions` reads it at run time from `new URL("../sensor/conditions.json", import.meta.url)`; whether that resolves in the daemon's compiled bundle is not verified yet (the same open point as `harness/`).
+The checks are `test/sensor.test.ts`, `test/hooks/stall-sensor.test.ts` and `test/sensor-docs.test.ts`. `sensor/` is listed in `files` in `package.json`, and `loadConditions` reads the copy in `server/data/conditions.json`, which the daemon builds into the plugin (it builds only files under `client/`, `server/` and `shared/`, and `import.meta.url` is `undefined` in its server bundle); `test/sensor.test.ts` keeps the copy equal to `sensor/conditions.json`, as `test/cost-levels.test.ts` and `test/harness.test.ts` do for `presets/` and `harness/`.
 
 ### The gate cap
 
@@ -288,7 +289,13 @@ The checks are `test/appetite.test.ts`, `test/hooks/appetite.test.ts` and `test/
 
 ### Delegated answers
 
-When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. A question with a `Yours:` line, a `Door: one-way`, no recommendation, or any question in a request that fails one of these is left to the user, as is every question when the table is missing, unreadable or switched off. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository.
+When a ticket agent or the stream agent asks an `AskUserQuestion` and the `## Delegation` table in its repository's `AGENTS.md` lets the orchestrator decide it, the plugin answers with the recommendation (ADR 0001); the rules are in `docs/contract.md`. How much it answers is the `Level` row of the table ([ADR 0004](docs/adr/0004-three-autonomy-levels.md)):
+
+- **Level 1**: nothing is delegated, and every question reaches the owner.
+- **Level 2**: every question the table lets the orchestrator decide is answered, except one with a `Yours:` line (the five owner items) or a `Door: one-way`.
+- **Level 3**: the five items are answered too, and `one-way` counts when the row lists it.
+
+The default is level 1: a missing table, or a table with no `Level` and no `Switch` row, delegates nothing. The v1 row `Switch | on` still reads as level 2. At every level a question with no recommendation, a stream past its appetite and any question in a request that fails one of the rules is left to the user, and the plugin writes no git: a level-3 `Yours: merge` answer is one permission answer, and the orchestrator carries out the merge. Agents with no role labels are left alone. A request already resolved is settled and not answered; each answer is recorded in `delegated-answers.jsonl` under the state directory, never in the repository. The owner reads the decisions, answered and left, in `decision-log.md` in the same directory (`server/decision-log.ts`; its shape is in `docs/contract.md`, "The decision log").
 
 The checks are `test/delegation.test.ts`, `test/delegated-answers.test.ts`, `test/hooks/delegated-answers.test.ts` and `test/delegated-answers-docs.test.ts`; the smoke test ("Delegated answers") runs it on Paseo `0.10.1`.
 
@@ -307,6 +314,8 @@ The checks are `test/question-budget.test.ts`, `test/hooks/question-budget.test.
 Nothing showed what was decided on the owner's behalf, so delegation could not be reviewed at a glance. `server/report-card.ts` appends one plugin timeline row (`kind: "report-card"`, its shape fixed by `REPORT_CARD` in `shared/contract.ts` and `docs/contract.md`) to the orchestrator's chat, under one row id, so each change replaces it and the chat holds one card. A ticket agent's change shows in its orchestrator's chat, the stream agent's in its own.
 
 Paseo draws a plugin row only through a renderer the plugin registers on the client for its kind and version, and shows "Plugin timeline item unavailable" otherwise; `client/report-card.ts` registers it (`addTimelineRenderer`, its schema the row's data), `client/report-card-view.ts` draws the text with the theme's colours, and `client/report-card-text.ts` holds the words. The view holds nothing to press.
+
+The card shows the latest 20 decisions (`decided`, each `header` and `answer` cut to 200 characters), the total as `decidedCount`, a line saying how many earlier ones are only in the log, and the line `All decisions: <path>` with the absolute path of `decision-log.md` (`log`, from `decisionLogPath` in `server/decision-log.ts`; it is text, not a link). The cap keeps the row's `data` under Paseo's 64 KiB limit however long a stream runs. The card never reads the log, so a log that cannot be written never blanks it.
 
 The card only reads. `decided` comes from the delegated answers' record (`readDelegatedAnswers` in `server/delegated-answers.ts`, through `server/state.ts`), `spend` from the appetite handler's record (`spendOf`, with `partial` when a turn had no cost), and `questions` from the budget's count (`count()`) and `MWP_QUESTION_BUDGET`. It is refreshed when a delegated answer is recorded (the `answered` member of the delegated-answers reader, the second hook the card needed out of it), when a question is left to the user (`left`, beside the budget), and when the appetite handler has summed a turn's cost (its `updated` member), so no refresh depends on the order Paseo runs handlers in. The card has no buttons: the round trip is unproven (ADR 0001), and buttons come with `v0.4.0`'s cards after a proof. A host that refuses the row logs one line with the agent's id and never a question or an answer (T4, T6).
 
@@ -339,7 +348,7 @@ The checks are `test/cost-levels.test.ts` and `test/cost-levels-docs.test.ts`.
 
 ### State outside the repository
 
-A public plugin should not litter the repositories it works in. The plugin keeps whatever must outlive a process in a per-user directory, and writes into a target repository at most one marked block. Both are named in one module, `shared/state-location.ts`: the directory is `matt-with-paseo` (`STATE_DIR_NAME`) under the platform's per-user data folder (`$XDG_DATA_HOME` or `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows), and the environment variable `MWP_STATE_DIR` set to an absolute path moves it. The one block is the text between `<!-- matt-with-paseo:begin -->` and `<!-- matt-with-paseo:end -->` in the repository's `AGENTS.md` (`MARKED_BLOCK`); `withMarkedBlock` replaces it in place, and refuses a file whose markers do not make exactly one block.
+A public plugin should not litter the repositories it works in. The plugin keeps whatever must outlive a process in a per-user directory, and writes into a target repository at most one marked block. Both are named in one module, `server/state-location.ts`: the directory is `matt-with-paseo` (`STATE_DIR_NAME`) under the platform's per-user data folder (`$XDG_DATA_HOME` or `~/.local/share` on Linux, `~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows), and the environment variable `MWP_STATE_DIR` set to an absolute path moves it. The one block is the text between `<!-- matt-with-paseo:begin -->` and `<!-- matt-with-paseo:end -->` in the repository's `AGENTS.md` (`MARKED_BLOCK`); `withMarkedBlock` replaces it in place, and refuses a file whose markers do not make exactly one block.
 
 `server/state.ts` is the one module that writes a file: `writeStateFile` and `readStateFile` take a name inside the state directory and refuse one that leaves it, and `writeMarkedBlock` sets the block. Nothing calls them yet, because nothing the plugin holds needs to persist:
 
@@ -350,8 +359,9 @@ A public plugin should not litter the repositories it works in. The plugin keeps
 | `server/hooks/stall-sensor.ts` | Each agent's last turn, its streaks per condition, the messages held | In memory |
 | `server/hooks/waiting-count.ts` | The requests open in each agent's chat | In memory |
 | `client/waiting-pill.ts` | The pill registered for each agent | In memory |
+| `server/decision-log.ts` | Every decision taken or left on the owner's behalf, numbered `D<n>` across restarts | `decision-log.jsonl` (the record) and `decision-log.md` (the file the owner reads) under the state directory |
 | `server/question-budget.ts` | The day's count of questions left to the user and whether the orchestrator was told; the requests seen this turn and the message held for a busy orchestrator | `question-budget.json` under the state directory; the rest in memory |
-| `server/harness.ts`, `server/sensor.ts` | Nothing: they read the plugin's own `harness/` and `sensor/` files | Read only |
+| `server/harness.ts`, `server/sensor.ts`, `server/cost-levels.ts` | Nothing: they read the embedded copies in `server/data/` of the plugin's own `harness/`, `sensor/` and `presets/` files | Read only |
 
 A restart of the plugin forgets what those hold and starts from the next event, as it did before; the holders that would need to survive one (a gate queue across a daemon restart, say) add their row here and write through `server/state.ts`.
 
@@ -378,7 +388,7 @@ The Claude Code plugin and its marketplace are both named `matt-with-paseo-plugi
 
 ### CI on three systems
 
-`.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck` and `npm test` on `ubuntu-latest`, `macos-latest` and `windows-latest`. It starts only on a push to a `release/v*` branch and on a pull request from one into `main`, so it runs at the milestone run and on no stream's ship pull request, as the [evidence standards](docs/agents/evidence-standards.md) require. There is no pre-commit hook: a hook that runs typecheck and tests on every commit would break that rule. Whether to add one waits for a decision after milestone `v0.5.0`. `test/ci-workflow.test.ts` reads the workflow and fails when a system, a command or a trigger differs.
+`.github/workflows/ci.yml` runs `npm ci`, then `npm run check` (the typecheck, every test and the docs-set test) on `ubuntu-latest`, `macos-latest` and `windows-latest`. It runs on every pull request into `main` (a stream's ship pull request and the release pull request alike) and on a push to a `release/v*` branch, and a red pull request is never merged, as the [evidence standards](docs/agents/evidence-standards.md) require. There is no pre-commit hook. Whether to add one waits for a decision after milestone `v0.5.0`. `test/ci-workflow.test.ts` reads the workflow and fails when a system, a command or a trigger differs.
 
 ## Contributing
 

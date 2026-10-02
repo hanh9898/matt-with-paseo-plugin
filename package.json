@@ -1,14 +1,12 @@
 {
   "name": "matt-with-paseo",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "files": [
     "paseo-plugin.json",
     "index.client.ts",
-    "index.client.tsx",
     "index.server.ts",
-    "index.server.tsx",
     "client/",
     "server/",
     "shared/",

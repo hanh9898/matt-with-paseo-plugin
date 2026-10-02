@@ -1,0 +1,10 @@
+{
+  "claude": {
+    "configDirVar": "CLAUDE_CONFIG_DIR",
+    "skillsDir": "skills",
+    "skills": "native",
+    "mcpDelivery": "agent-config",
+    "guard": "hook",
+    "sandboxed": true
+  }
+}

@@ -46,7 +46,7 @@ export type PermissionAnswer =
   | { behavior: "deny"; message?: string };
 
 /** A plugin-owned row in an agent's timeline; appending a row with the same `id` replaces the earlier one. */
-export type TimelineRow = { id?: string; kind: string; version: number; data: Json };
+export type TimelineRow = { id: string; kind: string; version: number; data: Json };
 
 export type CreatedEvent = { agent: HostAgent };
 export type ArchivedEvent = { agent: HostAgent };
@@ -87,7 +87,10 @@ export interface Host {
    * ended; null when it reports none.
    */
   lastTurnCostUsd(agentId: string): Promise<number | null>;
-  /** The ISO time of the agent's `lastActivityAt`, which does not move while a tool call is stuck; null when Paseo reports none. */
+  /**
+   * The ISO time of the agent's `lastActivityAt`, or of its `updatedAt` when the snapshot has no `lastActivityAt`
+   * (Paseo 0.10.1); neither moves while a tool call is stuck. Null when Paseo reports neither.
+   */
   lastActivityAt(agentId: string): Promise<string | null>;
   /** The id of the agent that created this one; null when a person started it, or Paseo reports none. */
   parentOf(agentId: string): Promise<string | null>;

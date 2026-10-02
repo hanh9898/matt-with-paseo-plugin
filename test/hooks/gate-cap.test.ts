@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { registerGateCap } from "../../server/hooks/gate-cap.ts";
 import type { HostAgent } from "../../server/host.ts";
 import { CAP_SHARE_ENV } from "../../shared/gate-cap.ts";
@@ -29,7 +30,7 @@ async function start(host: FakeHost, n: number): Promise<void> {
 test("ticket agents up to the cap send nothing; the one past it tells its orchestrator to queue the rest (criterion 2)", async () => {
   const host = machine(8);
   for (const n of [1, 2, 3, 4]) await start(host, n);
-  assert.deepEqual(host.sent, [], "four agents run against a cap of four");
+  assert.deepEqual([...host.sent], [], "four agents run against a cap of four");
   await start(host, 5);
   assert.equal(host.sent.length, 1);
   const [message] = host.sent;
@@ -44,7 +45,7 @@ test("the setting changes the cap: a quarter of eight processors is two", async 
   const host = machine(8, { [CAP_SHARE_ENV]: "0.25" });
   await start(host, 1);
   await start(host, 2);
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   await start(host, 3);
   assert.match(host.sent[0]?.text ?? "", /3 ticket agents run against a cap of 2/);
 });
@@ -55,13 +56,13 @@ test("an agent that is not running does not count, and an archived one leaves th
   await start(host, 2);
   host.setRunning("tkt-2", false);
   await start(host, 3);
-  assert.deepEqual(host.sent, [], "two running against a cap of two");
+  assert.deepEqual([...host.sent], [], "two running against a cap of two");
   host.setRunning("tkt-2", true);
   await host.emitArchived({ agent: ticketAgent(1) });
   host.setRunning("tkt-1", false);
   host.setRunning("tkt-3", false);
   await start(host, 4);
-  assert.deepEqual(host.sent, [], "the archived agent no longer counts");
+  assert.deepEqual([...host.sent], [], "the archived agent no longer counts");
 });
 
 test("a message for an orchestrator that is mid-turn is held and goes out when its turn ends", async () => {
@@ -69,7 +70,7 @@ test("a message for an orchestrator that is mid-turn is held and goes out when i
   host.setRunning("stream-1", true);
   await start(host, 1);
   await start(host, 2);
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   host.setRunning("stream-1", false);
   await host.emitTurnEnded({ agent: orchestrator, outcome: { kind: "completed" }, timeline: [] });
   assert.equal(host.sent.length, 1);
@@ -84,7 +85,7 @@ test("an agent the plugin does not recognise by its labels is left alone (T3), a
   for (const id of ["half", "bare", "lone", "a", "b"]) host.setRunning(id, true);
   for (const id of ["half", "bare", "a", "b"]) await host.emitCreated({ agent: { ...ticketAgent(1), id } });
   await host.emitCreated({ agent: { ...ticketAgent(1), id: "lone", parentAgentId: null } });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });
 
 test("it fails open (T4): a host that cannot say who runs stops nothing and sends nothing", async () => {
@@ -95,7 +96,7 @@ test("it fails open (T4): a host that cannot say who runs stops nothing and send
   await start(host, 1);
   await start(host, 2);
   await start(host, 3);
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.failures, []);
 });
 
@@ -119,7 +120,7 @@ async function startBundle(host: FakeHost, n: number): Promise<void> {
 test("a bundle agent counts once toward the cap, however many tickets it carries", async () => {
   const host = machine(2);
   await startBundle(host, 1);
-  assert.deepEqual(host.sent, [], "one bundle agent of two tickets is one running agent against a cap of one");
+  assert.deepEqual([...host.sent], [], "one bundle agent of two tickets is one running agent against a cap of one");
   await start(host, 2);
   assert.match(host.sent[0]?.text ?? "", /^Gate cap passed: ticket 02 of wave 1, agent tkt-2, 2 ticket agents run against a cap of 1 concurrent gates\./);
 });
@@ -139,5 +140,5 @@ test("an archived bundle agent leaves the count", async () => {
   await host.emitArchived({ agent: bundleAgent(1) });
   host.setRunning("bnd-1", false);
   await start(host, 2);
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });

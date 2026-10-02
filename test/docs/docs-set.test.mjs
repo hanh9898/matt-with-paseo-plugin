@@ -160,6 +160,65 @@ test("ADR 0002 Consequences say placement questions and the parity table's \"out
   has(consequences, "the parity table's \"out\" rows are decided against this ADR");
 });
 
+// ADR 0004 (ticket #57): three autonomy levels, superseding non-goal 3 of ADR 0002 and amending non-goal 6
+
+const ADR4_FILE = "docs/adr/0004-three-autonomy-levels.md";
+const ADR4_LINK = "0004-three-autonomy-levels.md";
+
+test("ADR 0004 is accepted and holds the sections of an ADR, the three levels and what stays at every level", () => {
+  const adr = read(ADR4_FILE);
+  assert.ok(adr.startsWith("# Three autonomy levels\n"));
+  assert.match(adr, /^Status: accepted, 2026-10-01/m);
+  for (const heading of ["## Context", "## Decision", "## Consequences"]) section(adr, heading);
+  const levels = section(adr, "### The three levels");
+  for (const level of ["Level 1", "Level 2", "Level 3"]) has(levels, `**${level}**`);
+  has(adr, "`Level`");
+  has(adr, "`Switch`");
+  const stays = listItems(section(adr, "### What stays at every level"));
+  assert.equal(stays.length, 5);
+  has(stays[0], "no recommendation");
+  has(stays[1], "git");
+  has(stays[2], "appetite");
+  has(stays[3], "budget");
+  has(stays[4], "decision log");
+});
+
+test("ADR 0004 names the default, the Switch mapping, the owner's words, D120's reading and the appetite choice", () => {
+  const adr = read(ADR4_FILE);
+  has(section(adr, "### The default"), "level 1");
+  has(section(adr, "### The default"), "A `Level` row wins over `Switch`");
+  has(section(adr, "### The default"), "`on` is level 2");
+  const evidence = section(adr, "### Context and evidence");
+  has(evidence, "Cấp 3 là thả cửa");
+  has(evidence, "D120");
+  has(evidence, "without clear evidence");
+  has(adr, "hanh9898/matt-with-paseo#110");
+  has(adr, "Requires plugin contract: 1");
+});
+
+test("ADR 0002 points to ADR 0004 from its status line and from non-goals 3 and 6, and non-goal 6 reads \"below level 3\"", () => {
+  const adr = read(ADR);
+  assert.match(adr, /^Status: accepted, 2026-09-30; non-goal 3 superseded and non-goal 6 amended by ADR 0004$/m);
+  assert.ok(linkTargets(section(adr, "### 3. ")).includes(ADR4_LINK), "non-goal 3 has no link to ADR 0004");
+  const sixth = section(adr, "### 6. ");
+  assert.ok(linkTargets(sixth).includes(ADR4_LINK), "non-goal 6 has no link to ADR 0004");
+  has(sixth, "merge stays with a human below level 3");
+  hasNot(sixth, "merge stays with a human, and");
+});
+
+// That the plugin runs no git is proven on the code (`test/state-outside-repo.test.ts` refuses `node:child_process`);
+// here only the structure: ADR 0004 links back to ADR 0002, whose non-goal 6 it amends.
+test("ADR 0004 links ADR 0002, and ADR 0002 keeps its non-goal 6 heading", () => {
+  assert.ok(linkTargets(read(ADR4_FILE)).some((target) => target.endsWith("0002-what-the-plugin-will-never-do.md")), "no link to ADR 0002");
+  assert.ok(read(ADR).split("\n").some((line) => line.startsWith("### 6. ")), "ADR 0002 has no non-goal 6 heading");
+});
+
+test("the README links ADR 0004 next to ADR 0002 and says the five items reach the owner below level 3", () => {
+  const readme = read("README.md");
+  assert.ok(linkTargets(readme).includes(`docs/adr/${ADR4_LINK}`), "no link to ADR 0004");
+  has(readme, "below level 3");
+});
+
 // The roadmap
 
 const ROADMAP = "docs/roadmap.md";
@@ -176,7 +235,7 @@ test("the roadmap states the rules for every milestone", () => {
   const rules = section(read(ROADMAP), "## Rules for every milestone");
   has(rules, "Each milestone is one release");
   has(rules, "The user tags it after its `release/v0.x.0` pull request merges");
-  has(rules, "Tests: deferred to the milestone");
+  has(rules, "`Test run:`");
   has(rules, "Code review: deferred to the milestone");
   has(rules, "contract version only");
   has(rules, "updates this file in its pull request");
@@ -195,7 +254,7 @@ test("the roadmap lists v0.1.0 to v0.5.0 in order, each with its theme, and its 
   });
 });
 
-test("v0.1.0 lists the issues it carries, the nine new tickets by number, the fourteen exit criteria in order, the skills-side dependencies and the named fallback", () => {
+test("v0.1.0 lists the issues it carries, the new tickets by number, the fifteen exit criteria in order, the skills-side dependencies and the named fallback", () => {
   const v1 = milestone(read(ROADMAP), 1);
   const carried = section(v1, "### Carried by existing issues");
   for (let n = 1; n <= 19; n++) {
@@ -206,11 +265,11 @@ test("v0.1.0 lists the issues it carries, the nine new tickets by number, the fo
   const tickets = listItems(section(v1, "### New tickets"));
   assert.deepEqual(
     tickets.map((item) => Number(item.match(/#(\d+)\s*$/)?.[1])),
-    [34, 33, 37, 35, 36, 38, 39, 40, 41],
+    [34, 33, 37, 35, 36, 38, 39, 40, 41, 43, 45, 48, 49, 57, 58, 51, 52, 53, 54, 55, 56],
   );
 
   const criteria = listItems(section(v1, "### Exit criteria"));
-  assert.equal(criteria.length, 14);
+  assert.equal(criteria.length, 15);
   [
     "CI is green on Windows, macOS and Linux (#17)",
     "A smoke test passes on a real daemon",
@@ -219,9 +278,10 @@ test("v0.1.0 lists the issues it carries, the nine new tickets by number, the fo
     "MIT, with a `NOTICE` crediting sting9k/seatworks",
     "The skills run with the plugin absent (skills side)",
     "Contract v1 exists and a skills release reads it",
-    "A delegated question is answered within the `## Delegation` table's rules and never outside them",
+    "A delegated question is answered within the `## Delegation` table's level and rules and never outside them",
     "The question budget and the appetite are counted",
     "The report card shows what was decided on the user's behalf",
+    "`decision-log.md`",
     "An unattended stream runs end to end with no heartbeat and with delegation on",
     "The README carries the vision, and ADR 0002 and `docs/roadmap.md` exist",
     "The README documents installing from git and says it was tested on Node 22, with no `engines` field",
@@ -230,7 +290,8 @@ test("v0.1.0 lists the issues it carries, the nine new tickets by number, the fo
 
   const dependencies = section(v1, "### Skills-side dependencies");
   has(dependencies, "listed, not filed");
-  assert.equal(listItems(dependencies).length, 7);
+  assert.equal(listItems(dependencies).length, 8);
+  has(dependencies, "`decisions.md`");
   has(dependencies, "hanh9898/matt-with-paseo#78");
   has(dependencies, "hanh9898/matt-with-paseo#91");
   has(dependencies, "the `## Delegation` table format");
@@ -238,7 +299,7 @@ test("v0.1.0 lists the issues it carries, the nine new tickets by number, the fo
   const fallback = section(v1, "### Named fallback");
   has(fallback, "ships the plugin alone");
   has(fallback, "proven against the contract on the fake host");
-  has(fallback, "Criteria 6, 7, 8, 10 and 11 then move to `v0.2.0`");
+  has(fallback, "Criteria 6, 7, 8, 10 and 12 then move to `v0.2.0`");
 });
 
 test("v0.2.0's watch carries the bundle-stop condition", () => {
@@ -364,6 +425,7 @@ test("every relative link of the edited documents resolves", () => {
     "AGENTS.md",
     "GLOSSARY.md",
     ADR,
+    ADR4_FILE,
     ROADMAP,
     "docs/agents/domain.md",
     "docs/agents/evidence-standards.md",

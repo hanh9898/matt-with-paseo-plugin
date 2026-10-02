@@ -33,8 +33,8 @@ Acceptance criteria:
 - [x] <criterion, as the ticket words it>: <the check that proves it: file and line>
 - [ ] <criterion not met>: <why, and what remains>
 
-Checks written: <each check the ticket added, with its file, and that it was written to fail before the change>
-Tests: deferred to the milestone (docs/agents/evidence-standards.md)
+Checks written: <each check the ticket added or changed, with its file>
+Test run: <for each new or changed test file: `node --test <file>`, red on `<base commit>` (<summary line>), green on `<commit>` (<summary line>)>
 Code review: deferred to the milestone (docs/agents/evidence-standards.md)
 Open: <what remains open or in doubt; "nothing" when nothing>
 Outside the file zone: <each change outside the ticket's files or outside git; "none" when none>

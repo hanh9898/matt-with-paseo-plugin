@@ -8,7 +8,7 @@ const stream: HostAgent = { id: "stream-1", workspaceId: "w0", parentAgentId: nu
 const ticket: HostAgent = { ...stream, id: "tkt-7", workspaceId: "w1", parentAgentId: "stream-1", cwd: "/repo-tkt", title: "[Wave 1] 07" };
 const stranger: HostAgent = { ...stream, id: "stranger", title: null };
 
-const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Questions the orchestrator may decide | two-way |", ""].join("\n");
+const TABLE = ["## Delegation", "", "| Rule | Value |", "|---|---|", "| Level | 2 |", "| Questions the orchestrator may decide | two-way |", ""].join("\n");
 
 const questions = (...doors: string[]) => ({
   questions: doors.map((door, n) => ({
@@ -191,4 +191,48 @@ test("a bundle agent's decidable question is answered with its recommendation", 
   await fake.emitPermissionRequested({ agent: bundleAgent, request: ask("r1") });
   assert.equal(fake.answers.length, 1);
   assert.equal(fake.answers[0]?.agentId, "bnd-7");
+});
+
+test("an answer Paseo refuses leaves the question to the user, and `left` is told (#39)", async () => {
+  const fake = new FakeHost();
+  const told: string[] = [];
+  registerDelegatedAnswers(fake, { readTable: async () => TABLE, record: () => {}, left: async ({ request }) => void told.push(request.id) });
+  fake.setLabels("tkt-7", { stream: "demo", wave: "1", ticket: "07" });
+  fake.respondToPermission = async () => {
+    throw new Error("request no longer pending");
+  };
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.deepEqual(told, ["r1"], "the question stays the user's and is counted");
+});
+
+const levelTable = (...rows: string[]) => ["## Delegation", "", "| Rule | Value |", "|---|---|", ...rows, ""].join("\n");
+
+test("at level 1 a question with a recommendation is left, and `left` is told the reason and the level", async () => {
+  const fake = new FakeHost();
+  const told: { reason: string; level: string }[] = [];
+  registerDelegatedAnswers(fake, {
+    readTable: async () => levelTable("| Level | 1 |", "| Questions the orchestrator may decide | two-way |"),
+    record: () => {},
+    left: ({ reason, level }) => void told.push({ reason, level }),
+  });
+  fake.setLabels("tkt-7", { stream: "demo", wave: "1", ticket: "07" });
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1") });
+  assert.deepEqual(fake.answers, []);
+  assert.deepEqual(told, [{ reason: "level 1: nothing is delegated", level: "level 1 (the Level row)" }]);
+});
+
+test("at level 3 a Yours: merge answer is one respondToPermission and `answered` is told the level", async () => {
+  const fake = new FakeHost();
+  const told: string[] = [];
+  registerDelegatedAnswers(fake, {
+    readTable: async () => levelTable("| Level | 3 |", "| Questions the orchestrator may decide | one-way |"),
+    record: () => {},
+    answered: ({ level }) => void told.push(level),
+  });
+  fake.setLabels("tkt-7", { stream: "demo", wave: "1", ticket: "07" });
+  const merge = { questions: [{ header: "Merge", question: "Merge?\nDoor: one-way\nYours: merge", options: [{ label: "Merge (Recommended)", description: "" }, { label: "Hold", description: "" }], multiSelect: false }] };
+  await fake.emitPermissionRequested({ agent: ticket, request: ask("r1", merge) });
+  assert.deepEqual(fake.answers.map((answer) => answer.requestId), ["r1"]);
+  assert.deepEqual(fake.sent, []);
+  assert.deepEqual(told, ["level 3 (the Level row)"]);
 });

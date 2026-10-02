@@ -37,7 +37,7 @@ test("a running stream agent quiet for 30 minutes gets one Stall suspected to it
   await host.emitCreated({ agent: streamAgent });
   clock.now = 29;
   await host.tick();
-  assert.deepEqual(host.sent, [], "29 minutes is not 30");
+  assert.deepEqual([...host.sent], [], "29 minutes is not 30");
   clock.now = 30;
   await host.tick();
   assert.equal(host.sent.length, 1);
@@ -81,7 +81,7 @@ test("an idle stream agent, an unlabelled agent and a stream agent with no paren
   await host.emitCreated({ agent: { ...streamAgent, id: "root", parentAgentId: null } });
   clock.now = 500;
   await host.tick();
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.failures, []);
 });
 
@@ -109,7 +109,7 @@ test("a running ticket agent quiet for 30 minutes gets one Stall suspected to it
   await host.emitCreated({ agent: ticketAgent });
   clock.now = 29;
   await host.tick();
-  assert.deepEqual(host.sent, [], "29 minutes is not 30");
+  assert.deepEqual([...host.sent], [], "29 minutes is not 30");
   clock.now = 30;
   await host.tick();
   assert.equal(host.sent.length, 1);
@@ -168,7 +168,7 @@ test("an idle ticket agent, an agent with neither role and a ticket agent with n
   await host.emitCreated({ agent: { ...ticketAgent, id: "orphan", parentAgentId: null } });
   clock.now = 500;
   await host.tick();
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.failures, []);
 });
 
@@ -197,7 +197,7 @@ test("the ticket agent's tick message is held while the parent is mid-turn and g
   host.setRunning("streams-0", true);
   clock.now = 30;
   await host.tick();
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   host.setRunning("streams-0", false);
   await host.emitTurnEnded({ agent: streams, outcome: done, timeline: [] });
   assert.equal(host.sent.length, 1);
@@ -210,7 +210,7 @@ test("an archived ticket agent is forgotten: the tick no longer looks at it (#49
   await host.emitArchived({ agent: ticketAgent });
   clock.now = 500;
   await host.tick();
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });
 
 test("a ticket agent whose host cannot answer is skipped for the tick and breaks no other (#49, T4)", async () => {
@@ -262,7 +262,7 @@ test("the tick message is held while the parent is mid-turn and goes out at its 
   host.setRunning("streams-0", true);
   clock.now = 30;
   await host.tick();
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   host.setRunning("streams-0", false);
   await host.emitTurnEnded({ agent: streams, outcome: done, timeline: [] });
   assert.equal(host.sent.length, 1);
@@ -276,7 +276,7 @@ test("an archived stream agent is forgotten: the tick no longer looks at it", as
   await host.emitArchived({ agent: streamAgent });
   clock.now = 500;
   await host.tick();
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });
 
 test("a host that cannot give isRunning or lastActivityAt skips that agent for the tick and breaks no other (T4)", async () => {
@@ -317,7 +317,7 @@ test("an agent with no lastActivityAt, or one that is not a time, sends nothing 
   await host.tick();
   host.setLastActivity("strm-3", "not a time");
   await host.tick();
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.failures, []);
 });
 
@@ -327,5 +327,5 @@ test("turn-end checks still never evaluate quiet-running: a ticket turn that add
   host.setLabels("tkt-7", { stream: "demo", wave: "1", ticket: "07" });
   const ticket: HostAgent = { ...streamAgent, id: "tkt-7" };
   await host.emitTurnEnded({ agent: ticket, outcome: done, timeline: working });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });

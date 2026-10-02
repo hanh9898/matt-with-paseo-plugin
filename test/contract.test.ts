@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { MESSAGES } from "../server/messages.ts";
 import { CONTRACT_VERSION } from "../shared/contract.ts";
 import { contractProblems, DELEGATION_READS, parseContract, SAMPLES, SECTIONS } from "./support/contract-doc.ts";
@@ -104,7 +105,15 @@ test("the report card's row id, entry fields and no-buttons rule are fixed by th
   only(contractProblems(changed(/^Decided entry: `header`, `answer`, `at`$/m, "Decided entry: `header`, `answer`")), "decided");
   only(contractProblems(changed(/^Spend: `totalUsd`, `appetiteUsd`, `partial`$/m, "Spend: `totalUsd`, `appetiteUsd`")), "spend");
   only(contractProblems(changed(/^Questions: `count`, `budget`$/m, "Questions: `count`")), "questions");
-  only(contractProblems(changed(/^Fields: `decided`, `spend`, `questions`$/m, "Fields: `decided`, `spend`")), "fields");
+  only(contractProblems(changed(/^Fields: `decided`, `decidedCount`, `log`, `spend`, `questions`$/m, "Fields: `decided`, `spend`")), "fields");
+  only(contractProblems(changed(/^Decided cap: 20$/m, "Decided cap: 50")), "decided cap");
+  only(contractProblems(changed(/^Text cap: 200$/m, "Text cap: 400")), "text cap");
+});
+
+test("the contract names the card's fields in REPORT_CARD's order and says why the list is capped", () => {
+  assert.deepEqual(parseContract(contract).card?.fields, ["decided", "decidedCount", "log", "spend", "questions"]);
+  const card = contract.slice(contract.indexOf("## The report card"), contract.indexOf("## What the skills declare"));
+  assert.match(card, /64 KiB/);
 });
 
 test("the contract says the card is one row kept current under one row id, and says when the total is partial", () => {
@@ -158,7 +167,7 @@ test("the contract holds the ticket and bundle running Stall suspected rows, nam
   for (const name of ["ticket running", "bundle running"]) {
     const next = stall?.cases.get(name)?.next ?? "";
     assert.match(next, /never prompt it, since a prompt queues behind the stuck call/, name);
-    assert.match(next, /within the restart budget under the wave skill's hung-agent table/, name);
+    assert.match(next, /within the wave skill's restart budget under its hung-agent table/, name);
     assert.doesNotMatch(next, /prompt agent/, name);
   }
   assert.match(contract, /^Contract version: 1$/m);
@@ -243,15 +252,11 @@ test("the contract names the bundle labels, the bundle title and the two placeho
 
 test("a bundle row the contract words differently, drops, or the module does not build fails the check", () => {
   only(contractProblems(changed("`Agent archived: bundle <bundle> (tickets <tickets>) of wave <wave>, agent <agent>.`", "`Agent archived: bundle <bundle>.`")), "bundle archived");
-  only(contractProblems(changed(/^\| bundle completed \|.*
-/m, "")), "turnEnded");
-  only(contractProblems(changed(/^\| `bundle` \|.*
-/m, "")), "labels");
+  only(contractProblems(changed(/^\| bundle completed \|.*\n/m, "")), "turnEnded");
+  only(contractProblems(changed(/^\| `bundle` \|.*\n/m, "")), "labels");
   only(contractProblems(changed(/^Bundle title: .*$/m, "Bundle title: `[Wave N] <NN>+<NN>`")), "bundle-agent title");
-  const invented = "| bundle plan | `Permission pending: bundle <bundle>.` | `Next: wait.` |
-";
-  only(contractProblems(changed(/^(\| bundle tool \|.*
-)/m, "$1" + invented)), "bundle plan");
+  const invented = "| bundle plan | `Permission pending: bundle <bundle>.` | `Next: wait.` |\n";
+  only(contractProblems(changed(/^(\| bundle tool \|.*\n)/m, "$1" + invented)), "bundle plan");
 });
 
 test("ADR 0003 holds the bundle labels and the bundle title under what v1 holds, and cites #45", () => {

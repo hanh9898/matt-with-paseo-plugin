@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import { test } from "node:test";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -57,7 +57,7 @@ test("no module but the entry depends on the adapter", () => {
   const dependents = sources()
     .filter((path) => path !== ADAPTER && path !== "index.server.ts")
     .filter((path) => path !== "test/host-port.test.ts" && path !== "test/paseo-host.test.ts")
-    .filter((path) => /paseo-host(?:\.ts)?["']/.test(read(path)));
+    .filter((path) => /\bfrom\s+["'][^"']*paseo-host(?:\.ts)?["']|import\(\s*["'][^"']*paseo-host(?:\.ts)?["']/.test(read(path)));
   assert.deepEqual(dependents, []);
 });
 

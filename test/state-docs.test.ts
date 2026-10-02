@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { MARKED_BLOCK, STATE_DIR_ENV, STATE_DIR_NAME } from "../shared/state-location.ts";
+import { URL } from "node:url";
+import { MARKED_BLOCK, STATE_DIR_ENV, STATE_DIR_NAME } from "../server/state-location.ts";
 
 function read(name: string): string {
   return readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
@@ -25,7 +26,7 @@ function stateSubsection(): string {
 
 test("the layout table lists the state location and the state module", () => {
   const rows = developmentSection().split("\n").filter((line) => line.startsWith("| `"));
-  for (const path of ["shared/state-location.ts", "server/state.ts"]) {
+  for (const path of ["server/state-location.ts", "server/state.ts"]) {
     assert.ok(rows.some((row) => row.startsWith(`| \`${path}\``)), `layout table has a row for ${path}`);
   }
 });
@@ -39,7 +40,7 @@ test("the README names where state lives, the one marked block and the check (cr
 
 test("the README inventories every holder of state, so a new one is a row to add", () => {
   const words = stateSubsection();
-  for (const holder of ["server/hooks/gate-cap.ts", "server/hooks/lifecycle-relay.ts", "server/hooks/stall-sensor.ts", "server/hooks/waiting-count.ts", "client/waiting-pill.ts", "server/harness.ts", "server/sensor.ts"]) {
+  for (const holder of ["server/hooks/gate-cap.ts", "server/hooks/lifecycle-relay.ts", "server/hooks/stall-sensor.ts", "server/hooks/waiting-count.ts", "client/waiting-pill.ts", "server/harness.ts", "server/sensor.ts", "server/decision-log.ts"]) {
     assert.ok(words.includes(holder), `the inventory names ${holder}`);
   }
   assert.ok(words.includes("in memory"), "the inventory says what is held in memory");

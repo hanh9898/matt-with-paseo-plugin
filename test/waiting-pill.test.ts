@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { after, mock, test } from "node:test";
+import { URL } from "node:url";
 import { PILL } from "../client/pill-text.ts";
 import { contributeWaitingPill, REFRESH_MS, type PillClient, type PillUpdate } from "../client/waiting-pill.ts";
 

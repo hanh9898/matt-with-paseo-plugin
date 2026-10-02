@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { PILL, PLAIN_LABELS } from "../client/pill-text.ts";
 
 /**

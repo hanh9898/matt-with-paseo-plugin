@@ -84,7 +84,7 @@ test("an agent without the ticket labels is left alone on every event (T3)", asy
   await host.emitArchived({ agent: ticketAgent });
   const stranger = { ...ticketAgent, id: "stranger" };
   await host.emitTurnEnded({ agent: stranger, outcome: completed, timeline: [] });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.answers, []);
   assert.deepEqual(host.rows, []);
 });
@@ -92,7 +92,7 @@ test("an agent without the ticket labels is left alone on every event (T3)", asy
 test("a ticket agent with no parent has no orchestrator to tell", async () => {
   const host = relayed();
   await host.emitTurnEnded({ agent: { ...ticketAgent, parentAgentId: null }, outcome: completed, timeline: [] });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.failures, []);
 });
 
@@ -110,7 +110,7 @@ test("a message for a running orchestrator is held until that orchestrator's tur
   host.setRunning("orch-1", true);
   await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [] });
   await host.emitPermissionRequested({ agent: ticketAgent, request: { id: "req-9", name: "Bash", kind: "tool" } });
-  assert.deepEqual(host.sent, [], "nothing is sent while the orchestrator's turn runs");
+  assert.deepEqual([...host.sent], [], "nothing is sent while the orchestrator's turn runs");
   host.setRunning("orch-1", false);
   await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [] });
   assert.equal(host.sent.length, 1, "the held messages arrive as one message");
@@ -134,7 +134,7 @@ test("an orchestrator that is archived loses what was held for it", async () => 
   await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [] });
   await host.emitArchived({ agent: orchestrator });
   await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [] });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });
 
 test("when the host cannot say whether the orchestrator runs, the message is sent at once (T4)", async () => {
@@ -225,21 +225,21 @@ test("a message typed in an agent that is neither a ticket agent nor a stream ag
   const stray: HostAgent = { ...ticketAgent, id: "stray" };
   await host.emitTurnEnded({ agent: stray, outcome: completed, timeline: [typed("c-1")] });
   await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [typed("c-2")] });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });
 
 test("a ticket agent with no orchestrator has nobody to tell", async () => {
   const host = relayed();
   const alone: HostAgent = { ...ticketAgent, parentAgentId: null };
   await host.emitTurnEnded({ agent: alone, outcome: completed, timeline: [typed("c-1")] });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });
 
 test("the words wait with the turn end while the orchestrator runs, and go out with what else is held", async () => {
   const host = relayed();
   host.setRunning("orch-1", true);
   await host.emitTurnEnded({ agent: ticketAgent, outcome: completed, timeline: [typed("c-1")] });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   host.setRunning("orch-1", false);
   await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [] });
   assert.equal(host.sent.length, 1);
@@ -336,7 +336,7 @@ test("a stream agent's archive reaches its parent, also when Paseo no longer rep
 test("the stream agent's creation and the words typed in its chat are not relayed: those types stay ticket-agent only", async () => {
   const host = relayedStream();
   await host.emitCreated({ agent: streamAgent });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   await host.emitTurnEnded({ agent: streamAgent, outcome: completed, timeline: [typed("c-1")] });
   assert.equal(host.sent.length, 1);
   assert.doesNotMatch(host.sent[0]?.text ?? "", /Human words/);
@@ -349,13 +349,12 @@ test("a stream agent's messages are held for a running parent and go out with th
   await host.emitTurnEnded({ agent: streamAgent, outcome: completed, timeline: [] });
   await host.emitPermissionRequested({ agent: ticketAgent, request: { id: "req-9", name: "Bash", kind: "tool" } });
   await host.emitArchived({ agent: streamAgent });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   host.setRunning("orch-1", false);
   await host.emitTurnEnded({ agent: orchestrator, outcome: completed, timeline: [] });
   assert.equal(host.sent.length, 1, "one message");
   const text = host.sent[0]?.text ?? "";
-  const lines = text.split("
-");
+  const lines = text.split("\n");
   assert.equal(lines.filter((line) => line.startsWith("Next:")).length, 1);
   assert.ok(lines.at(-1)?.startsWith("Next: "));
   assert.ok(text.indexOf("stream demo") < text.indexOf("ticket 07"), "arrival order");
@@ -367,7 +366,7 @@ test("a stream agent with no parent is told to nobody", async () => {
   await host.emitTurnEnded({ agent: { ...streamAgent, parentAgentId: null }, outcome: completed, timeline: [] });
   await host.emitPermissionRequested({ agent: { ...streamAgent, parentAgentId: null }, request: { id: "r", name: "Bash", kind: "tool" } });
   await host.emitArchived({ agent: { ...streamAgent, parentAgentId: null } });
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
   assert.deepEqual(host.failures, []);
 });
 
@@ -389,7 +388,7 @@ test("an agent carrying stream and a wave without a ticket, or neither role, is 
     await host.emitPermissionRequested({ agent, request: { id: "r", name: "Bash", kind: "tool" } });
     await host.emitArchived({ agent });
   }
-  assert.deepEqual(host.sent, []);
+  assert.deepEqual([...host.sent], []);
 });
 
 const bundleAgent: HostAgent = { ...ticketAgent, id: "bnd-7", title: "[Wave 1] [70+71] Relay and mark bundle agents" };
@@ -435,7 +434,7 @@ test("the user's words in a bundle agent's chat ride its turn end, with the bund
   const host = bundled();
   await host.emitTurnEnded({ agent: bundleAgent, outcome: completed, timeline: [typed("m-1")] });
   const text = host.sent[0]?.text ?? "";
-  assert.match(text, new RegExp(`Human words: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7`));
+  assert.match(text, /Human words: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7/);
   assert.match(text, /Turn ended: bundle 70/);
 });
 

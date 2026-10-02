@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { URL } from "node:url";
 import { combine, MESSAGES } from "../server/messages.ts";
 
 const subject = { agentId: "tkt-7", wave: "1", ticket: "07" };
@@ -99,7 +100,8 @@ test("the moves use the tools and words of the skills, one set per case", () => 
 test("a text carries no part of a request's input or an error's message (T6)", () => {
   const failed = MESSAGES.turnEnded(subject, { kind: "failed", error: { message: "token=hunter2" } });
   assert.doesNotMatch(failed, /hunter2/);
-  const asked = MESSAGES.permissionRequested(subject, { id: "req-9", name: "Bash", kind: "tool", input: { secret: "hunter2" } });
+  const request = { id: "req-9", name: "Bash", kind: "tool" as const, input: { secret: "hunter2" } };
+  const asked = MESSAGES.permissionRequested(subject, request);
   assert.doesNotMatch(asked, /hunter2/);
 });
 
@@ -137,6 +139,8 @@ test("no hook module writes a message text of its own", () => {
   const dir = new URL("../server/hooks/", import.meta.url);
   for (const file of readdirSync(dir).filter((name) => name.endsWith(".ts"))) {
     const text = readFileSync(new URL(file, dir), "utf8");
+    // A module that sends nothing (the ticket marker only sets an env) has no text to take.
+    if (!/host\.send\(/.test(text)) continue;
     assert.match(text, /\.\.\/messages\.ts/, `${file} takes its texts from server/messages.ts`);
     assert.doesNotMatch(text, /host\.send\([^)]*[`"']/, `${file} sends a text it did not take from server/messages.ts`);
   }
@@ -147,7 +151,7 @@ test("the human words message names the user's messages by id and count, and nev
   assert.match(text, /^Human words/);
   assert.ok(text.includes("c-1") && text.includes("c-2"), "each message id is named");
   assert.match(text, /2 messages/);
-  assert.match(MESSAGES.humanWords(subject, ["c-1"]), /1 message(?!s)/);
+  assert.match(MESSAGES.humanWords(subject, ["c-1"]), /1 message\b(?!s)/);
 });
 
 test("a long run of ids is cut to a few, and the rest are counted", () => {
@@ -224,7 +228,8 @@ test("a stream agent's moves fit the streams orchestrator: read its report, answ
 
 test("a stream agent's text carries no part of a request's input or an error's message (T6)", () => {
   assert.doesNotMatch(MESSAGES.turnEnded(stream, { kind: "failed", error: { message: "token=hunter2" } }), /hunter2/);
-  assert.doesNotMatch(MESSAGES.permissionRequested(stream, { id: "r", name: "Bash", kind: "tool", input: { secret: "hunter2" } }), /hunter2/);
+  const request = { id: "r", name: "Bash", kind: "tool" as const, input: { secret: "hunter2" } };
+  assert.doesNotMatch(MESSAGES.permissionRequested(stream, request), /hunter2/);
 });
 
 test("combine joins a stream agent's message with a ticket agent's, one `Next:` line holding both sets of moves", () => {
@@ -263,7 +268,7 @@ test("a bundle agent's text names the bundle, its tickets, the wave and the agen
   for (const [type, cases] of Object.entries(BUNDLE_SAMPLES)) {
     for (const [name, text] of Object.entries(cases)) {
       assert.match(text, /: bundle 70 \(tickets 70,71\) of wave 1, agent bnd-7[,.]/, `${type} (${name}) has the bundle clause`);
-      assert.doesNotMatch(text, /ticket 7[01]/, `${type} (${name}) names no single ticket`);
+      assert.doesNotMatch(text, /ticket 7[01]\b/, `${type} (${name}) names no single ticket`);
       assert.doesNotMatch(text, /stream/i, `${type} (${name}) is no stream text`);
       const moves = text.split("\n").at(-1) ?? "";
       assert.ok(moves.startsWith("Next: ") && moves.endsWith("."), `${type} (${name}) ends with a Next line`);
@@ -301,7 +306,7 @@ test("a stream agent's Stall suspected names the stream and its agent, and reads
     MESSAGES.stallSuspected(stream, [QUIET]),
     "Stall suspected: stream demo, agent strm-3, the sensor flagged: its turn has run 30 minutes with no new activity.\n" +
       "Next: judge whether stream demo is stalled: read agent strm-3's recent activity with get_agent_activity; " +
-      "when agent strm-3 is hung on a shell command or on no tool call, replace it under the stream skill's restart budget, and never prompt it, since a prompt queues behind the stuck call; " +
+      "when agent strm-3 is hung on a shell command or on no tool call, replace it within the stream skill's restart budget, and never prompt it, since a prompt queues behind the stuck call; " +
       "leave stream demo alone when agent strm-3 runs a subagent or another long tool.",
   );
 });
@@ -311,14 +316,14 @@ test("the turn-end Stall suspected line names the hung-agent table for a ticket 
     MESSAGES.stallSuspected(subject, ["the turn ended in failure"]),
     "Stall suspected: ticket 07 of wave 1, agent tkt-7, the sensor flagged: the turn ended in failure.\n" +
       "Next: judge whether ticket 07 is stalled: read agent tkt-7's recent activity with get_agent_activity; " +
-      "decide by the wave skill's hung-agent table, which says whether agent tkt-7 is replaced within the restart budget or prompted to resume, or record ticket 07 as stalled with the reason; " +
+      "decide by the wave skill's hung-agent table, which says whether agent tkt-7 is replaced within the wave skill's restart budget or prompted to resume, or record ticket 07 as stalled with the reason; " +
       "leave ticket 07 alone when its agent is working.",
   );
   assert.equal(
     MESSAGES.stallSuspected(bundle, ["the turn ended in failure"]),
     "Stall suspected: bundle 70 (tickets 70,71) of wave 1, agent bnd-7, the sensor flagged: the turn ended in failure.\n" +
       "Next: judge whether bundle 70 is stalled: read agent bnd-7's recent activity with get_agent_activity; " +
-      "decide by the wave skill's hung-agent table, which says whether agent bnd-7 is replaced within the restart budget or prompted to resume, or record bundle 70 as stalled with the reason; " +
+      "decide by the wave skill's hung-agent table, which says whether agent bnd-7 is replaced within the wave skill's restart budget or prompted to resume, or record bundle 70 as stalled with the reason; " +
       "leave bundle 70 alone when its agent is working.",
   );
 });
@@ -334,7 +339,7 @@ test("a running ticket agent's Stall suspected names the ticket and its agent an
     MESSAGES.stallSuspected(subject, [QUIET], "running"),
     "Stall suspected: ticket 07 of wave 1, agent tkt-7, the sensor flagged: its turn has run 30 minutes with no new activity.\n" +
       "Next: judge whether ticket 07 is stalled: read agent tkt-7's recent activity with get_agent_activity; " +
-      "when agent tkt-7 is hung on a shell command or on no tool call, replace it within the restart budget under the wave skill's hung-agent table, and never prompt it, since a prompt queues behind the stuck call; " +
+      "when agent tkt-7 is hung on a shell command or on no tool call, replace it within the wave skill's restart budget under its hung-agent table, and never prompt it, since a prompt queues behind the stuck call; " +
       "leave ticket 07 alone when agent tkt-7 runs a subagent or another long tool.",
   );
 });
@@ -344,7 +349,7 @@ test("a running bundle agent's Stall suspected names the bundle, its tickets and
     MESSAGES.stallSuspected(bundle, [QUIET], "running"),
     "Stall suspected: bundle 70 (tickets 70,71) of wave 1, agent bnd-7, the sensor flagged: its turn has run 30 minutes with no new activity.\n" +
       "Next: judge whether bundle 70 is stalled: read agent bnd-7's recent activity with get_agent_activity; " +
-      "when agent bnd-7 is hung on a shell command or on no tool call, replace it within the restart budget under the wave skill's hung-agent table, and never prompt it, since a prompt queues behind the stuck call; " +
+      "when agent bnd-7 is hung on a shell command or on no tool call, replace it within the wave skill's restart budget under its hung-agent table, and never prompt it, since a prompt queues behind the stuck call; " +
       "leave bundle 70 alone when agent bnd-7 runs a subagent or another long tool.",
   );
 });

@@ -1,4 +1,4 @@
-import { isStreamAgent, ticketOf } from "../../shared/role-labels.ts";
+import { streamOf, ticketOf } from "../../shared/role-labels.ts";
 import type { Host, HostAgent, HostHooks } from "../host.ts";
 import { humanMessageIds } from "../human-words.ts";
 import { combine, MESSAGES, type Relayed } from "../messages.ts";
@@ -30,13 +30,9 @@ export function registerLifecycleRelay(hooks: HostHooks): void {
   async function subjectOf(agent: HostAgent, host: Host): Promise<Relayed | null> {
     const labels = await host.labelsOf(agent.id);
     const found = ticketOf(labels);
-    const stream = labels["stream"];
+    const stream = streamOf(labels);
     const subject: Relayed | null =
-      found !== null
-        ? { agentId: agent.id, ...found }
-        : isStreamAgent(labels) && stream !== undefined
-          ? { agentId: agent.id, stream }
-          : null;
+      found !== null ? { agentId: agent.id, ...found } : stream !== null ? { agentId: agent.id, stream } : null;
     if (subject !== null) {
       seen.set(agent.id, subject);
       return subject;

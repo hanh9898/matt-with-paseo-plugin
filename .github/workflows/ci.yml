@@ -1,8 +1,8 @@
 name: CI
 
-# Runs at the milestone run (docs/agents/evidence-standards.md): on a push to a
-# release/v* branch and on a pull request from one into main. No stream's ship
-# pull request starts it.
+# Runs on every pull request into main, a stream's ship pull request and the
+# release pull request alike, and on a push to a release/v* branch
+# (docs/agents/evidence-standards.md). A red pull request is never merged.
 on:
   push:
     branches: ["release/v*"]
@@ -11,7 +11,6 @@ on:
 
 jobs:
   check:
-    if: github.event_name == 'push' || startsWith(github.head_ref, 'release/v')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -24,5 +23,4 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
+      - run: npm run check
