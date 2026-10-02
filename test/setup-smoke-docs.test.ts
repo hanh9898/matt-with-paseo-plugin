@@ -105,8 +105,10 @@ test("the roadmap has a v0.1.1 section right after v0.1.0, with its two tickets 
   for (const n of [65, 66]) assert.ok(tickets.some((item) => new RegExp(`#${n}\\b`).test(item)), `lists #${n}`);
   const criteria = numbered(section(v, "### Exit criteria"));
   assert.equal(criteria.length, 4);
-  assert.ok(criteria[0]?.includes("CI is green on Windows, macOS and Linux"), "CI on three systems");
-  assert.ok(criteria[1]?.includes("Setup") && criteria[1].includes("test/smoke/README.md"), "the Setup smoke section");
-  assert.ok(criteria[2]?.includes("`0.1.1`") && criteria[2].includes("CHANGELOG.md"), "the version token and the changelog entry");
-  assert.ok(criteria[3]?.includes("The `v0.1.1` milestone run"), "the milestone run");
+  // Tokens, not sentences (evidence standards: a check reads structure).
+  const names = (item: string | undefined, tokens: string[]): boolean => tokens.every((token) => item?.includes(token) === true);
+  assert.ok(names(criteria[0], ["`.github/workflows/ci.yml`"]), "CI");
+  assert.ok(names(criteria[1], ["`test/smoke/README.md`"]), "the Setup smoke section");
+  assert.ok(names(criteria[2], ["`0.1.1`", "`CHANGELOG.md`"]), "the version token and the changelog entry");
+  assert.ok(names(criteria[3], ["`v0.1.1`"]), "the milestone run");
 });

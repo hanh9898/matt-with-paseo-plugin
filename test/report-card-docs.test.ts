@@ -52,7 +52,7 @@ test("the README lays out the report card module and says the card has no button
 
 test("CHANGELOG.md lists the report card under Unreleased, or under the release its lines moved to", () => {
   const changelog = read("CHANGELOG.md");
-  // `[Unreleased]` and the newest release heading after it: a release moves the lines down one heading.
-  const [unreleased = "", newest = ""] = changelog.slice(changelog.indexOf("## [Unreleased]")).split("\n## ", 3);
-  assert.match(`${unreleased}\n${newest}`, /[Rr]eport card/);
+  // `[Unreleased]` or a release heading after it: each release moves the lines down, and a later one adds its own.
+  const releases = changelog.slice(changelog.indexOf("## [Unreleased]")).split("\n## ");
+  assert.ok(releases.some((part) => /^\[(Unreleased|\d+\.\d+\.\d+)\]/.test(part) && /[Rr]eport card/.test(part)), "a release section names the report card");
 });

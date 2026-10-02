@@ -130,7 +130,7 @@ function machine(options: Options = {}) {
     "paseo --version": { stdout: `${LOW}\n` },
     "paseo daemon status": { stdout: "Daemon running\n" },
     "paseo daemon config get pluginsEnabled": () => ({ stdout: JSON.stringify({ source: "configured", path: "pluginsEnabled", set: true, value: state.pluginsEnabled }) }),
-    "paseo plugin ls --json": () => ({ stdout: JSON.stringify(state.paseoPlugin ? [{ id: "matt-with-paseo" }] : []) }),
+    "paseo plugin ls --json": () => ({ stdout: JSON.stringify(state.paseoPlugin ? [{ id: "matt-with-paseo", status: "running", enabled: true, path: dir }] : []) }),
     "paseo plugin remove matt-with-paseo": () => {
       state.paseoPlugin = false;
       return {};
@@ -265,6 +265,13 @@ test("--update with no clone records no change command and says to run setup", a
   assert.deepEqual(m.changes(), []);
   assert.ok(m.output().includes(`no clone at ${m.dir}`));
   assert.match(m.output(), /Run setup first/);
+});
+
+test("--update stops before any change when pluginsEnabled cannot be read", async () => {
+  const m = machine({ answers: { "paseo daemon config get pluginsEnabled": { code: 1, stderr: "daemon not reachable" } } });
+  assert.equal(await m.go(["setup", "--update"]), 1);
+  assert.deepEqual(m.changes(), []);
+  assert.ok(m.output().includes("missing  Paseo plugins enabled:"), m.output());
 });
 
 test("--update stops on a dirty clone with its path, and on a folder that is not this repository's clone", async () => {

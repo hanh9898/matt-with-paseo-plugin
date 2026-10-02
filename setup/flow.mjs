@@ -123,14 +123,18 @@ async function setup({ dryRun, paseoHome, dir, mode }, ctx) {
     return result;
   }
 
-  // Paseo 0.10.1 prints `{"source": ..., "set": true, "value": true}`; a bare `true` is read too.
+  // Paseo 0.10.1 prints `{"source": ..., "set": true, "value": true}`; a bare `true` or `false` is read too.
+  // Null when the command fails or prints neither: setup cannot tell off from unread, so it changes nothing.
   const pluginsEnabled = async () => {
-    const text = (await ctx.run("paseo", paseo(["daemon", "config", "get", "pluginsEnabled"]))).stdout.trim();
-    if (text === "true") return true;
+    const result = await ctx.run("paseo", paseo(["daemon", "config", "get", "pluginsEnabled"]));
+    const text = result.stdout.trim();
+    if (result.code !== 0) return null;
+    if (text === "true" || text === "false") return text === "true";
     try {
-      return JSON.parse(text).value === true;
+      const value = JSON.parse(text).value;
+      return value === undefined ? false : typeof value === "boolean" ? value : null;
     } catch {
-      return false;
+      return null;
     }
   };
   const claudeList = async () => tokens((await ctx.run("claude", ["plugin", "list"])).stdout);
@@ -169,7 +173,8 @@ async function setup({ dryRun, paseoHome, dir, mode }, ctx) {
     row("Paseo daemon", daemon.code === 0 && !/not running|stopped/i.test(daemon.stdout), "running", hint("daemon", platform));
 
     const enabled = await pluginsEnabled();
-    rows.push({ item: "Paseo plugins enabled", ok: enabled, off: !enabled, detail: "true" });
+    if (enabled === null) row("Paseo plugins enabled", false, "", "setup cannot read `paseo daemon config get pluginsEnabled`; check the daemon, then run setup again");
+    else rows.push({ item: "Paseo plugins enabled", ok: enabled, off: !enabled, detail: "true" });
 
     const list = await claudeList();
     row("Matt's skills", list.some((t) => t === MATTPOCOCK || t.startsWith(`${MATTPOCOCK}@`)), MATTPOCOCK, hint("mattpocock", platform));
@@ -178,6 +183,17 @@ async function setup({ dryRun, paseoHome, dir, mode }, ctx) {
 
   async function paseoPluginInstalled() {
     return PASEO_ID.test((await ctx.run("paseo", paseo(["plugin", "ls", "--json"]))).stdout);
+  }
+
+  /** The Paseo plugin's `status` in `paseo plugin ls --json` (`running` once it loaded), or null when it is not listed. */
+  async function paseoPluginStatus() {
+    try {
+      const listed = JSON.parse((await ctx.run("paseo", paseo(["plugin", "ls", "--json"]))).stdout);
+      const plugin = Array.isArray(listed) ? listed.find((entry) => entry?.id === "matt-with-paseo") : undefined;
+      return plugin === undefined ? null : String(plugin.status);
+    } catch {
+      return null;
+    }
   }
 
   const skillsInFolder = () => SKILL_NAMES.every((name) => existsSync(join(skillsDir, name)));
@@ -220,12 +236,14 @@ async function setup({ dryRun, paseoHome, dir, mode }, ctx) {
     print("Verify");
     const again = await prerequisites();
     const after = await claudeList();
+    const status = await paseoPluginStatus();
     const parts = [
-      { item: "Paseo plugin", ok: await paseoPluginInstalled() },
+      { item: "Paseo plugin", ok: status === "running" },
       { item: "Claude Code plugin", ok: after.includes(CLAUDE_PLUGIN) },
       { item: "The skills", ok: after.includes(SKILLS_PLUGIN) || skillsInFolder() },
     ];
     for (const r of [...again, ...parts]) print(`${r.ok ? "pass" : "fail"}  ${r.item}`);
+    if (status !== null && status !== "running") print(`The Paseo plugin is ${status}, not running: read paseo plugin logs matt-with-paseo for why.`);
     print("Reload the Paseo app now: an app that was open during the install shows no pill until it reloads.");
     return [...again, ...parts].some((r) => !r.ok);
   }

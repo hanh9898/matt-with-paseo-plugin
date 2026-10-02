@@ -127,6 +127,17 @@ test("withResults twice gives the text of once with the second run's lines", () 
   assert.ok(twice.includes(resultLine({ ...RESULT, status: "fail" })));
 });
 
+test("withResults keeps a hand-written line of a section the run has no result for, after the run's lines", () => {
+  const hand = "- Setup | pass | 2026-10-02 | Paseo 0.10.1 | Windows | Node v24.19.0 | by hand";
+  const handLinux = "- Setup (Linux) | pass | 2026-10-02 | Paseo 0.10.1 | Linux | Node v24.0.0 | by hand";
+  const once = withResults(README, [RESULT], ["Type one message"]).replace(resultLine(RESULT), `${resultLine(RESULT)}\n${hand}\n${handLinux}`);
+  const lines = withResults(once, [{ ...RESULT, status: "fail" }], ["Type one message"]).split("\n");
+  assert.equal(lines.includes(resultLine(RESULT)), false);
+  const run = lines.indexOf(resultLine({ ...RESULT, status: "fail" }));
+  assert.deepEqual(lines.slice(run, run + 3), [resultLine({ ...RESULT, status: "fail" }), hand, handLinux]);
+  assert.equal(lines.filter((line) => line.startsWith("- [ ] ")).length, 1, "the human list is written once");
+});
+
 test("withResults appends the heading when the README has none", () => {
   const next = withResults("# Smoke\n", [RESULT], []);
   assert.ok(next.includes("\n## Results\n"));

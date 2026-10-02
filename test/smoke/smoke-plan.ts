@@ -106,13 +106,17 @@ export function resultLine(result: Result): string {
 const HEADING = "## Results";
 
 /**
- * `readme` with everything from its `## Results` heading on replaced by one line per result, then the human list as
- * unchecked items. Text above the heading is kept as it was; a README with no heading gets one at its end.
+ * `readme` with everything from its `## Results` heading on replaced by one line per result, then the result lines
+ * of sections the run has no result for (a section run by hand, such as "Setup"), as they were, then the human list
+ * as unchecked items. Text above the heading is kept as it was; a README with no heading gets one at its end.
  */
 export function withResults(readme: string, results: readonly Result[], human: readonly string[]): string {
-  const at = readme.split("\n").findIndex((line) => line === HEADING);
-  const above = at === -1 ? `${readme.replace(/\n*$/, "")}\n\n` : readme.split("\n").slice(0, at).join("\n") + "\n";
-  const lines = [HEADING, "", ...results.map(resultLine), "", "Only a person can do:", "", ...human.map((step) => `- [ ] ${step}`)];
+  const all = readme.split("\n");
+  const at = all.findIndex((line) => line === HEADING);
+  const above = at === -1 ? `${readme.replace(/\n*$/, "")}\n\n` : all.slice(0, at).join("\n") + "\n";
+  const ran = new Set(results.map((result) => oneLine(result.section)));
+  const byHand = at === -1 ? [] : all.slice(at + 1).filter((line) => /^- (?!\[[ x]\] )/.test(line) && line.includes(" | ") && !ran.has(line.slice(2, line.indexOf(" | "))));
+  const lines = [HEADING, "", ...results.map(resultLine), ...byHand, "", "Only a person can do:", "", ...human.map((step) => `- [ ] ${step}`)];
   return `${above}${lines.join("\n")}\n`;
 }
 
