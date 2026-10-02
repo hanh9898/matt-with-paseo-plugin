@@ -1,6 +1,6 @@
 # Roadmap
 
-Where matt-with-paseo-plugin is going: five milestones, `v0.1.0` to `v0.5.0`, in order. The last one planned is `v0.5.0`. `v0.1.0` is the first release that runs a stream unattended, supervision and delegation together. The plan is the owner's cut of 2026-09-30 ([Decision on #28](https://github.com/hanh9898/matt-with-paseo-plugin/issues/28#issuecomment-5894688816)). What the plugin will never do bounds every milestone: [ADR 0002](adr/0002-what-the-plugin-will-never-do.md).
+Where matt-with-paseo-plugin is going: five milestones, `v0.1.0` to `v0.5.0`, in order, and the patch release `v0.1.1` after `v0.1.0`. The last one planned is `v0.5.0`. `v0.1.0` is the first release that runs a stream unattended, supervision and delegation together. The plan is the owner's cut of 2026-09-30 ([Decision on #28](https://github.com/hanh9898/matt-with-paseo-plugin/issues/28#issuecomment-5894688816)). What the plugin will never do bounds every milestone: [ADR 0002](adr/0002-what-the-plugin-will-never-do.md).
 
 ## Rules for every milestone
 
@@ -82,6 +82,24 @@ These are listed, not filed: filing them in `hanh9898/matt-with-paseo` stays wit
 ### Named fallback
 
 If the skills side is late, `v0.1.0` ships the plugin alone, with its delegation halves proven against the contract on the fake host. Criteria 6, 7, 8, 10 and 12 then move to `v0.2.0`. Contract v1 ships in `v0.1.0` either way.
+
+## v0.1.1: One-command setup
+
+Status: planned. A patch release of the stream `plugin-setup`: `npx github:hanh9898/matt-with-paseo-plugin setup` installs the Paseo plugin, the Claude Code plugin and the skills in one command, and `--update` and `--remove` keep them. It changes no plugin behaviour.
+
+### New tickets
+
+1. One-command setup: `npx github:hanh9898/matt-with-paseo-plugin setup` installs the three parts: #65
+2. Setup `--update` and `--remove`, and the setup smoke section on a scratch home: #66
+
+### Exit criteria
+
+In the order they are met:
+
+1. CI is green on Windows, macOS and Linux.
+2. The "Setup" section of `test/smoke/README.md` passes on a scratch home.
+3. One version token, `0.1.1`, across the manifests, and `CHANGELOG.md` has its entry (the release stream's part, per the [release checklist](agents/release-checklist.md)).
+4. The `v0.1.1` milestone run.
 
 ## v0.2.0: The watch
 

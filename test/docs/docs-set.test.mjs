@@ -241,17 +241,25 @@ test("the roadmap states the rules for every milestone", () => {
   has(rules, "updates this file in its pull request");
 });
 
-test("the roadmap lists v0.1.0 to v0.5.0 in order, each with its theme, and its exit criteria end with its milestone run", () => {
+// The patch release `v0.1.1` (the stream `plugin-setup`) sits between `v0.1.0` and `v0.2.0`.
+const RELEASES = [
+  ["v0.1.0", "Supervision and Delegation"],
+  ["v0.1.1", "One-command setup"],
+  ...MILESTONES.slice(1).map(([n, theme]) => [`v0.${n}.0`, theme]),
+];
+
+test("the roadmap lists v0.1.0 to v0.5.0 in order with the patch release v0.1.1 after v0.1.0, each with its theme, and its exit criteria end with its milestone run", () => {
   const roadmap = read(ROADMAP);
   const headings = roadmap.split("\n").filter((line) => /^## v0\./.test(line));
-  assert.equal(headings.length, 5);
-  MILESTONES.forEach(([n, theme], i) => {
-    assert.ok(headings[i].startsWith(`## v0.${n}.0: `), `milestone ${i + 1} is out of order`);
+  assert.equal(headings.length, 6);
+  RELEASES.forEach(([version, theme], i) => {
+    assert.ok(headings[i].startsWith(`## ${version}: `), `release ${i + 1} is out of order`);
     has(headings[i], theme);
-    const criteria = listItems(section(milestone(roadmap, n), "### Exit criteria"));
-    assert.ok(criteria.length >= 2, `v0.${n}.0 lists no exit criteria`);
-    has(criteria[criteria.length - 1], `The \`v0.${n}.0\` milestone run`);
+    const criteria = listItems(section(section(roadmap, `## ${version}: `), "### Exit criteria"));
+    assert.ok(criteria.length >= 2, `${version} lists no exit criteria`);
+    has(criteria[criteria.length - 1], `The \`${version}\` milestone run`);
   });
+  has(roadmap.split("\n## ")[0], "`v0.1.1`");
 });
 
 test("v0.1.0 lists the issues it carries, the new tickets by number, the fifteen exit criteria in order, the skills-side dependencies and the named fallback", () => {
