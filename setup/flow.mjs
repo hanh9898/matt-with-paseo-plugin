@@ -51,7 +51,7 @@ function parseArgs(argv) {
 
 /** A command as the owner would type it. */
 function show(command, args) {
-  return [command, ...args.map((arg) => (/[\s"]/.test(arg) ? JSON.stringify(arg) : arg))].join(" ");
+  return [command, ...args.map((arg) => (/\s/.test(arg) ? `"${arg}"` : arg))].join(" ");
 }
 
 /** The words of a command's output, split at spaces and punctuation that never sits inside an id. */
