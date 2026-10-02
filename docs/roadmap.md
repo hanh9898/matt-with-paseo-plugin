@@ -16,7 +16,7 @@ Where matt-with-paseo-plugin is going: five milestones, `v0.1.0` to `v0.5.0`, in
 
 ## v0.1.0: Supervision and Delegation, the first unattended stream
 
-Status: in progress (the milestone run, on `release/v0.1.0`)
+Status: milestone run done (smoke, review, fix pass) on `release/v0.1.0`, shipping in its pull request into `main`; the user tags `v0.1.0` once it merges. Put off to `v0.2.0` from its smoke: findings F2 to F5 of that pull request.
 
 ### Carried by existing issues
 

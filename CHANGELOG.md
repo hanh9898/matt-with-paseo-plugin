@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-02
+
 ### Added
 
 - Three autonomy levels ([ADR 0004](docs/adr/0004-three-autonomy-levels.md)): the `## Delegation` table's `Level` row sets delegated answers to level 1 (nothing delegated, the default), 2 (all but the owner's five items, what `Switch | on` meant) or 3 (the five items too, `one-way` when the row lists it). `readDelegation` returns `level` and `levelFrom` in place of `on`, `Switch` stays readable as a mapping, and every decision-log entry's `Grounds:` names the level and where it was read. A question with no recommendation and a stream past its appetite stay with the owner at every level, and the plugin writes no git at any level.

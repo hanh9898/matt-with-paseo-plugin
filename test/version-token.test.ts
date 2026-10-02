@@ -166,7 +166,8 @@ for (const { name, edit, offender, home } of DISAGREEMENTS) {
 test("a message carries both values, so the reader sees which to change", () => {
   const [problem] = inScratchRoot((dir) => setJson(dir, ".claude-plugin/plugin.json", ["version"], "9.9.9"));
   assert.ok(problem?.includes('"9.9.9"'));
-  assert.ok(problem?.includes('"0.0.0"'));
+  const token = (JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as { version: string }).version;
+  assert.ok(problem?.includes(`"${token}"`), `the message names package.json's ${token}`);
 });
 
 test("a change to the token alone leaves every other spelling naming package.json, and the contract version alone", () => {

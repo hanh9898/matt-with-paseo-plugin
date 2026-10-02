@@ -16,8 +16,12 @@ function readJson(name: string): Record<string, unknown> {
 const PLUGIN = ".claude-plugin/plugin.json";
 const MARKETPLACE = ".claude-plugin/marketplace.json";
 
-test("the plugin manifest holds the minimum, in a stable order: name, version, description", () => {
-  assert.deepEqual(Object.keys(readJson(PLUGIN)), ["name", "version", "description"]);
+test("the plugin manifest holds the minimum, in a stable order: name, version, description, author", () => {
+  assert.deepEqual(Object.keys(readJson(PLUGIN)), ["name", "version", "description", "author"]);
+});
+
+test("the plugin manifest's author is the marketplace's owner, so validate warns of no missing author", () => {
+  assert.deepEqual(readJson(PLUGIN)["author"], readJson(MARKETPLACE)["owner"]);
 });
 
 test("the plugin manifest names the plugin apart from the skills repository's plugin, `matt-with-paseo`", () => {

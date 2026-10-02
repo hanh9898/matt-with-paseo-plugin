@@ -1,5 +1,9 @@
 {
   "name": "matt-with-paseo-plugin",
-  "version": "0.0.0",
-  "description": "Lifecycle hooks, delegated checkpoint answers and agent wiring for the matt-with-paseo skills"
+  "version": "0.1.0",
+  "description": "Lifecycle hooks, delegated checkpoint answers and agent wiring for the matt-with-paseo skills",
+  "author": {
+    "name": "hanh9898",
+    "url": "https://github.com/hanh9898"
+  }
 }

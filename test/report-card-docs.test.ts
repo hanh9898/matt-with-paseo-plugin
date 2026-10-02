@@ -50,8 +50,9 @@ test("the README lays out the report card module and says the card has no button
   assert.match(section(readme, "### The report card"), /client\/report-card\.ts/);
 });
 
-test("CHANGELOG.md lists the report card under Unreleased", () => {
+test("CHANGELOG.md lists the report card under Unreleased, or under the release its lines moved to", () => {
   const changelog = read("CHANGELOG.md");
-  const unreleased = changelog.slice(changelog.indexOf("## [Unreleased]")).split("\n## ", 2)[0] ?? "";
-  assert.match(unreleased, /[Rr]eport card/);
+  // `[Unreleased]` and the newest release heading after it: a release moves the lines down one heading.
+  const [unreleased = "", newest = ""] = changelog.slice(changelog.indexOf("## [Unreleased]")).split("\n## ", 3);
+  assert.match(`${unreleased}\n${newest}`, /[Rr]eport card/);
 });
