@@ -489,23 +489,32 @@ async function p7(): Promise<ProbeResult> {
   const c = new Checks();
   const o = await orchestrator("sensor");
   await waitIdle(o);
-  const env = { BASH_MAX_TIMEOUT_MS: "1500000", BASH_DEFAULT_TIMEOUT_MS: "1500000" };
-  // #62: in #53's run two of the three agents were idle at minute 7, their call ended early; every parameter is named.
-  const prompt = 'Call the Bash tool exactly once, in the foreground (run_in_background false), with the parameter timeout set to 1200000 and this command: node -e "setTimeout(function(){},780000)" . The command takes 13 minutes: wait for it, do not stop it, call no other tool. When it returns, reply with exactly the word done.';
+  // #62: the agents' Bash shell on the scratch daemon finds no `node` (exit 127), and Claude Code refuses a standalone
+  // foreground `sleep`; either ends the turn at once. A shell loop of one-second sleeps is one stuck call, 9 minutes
+  // under the tool's default timeout cap of 600000 ms.
+  const prompt = "Call the Bash tool exactly once, in the foreground (run_in_background false), with the parameter timeout set to 600000 and this command: i=0; while [ $i -lt 540 ]; do sleep 1; i=$((i+1)); done; echo finished . The command takes 9 minutes: wait for it, do not stop it, call no other tool. When it returns, reply with exactly the word done.";
   const start = Date.now();
-  const stream = await newAgent({ title: `${TAG} stream`, labels: { stream: "sensor7" }, parent: o, prompt, env });
-  const ticket = await newAgent({ title: `${TAG} ticket`, labels: { wave: "1", ticket: "98" }, parent: o, prompt, env });
-  const bundle = await newAgent({ title: `${TAG} bundle`, labels: { wave: "1", bundle: "97", tickets: "97,98" }, parent: o, prompt, env });
+  const stream = await newAgent({ title: `${TAG} stream`, labels: { stream: "sensor7" }, parent: o, prompt });
+  const ticket = await newAgent({ title: `${TAG} ticket`, labels: { wave: "1", ticket: "98" }, parent: o, prompt });
+  const bundle = await newAgent({ title: `${TAG} bundle`, labels: { wave: "1", bundle: "97", tickets: "97,98" }, parent: o, prompt });
+  const agents = [stream, ticket, bundle];
+  const roles = ["stream", "ticket", "bundle"];
   const field = "UpdatedAt";
+  /** Checks all three are running; the tail of the timeline of any that is not goes into the evidence. */
+  async function running(minute: number): Promise<boolean> {
+    const states = await Promise.all(agents.map((id) => statusOf(id)));
+    c.check(`the three agents are still running at minute ${minute} (a stuck call, not a finished turn)`, states.every((s) => s === "running"), states.join(","));
+    for (const [i, id] of agents.entries()) {
+      if (states[i] !== "running") c.note(`${roles[i]} agent's timeline ends: ${brief((await logsOf(id)).slice(-300), 300)}`);
+    }
+    return states.every((s) => s === "running");
+  }
   await sleep(Math.max(0, start + 120_000 - Date.now()));
   const at2 = await inspectField(stream, field);
+  if (!(await running(2))) return c.done();
   await sleep(Math.max(0, start + 420_000 - Date.now()));
   const at7 = await inspectField(stream, field);
-  const states = await Promise.all([stream, ticket, bundle].map((id) => statusOf(id)));
-  c.check("the three agents are still running at minute 7 (a stuck call, not a finished turn)", states.every((s) => s === "running"), states.join(","));
-  for (const [i, id] of [stream, ticket, bundle].entries()) {
-    if (states[i] !== "running") c.note(`${["stream", "ticket", "bundle"][i]} agent's timeline ends: ${brief((await logsOf(id)).slice(-600), 300)}`);
-  }
+  await running(7);
   c.check(`${field} read at minute 2 and minute 7 is equal while the call is stuck`, at2 !== "" && at2 === at7, `${at2} | ${at7}`);
   const wanted = [`Stall suspected: stream sensor7, agent ${stream}`, `Stall suspected: ticket 98 of wave 1, agent ${ticket}`, `Stall suspected: bundle 97 (tickets 97,98) of wave 1, agent ${bundle}`];
   await until(() => logsOf(o), (t) => wanted.every((w) => t.includes(w)), Math.max(30, (start + 700_000 - Date.now()) / 1000));
