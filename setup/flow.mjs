@@ -235,9 +235,11 @@ async function setup({ dryRun, paseoHome, dir, mode }, ctx) {
     const listed = await ctx.run("gh", ["skill", "list", "--dir", skillsDir, "--json", "skillName,pinned,version,sourceURL"]);
     if (listed.code !== 0) return [];
     try {
+      // `skillName` reads `<folder of the repository>/<skill>` (gh 2.100.0), so only its last segment is the name.
       return JSON.parse(listed.stdout)
-        .filter((skill) => String(skill.sourceURL).includes(SKILLS_REPO) && SKILL_NAMES.includes(skill.skillName))
-        .map((skill) => ({ name: skill.skillName, tag: skill.pinned === true ? String(skill.version) : "" }));
+        .map((skill) => ({ ...skill, name: String(skill.skillName).split("/").pop() }))
+        .filter((skill) => String(skill.sourceURL).includes(SKILLS_REPO) && SKILL_NAMES.includes(skill.name))
+        .map((skill) => ({ name: skill.name, tag: skill.pinned === true ? String(skill.version) : "" }));
     } catch {
       return [];
     }

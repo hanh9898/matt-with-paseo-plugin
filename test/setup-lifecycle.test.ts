@@ -95,8 +95,9 @@ function machine(options: Options = {}) {
       stdout: JSON.stringify(
         state.skillsTag === null
           ? []
-          : SKILL_NAMES.map((skillName) => ({
-              skillName,
+          : SKILL_NAMES.map((name) => ({
+              // As gh 2.100.0 prints it: the skills repository's folder, a slash, the skill.
+              skillName: `matt-with-paseo/${name}`,
               pinned: true,
               version: state.skillsTag,
               sourceURL: "https://github.com/hanh9898/matt-with-paseo",
