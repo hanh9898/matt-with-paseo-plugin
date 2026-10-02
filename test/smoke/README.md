@@ -239,6 +239,36 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Question budget", with `
 7. Reload the plugin and end a turn. Expected: the card comes back with the decisions and the question count as before (the records survive), and the daemon restart drops the old row without harm.
 8. Archive every `[mwp-smoke]` agent, delete the three files, then `paseo plugin remove mwp-smoke`.
 
+## Setup
+
+Written, run by hand. Targets Paseo `0.10.1`. It proves `setup`, `setup --update` and `setup --remove` (`setup/`, the `npx github:hanh9898/matt-with-paseo-plugin setup` command) on a scratch home, never on the machine's own. The ticket agent runs it once on Windows and writes the line under `## Results`; the macOS and Linux runs are the human list of the milestone run.
+
+The scratch resources, all under one folder in the system temp folder:
+
+- a scratch `HOME` and `USERPROFILE`, and `LOCALAPPDATA` inside it;
+- `MWP_SETUP_DIR`, the clone's folder, and `CLAUDE_CONFIG_DIR`, the scratch Claude Code configuration, both new;
+- a scratch Paseo home passed as `--paseo-home <home>`, whose daemon has its own free port (`paseo daemon config set daemon.listen 127.0.0.1:<port> --home <home>`, then `paseo daemon start --home <home>`; the port is not the machine's daemon's). Every `paseo` call of the run carries `--home <home>`, and the daemon is stopped with the same `--home` at the end.
+
+The child environment of every step is the machine's, without `PASEO_HOME`, `PASEO_AGENT_ID`, `PASEO_AGENT_CWD`, `PASEO_CLI` and every name holding `API_KEY`, `TOKEN` or `SECRET` (`scrubEnv` in `test/smoke/smoke-plan.ts`), then the scratch values over it. `APPDATA` stays, so `gh` keeps its login there (its files are never read, and `gh auth status` is only run by setup, its exit code the only thing read). No value of the scratch environment or of a credential is printed. `mattpocock-skills` goes into the scratch `CLAUDE_CONFIG_DIR` with the two commands setup prints for it (`claude plugin marketplace add mattpocock/skills`, then `claude plugin install mattpocock-skills@mattpocock`); on a fresh configuration `claude plugin install mattpocock-skills` alone fails with `not found in any configured marketplace`.
+
+Before step 1 of a run before ship, `<setup>` is `node <checkout>/setup/cli.mjs`; `npm pack` in the checkout, then `npx <the tarball's absolute path> setup --dry-run`, shows the same command starts from `node_modules`. After ship, `<setup>` is `npx github:hanh9898/matt-with-paseo-plugin#<ref>`.
+
+1. Record the machine's own `paseo daemon status` (pid and version only) and `claude plugin list`, without `--home` or `CLAUDE_CONFIG_DIR`, to compare at step 8.
+2. `<setup> setup --paseo-home <home>` ends with every row `pass` and exit 0: the clone at `v<version>`, the Paseo plugin, the Claude Code plugin and the skills at the tag of `setup/paired.json`, with every change command printed before it ran.
+3. `<setup> setup --paseo-home <home>` again records no change command: each part says `already installed`.
+4. `<setup> setup --update --paseo-home <home>` fetches, checks out `v<version>` (nothing to do at the same tag), reloads the Paseo plugin, updates the marketplace and the Claude Code plugin, and re-installs the skills only when their tag differs; every row passes. `paseo plugin update` on a plugin installed from a folder answers `local directory; use Reload after editing` and changes nothing, so the reload is the update (read on Paseo `0.10.1`).
+5. `<setup> setup --remove --paseo-home <home>` removes the Paseo plugin, the Claude Code plugin and its marketplace, the skills and the clone, prints the path of the plugin's state folder and says it holds the decision log, kept; then `paseo plugin ls` and `claude plugin list` no longer show the plugin, and the state folder is as it was.
+6. `<setup> setup --remove --paseo-home <home>` again changes nothing: every part says `not installed`.
+7. After ship, once: `npx github:hanh9898/matt-with-paseo-plugin#<branch> setup --dry-run --paseo-home <home>` prints the prerequisite rows and every command it would run, and changes nothing (the `npx` path from GitHub; the ticket agent cannot run it, since no branch is pushed under `stream`).
+8. Stop the scratch daemon with `paseo daemon stop --home <home>`. The machine's own `paseo daemon status` (pid and version) and `claude plugin list` equal step 1's.
+
+What the first run found (2026-10-02, Paseo `0.10.1`, Windows):
+
+- `paseo daemon config get pluginsEnabled` prints JSON (`"value": true`), not `true`: `setup` read it as off and set it again on every run. Fixed in `setup/flow.mjs`.
+- `paseo plugin install <folder>` does not ask with stdin closed; `paseo plugin update <id>` on it exits 0 with `local directory; use Reload after editing`; `paseo plugin reload <id>`, `claude plugin marketplace update` and `claude plugin update` run without a terminal.
+- `gh skill list --json` names a skill `<repository folder>/<skill>` (`matt-with-paseo/matt-with-paseo`), so setup reads the last segment; read whole, `--update` took skills `gh` had installed for another route.
+- `gh skill` has no remove command: `--remove` deletes the two skill folders itself, and only when `gh skill list --dir <skills folder> --json` shows them from the skills repository at the pinned tag.
+
 ## Results
 
 - Steps | pass | 2026-10-01 | Paseo 0.10.1 | Windows_NT 10.0.26200 | Node v24.19.0 | P1: ok install exits 0; ok ls shows mwp-smoke running; ok logs hold no [matt-with-paseo] line; ok logs hold Plugin ready; ok provider ids the same with the plugin installed; ok remove exits 0 and ls no longer lists it; ok a second install runs; ok running again
@@ -256,6 +286,7 @@ Written, not run. Targets Paseo `0.10.1`. Run it after "Question budget", with `
 - Appetite | pass | 2026-10-01 | Paseo 0.10.1 | Windows_NT 10.0.26200 | Node v24.19.0 | P6: ok stream-spend.json totalUsd equals lastUsage cost (0.0143611 vs 0.0143611); ok Appetite passed: once (1); ok still once after a second turn; ok presets/cost-levels.json is in the smoke copy; list_profiles is an MCP tool the CLI cannot call: compared provider ids instead (P1)
 - Question budget | pass | 2026-10-01 | Paseo 0.10.1 | Windows_NT 10.0.26200 | Node v24.19.0 | P10: ok after one question the file holds count 1 ({"day":"2026-10-01","count":1,"notified":false}); ok no Question budget spent yet; ok one Question budget spent: 2 ... budget of 2; ok the file holds count 2 and notified ({"day":"2026-10-01","count":2,"notified":true})
 - Report card | pass | 2026-10-02 | Paseo 0.10.1 | Windows 11 Home 10.0.26200 | Node v24.19.0 | owner, in the app (level 1, no ## Delegation table): drawn as a card with no button, "Decided for you (0) / Nothing decided for you yet / All decisions: C:\Users\HBLAB_OPMS\AppData\Local\matt-with-paseo\decision-log.md / Spend $1.35 (no limit set) / Questions today: 1 (no limit set)"; screenshot report-card.png kept by the owner with the pill's; the card stays at its first row, mid-timeline (F4) // P11: ok the plugin logged no report card failure; the CLI timeline of the stream agent shows no plugin rows in text, json or yaml, so the row's kind and version are not read: human step; ok after a reload the next turn refreshes the card without a failure; the card's drawing and its lack of a button are a human step
+- Setup | pass | 2026-10-02 | Paseo 0.10.1 | Windows 11 Home 10.0.26200 | Node v24.19.0 | scratch home, scratch daemon on port 57251, the machine's environment minus the PASEO_* names and every API_KEY, TOKEN and SECRET name (7 names, never printed), APPDATA kept; mattpocock-skills installed on the scratch CLAUDE_CONFIG_DIR with the two printed commands; step 2: every row pass, exit 0 (clone at v0.1.0, the Paseo plugin after setup turned pluginsEnabled on, the Claude Code plugin, the skills at v0.8.0); step 3: no change command; step 4: fetch, plugin reload, marketplace update, plugin update, skills left at v0.8.0, every row pass, and with the skills at v0.7.0 one gh skill install ... --pin v0.8.0 --force, then v0.8.0; step 5: three removal commands, two skill folders and the clone removed, state folder path printed and kept, exit 0; step 6: every part not installed, exit 0; not run: the first-run checkout and npm ci of --update (fake runner only), and step 7 (no pushed branch; the npm pack tarball ran by npx setup --dry-run on the same home, exit 0); the machine's own daemon (pid 8268, 0.10.1) and claude plugin list equal before and after; scratch daemon pid 23640 stopped with its own --home
 - Clean-up | pass | 2026-10-01 | Paseo 0.10.1 | Windows_NT 10.0.26200 | Node v24.19.0 | plugin remove exit 0; daemon stop: stopped: C:\Users\HBLAB_OPMS\AppData\Local\Temp\plugin-real-host-53\plugin-real-...; status: stopped; scratch folder deleted
 
 Only a person can do:

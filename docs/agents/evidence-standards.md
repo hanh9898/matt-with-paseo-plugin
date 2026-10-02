@@ -43,6 +43,10 @@ The run's results go into the `release/v0.x.0` pull request under Evidence: the 
 - **A screenshot for what the user sees**: a card, a pill or a panel, in Paseo's own window.
 - **Counts that match.** The test run's count of test files matches the test files git tracks. A mismatch is a finding.
 
+## Setup
+
+Setup (`setup/`) is proven at the ticket by unit tests on the fake runner ([`test/support/fake-runner.ts`](../../test/support/fake-runner.ts)), which start no process, and at the milestone run by the "Setup" section of [`test/smoke/README.md`](../../test/smoke/README.md), run on a scratch home only.
+
 ## Writing files
 
 Agents write and edit files with the Edit and Write tools, never through a shell heredoc, `echo`, or a script's string literals. The shell here drops backslashes, so `\n`, `\b` and `\(` in a regular expression or a Windows path arrive broken. After any scripted change, search the tracked files for control characters: `git ls-files | xargs grep -lP '[\x00-\x08\x0b\x0c\x0e-\x1f]'` prints nothing.
