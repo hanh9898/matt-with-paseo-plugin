@@ -18,6 +18,10 @@ The milestone run ([`docs/agents/evidence-standards.md`](evidence-standards.md))
 8. Merge the release pull request from `release/v0.x.0` into `main`. Done when the pull request shows merged and CI is green on all three systems.
 9. The user tags the release `v0.x.0` on the merge commit. Done when the tag exists on `main`; an agent never tags.
 
+## Check the paired skills tag
+
+1. When `CONTRACT_VERSION` in `shared/contract.ts` or the contract version the skills require changes, set `skills` in `setup/paired.json` to the skills release that requires this plugin's contract version (the two repositories pair by contract version, not by release number, see `docs/roadmap.md`). Done when the tag in `setup/paired.json` is a skills release that requires the contract version on the `Contract version:` line of `docs/contract.md`.
+
 ## Widen the host range
 
 1. Read the new minor's changelog. Done when you have written down each change that touches a hook the plugin registers, a call in `server/paseo-host.ts`, or the manifest schema, or written "none".

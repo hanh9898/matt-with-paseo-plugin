@@ -10,6 +10,18 @@ The design case is the unattended stream; a single wave is helped too. The plugi
 
 What the plugin will never do is written in [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md); [ADR 0004](docs/adr/0004-three-autonomy-levels.md) sets three autonomy levels, and the five owner items (a change to the concept, adding or dropping tickets, spend past the appetite, irreversible actions, merging the PR) reach the owner below level 3. Where it is going, release by release, is in the [roadmap](docs/roadmap.md).
 
+## Setup
+
+One command installs the three parts (the skills, the Paseo plugin and the Claude Code plugin) on Windows (PowerShell and cmd), macOS and Linux:
+
+```
+npx github:hanh9898/matt-with-paseo-plugin setup
+```
+
+It checks the prerequisites (Node 22.18 or later, git, `gh` logged in with `gh skill`, Claude Code, a Paseo CLI inside `requirements.paseo` with its daemon running, and `mattpocock-skills`) and stops before any change, listing every missing item with how to install it. Then it clones this repository at the package's own version into `~/.matt-with-paseo/plugin` and runs `npm ci` there, installs each part that is not installed yet, verifies all of them in one pass/fail table, and prints a `## Delegation` sample at level 1 to paste into a repository's `AGENTS.md`. The skills install with `gh skill install … --pin` at the tag in `setup/paired.json`; skills already installed some other way are skipped and named. When `pluginsEnabled` is off, setup says so and turns it on with `paseo daemon config set` and `paseo reload`. It prints every command before it runs it and is safe to run again; `--dry-run` checks the prerequisites and prints the commands without running any. `MWP_SETUP_DIR` (an absolute path) moves the clone, `--paseo-home <path>` is passed as `--home` to every `paseo` command, and `CLAUDE_CONFIG_DIR` moves the skills to its `skills` folder.
+
+Setup is an installer the owner runs by hand, not the plugin at run time, so it stays inside every non-goal of [ADR 0002](docs/adr/0002-what-the-plugin-will-never-do.md): it is optional, and the manual install from a clone in [Development](#development) stays the alternative; it touches no target repository, only its install folder; it never edits a Paseo or Claude Code file itself, and runs only `paseo`, `claude` and `gh` commands the owner could type; and its only git is the clone, fetch and checkout of its own folder, never a commit, push or merge. It reads no credential: `gh auth status` is read for its exit code only.
+
 ## Development
 
 The plugin is a Paseo plugin written in TypeScript. Node 22.18 or later runs the tests without a build step, since from 22.18 Node strips TypeScript types by default; the plugin was tested on Node 22 and Node 24, and `package.json` has no `engines` field, so npm does not refuse another version.
@@ -67,8 +79,17 @@ Supported Paseo host: `>=0.10.1 <0.11.0` (`requirements.paseo` in [`paseo-plugin
 | `presets/` | The cost level presets, `cost-levels.json`: data, not code |
 | `guard/git-guard.mjs` | The git guard: a standalone Node script a `PreToolUse` hook runs |
 | `hooks/hooks.json` | The hook file that runs the guard for an agent that loads the plugin |
+| `setup/` | The installer behind `npx github:hanh9898/matt-with-paseo-plugin setup` (see [Setup](#setup)): plain `.mjs` on Node's standard library, not plugin code, so nothing the daemon or the app loads imports it |
+| `setup/cli.mjs` | The bin `matt-with-paseo`: reads the arguments and the two settings, and hands the real runner to the flow |
+| `setup/flow.mjs` | The flow: prerequisites, the clone, the three parts, the verify table and the `## Delegation` sample |
+| `setup/run.mjs` | The runner seam: the one module under `setup/` that starts a process, and the quoting for Windows' `.cmd` shims |
+| `setup/hints.mjs` | What setup prints for each missing prerequisite, per platform |
+| `setup/range.mjs` | The version-range check for `requirements.paseo` and the Node minimum |
+| `setup/delegation-sample.mjs` | The `## Delegation` sample setup prints, at level 1 |
+| `setup/paired.json` | The skills release tag setup pins: data, not code |
 | `test/` | The tests (`*.test.ts`) and the [smoke test](test/smoke/README.md) |
 | `test/support/fake-host.ts` | The fake adapter of the port, for tests |
+| `test/support/fake-runner.ts` | The fake runner for setup's tests: answers each command from a table and records each call; no process starts |
 | `test/support/version-token.ts` | Reads every spelling of the version and the plugin id, and names the files that disagree |
 | `test/hooks/` | One test per hook handler, named after it |
 
