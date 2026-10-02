@@ -300,6 +300,7 @@ The skills declare the contract version they require as a whole number, in a lin
 | Plugin release | Contract version |
 |---|---|
 | 0.1.0 | 1 |
+| 0.1.1 | 1 |
 
 ## Versioning
 

@@ -85,7 +85,7 @@ If the skills side is late, `v0.1.0` ships the plugin alone, with its delegation
 
 ## v0.1.1: One-command setup
 
-Status: planned. A patch release of the stream `plugin-setup`: `npx github:hanh9898/matt-with-paseo-plugin setup` installs the Paseo plugin, the Claude Code plugin and the skills in one command, and `--update` and `--remove` keep them. It changes no plugin behaviour.
+Status: milestone run done (smoke on Windows and Linux, review, fix pass; macOS not run) on `release/v0.1.1`, shipping in its pull request into `main`; the user tags `v0.1.1` once it merges. Put off to `v0.2.0` from its review: #89. A patch release of the stream `plugin-setup`: `npx github:hanh9898/matt-with-paseo-plugin setup` installs the Paseo plugin, the Claude Code plugin and the skills in one command, and `--update` and `--remove` keep them. It changes no plugin behaviour.
 
 ### New tickets
 

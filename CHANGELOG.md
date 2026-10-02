@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-02
+
+Contract version 1, as in 0.1.0. No plugin behaviour changes.
+
+### Added
+
+- One-command setup (#65): `npx github:hanh9898/matt-with-paseo-plugin setup` checks the prerequisites (Node 22.18 or later, git, `gh` logged in with `gh skill`, Claude Code, a Paseo CLI inside `requirements.paseo` with its daemon running, `mattpocock-skills`) and stops before any change when one is missing; then it clones this repository at the package's version into `~/.matt-with-paseo/plugin` (`MWP_SETUP_DIR` moves it) and runs `npm ci`, turns `pluginsEnabled` on after saying plugins run unsandboxed, installs the Paseo plugin, the Claude Code plugin and the skills (`gh skill install … --pin` at the tag of `setup/paired.json`), prints a pass/fail table, the app-reload reminder and a `## Delegation` sample at level 1. Every command is printed before it runs; `--dry-run` runs none; `--paseo-home` passes `--home` to every `paseo` call.
+- `setup --update` and `setup --remove` (#66): `--update` checks out the package's version in the clone, reloads the Paseo plugin, updates the Claude Code plugin and re-installs the skills only when their tag differs; `--remove` removes what setup installed, never a prerequisite and never the plugin's state folder, whose path it prints. The "Setup" section of `test/smoke/README.md` runs all three on a scratch home.
+
+### Fixed
+
+- Setup's verify table passes the Paseo plugin only when `paseo plugin ls --json` reports it `running`, and names its status otherwise.
+- A `pluginsEnabled` setup cannot read (the command fails, or prints no boolean) stops setup before any change, instead of being set again.
+- A full `run-smoke.ts` run keeps the `## Results` lines of the sections it does not run, such as "Setup".
+- The smoke step that runs setup from an `npm pack` tarball gives it to `npx` as `file:<path>`: a bare absolute path never ran setup.
+
 ## [0.1.0] - 2026-10-02
 
 ### Added
