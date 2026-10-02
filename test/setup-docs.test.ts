@@ -38,6 +38,18 @@ test("the Setup section names the one command, its dry run, the overrides, and l
   assert.ok(links(setup).includes("#development"), "points to the manual install in Development");
 });
 
+test("the README's state section names setup/, its exemption's check and the check that pins its copy of the state rule", () => {
+  const state = section(read("README.md"), "### State outside the repository");
+  for (const token of ["`setup/`", "`test/state-outside-repo.test.ts`", "`test/setup-lifecycle.test.ts`", "`server/state-location.ts`"]) {
+    assert.ok(state.includes(token), `the state section names ${token}`);
+  }
+});
+
+test("the Setup section names the folders --remove deletes itself, since gh skill has no remove command", () => {
+  const setup = section(read("README.md"), "## Setup");
+  for (const token of ["`gh skill`", "`--remove`", "`matt-with-paseo`", "`matt-with-paseo-streams`"]) assert.ok(setup.includes(token), `the Setup section names ${token}`);
+});
+
 test("the README's path table has a row for setup/ and for each file in it, and for the fake runner", () => {
   const rows = read("README.md").split("\n").filter((line) => line.startsWith("| `"));
   const files = readdirSync(join(root, "setup")).map((name) => `setup/${name}`);

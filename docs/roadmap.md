@@ -96,7 +96,7 @@ Status: planned. A patch release of the stream `plugin-setup`: `npx github:hanh9
 
 In the order they are met:
 
-1. CI is green on Windows, macOS and Linux.
+1. CI (`.github/workflows/ci.yml`) is green on Windows, macOS and Linux.
 2. The "Setup" section of `test/smoke/README.md` passes on a scratch home.
 3. One version token, `0.1.1`, across the manifests, and `CHANGELOG.md` has its entry (the release stream's part, per the [release checklist](agents/release-checklist.md)).
 4. The `v0.1.1` milestone run.
