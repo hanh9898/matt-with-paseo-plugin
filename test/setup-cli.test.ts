@@ -62,10 +62,12 @@ test("no plugin code imports setup/: setup is not plugin code", () => {
   assert.deepEqual(plugin.filter((path) => importsOf(read(path)).some((spec) => /(^|\/)setup\//.test(spec))), []);
 });
 
-test("setup reads no environment variable but MWP_SETUP_DIR and CLAUDE_CONFIG_DIR", () => {
+test("setup reads no environment variable but MWP_SETUP_DIR, CLAUDE_CONFIG_DIR and the three that name the state folder", () => {
   const reads = setupModules().flatMap((path) => [...read(path).matchAll(/process\.env(\.\w+|\[[^\]]*\])?/g)].map(([whole]) => `${path}: ${whole}`));
   assert.ok(reads.length > 0, "the check sees the reads");
-  assert.deepEqual(reads.filter((what) => !/process\.env\.(MWP_SETUP_DIR|CLAUDE_CONFIG_DIR)$/.test(what)), []);
+  assert.deepEqual(reads.filter((what) => !/process\.env\.(MWP_SETUP_DIR|CLAUDE_CONFIG_DIR|MWP_STATE_DIR|LOCALAPPDATA|XDG_DATA_HOME)$/.test(what)), []);
+  // The last three are for `--remove`, which prints the state folder `server/state-location.ts` names.
+  for (const name of ["MWP_STATE_DIR", "LOCALAPPDATA", "XDG_DATA_HOME"]) assert.ok(reads.includes(`setup/cli.mjs: process.env.${name}`), `cli.mjs passes ${name}`);
 });
 
 test("on Windows the runner goes through the shell with every argument quoted, so a .cmd shim runs", () => {
