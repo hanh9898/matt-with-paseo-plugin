@@ -87,6 +87,13 @@ test("Results has a Setup line: section, status, date, Paseo, OS, Node, then the
   assert.match(fields[5] ?? "", /^Node v\d+\./);
 });
 
+// The README
+
+test("the README's Setup section names --update and --remove", () => {
+  const setup = section(read("README.md"), "## Setup");
+  for (const token of ["--update", "--remove"]) assert.ok(setup.includes(token), `the Setup section names ${token}`);
+});
+
 // The roadmap
 
 test("the roadmap has a v0.1.1 section right after v0.1.0, with its two tickets and its four exit criteria", () => {

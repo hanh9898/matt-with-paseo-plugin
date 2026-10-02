@@ -218,7 +218,7 @@ const MISSING: { item: string; hint: RegExp; options: Options }[] = [
   { item: "Paseo CLI", hint: /paseo\.sh/, options: { answers: { "paseo --version": { code: 127 } } } },
   { item: "Paseo CLI", hint: new RegExp(RANGE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), options: { answers: { "paseo --version": { stdout: `${HIGH}\n` } } } },
   { item: "Paseo daemon", hint: /paseo daemon start/, options: { answers: { "paseo daemon status": { code: 1 } } } },
-  { item: "Matt's skills", hint: /claude plugin install mattpocock-skills/, options: { state: { mattpocock: false } } },
+  { item: "Matt's skills", hint: /claude plugin marketplace add mattpocock\/skills.*claude plugin install mattpocock-skills@mattpocock/, options: { state: { mattpocock: false } } },
 ];
 
 for (const { item, hint, options } of MISSING) {
